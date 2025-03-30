@@ -7,6 +7,17 @@ Transitioning to Phase 4: Desktop Features - Implementing system tray integratio
 - Enhancing URL and Parent URL conversion with Puppeteer for better content extraction
 
 ## Recent Changes
+- Fixed Chat Bubble Avatar Display and Scrolling Issues:
+  - Completely restructured ChatBubble.svelte component for proper avatar display
+  - Moved avatars outside the chat bubble to create a layered effect
+  - Changed the DOM structure to position avatars after the chat bubble in the markup
+  - Fixed horizontal and vertical scrolling issues in chat bubbles
+  - Adjusted avatar size and positioning for better visual appearance
+  - Modified WelcomeChat.svelte to use visible overflow instead of auto
+  - Improved responsive behavior with proper box-sizing
+  - Ensured content fits without requiring scrolling
+  - Fixed issue with book emoji covering text by adjusting padding
+
 - Enhanced URL and Parent URL Conversion with Puppeteer:
   - Replaced Cheerio and Got with Puppeteer for better content extraction
   - Implemented browser instance management for efficient resource usage
