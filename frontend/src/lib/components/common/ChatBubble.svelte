@@ -14,10 +14,22 @@
   class:container-right={avatarPosition === 'right'}
   in:fade|local={{delay: delay, duration: 300}}
 >
-<div 
-  class="chat-bubble"
-  in:fly|local={{delay: delay, duration: 400, y: 20}}
->
+  <div 
+    class="chat-bubble"
+    class:bubble-left={avatarPosition === 'left'}
+    class:bubble-right={avatarPosition === 'right'}
+    in:fly|local={{delay: delay, duration: 400, y: 20}}
+  >
+    <div class="message-content">
+      {#if showName}
+        <div class="name">{name}</div>
+      {/if}
+      <div class="message">
+        {@html message}
+      </div>
+    </div>
+  </div>
+  
   <!-- Left avatar -->
   {#if avatarPosition === 'left'}
     <div class="avatar-bubble avatar-left">
@@ -31,27 +43,17 @@
       <span class="avatar">{avatar}</span>
     </div>
   {/if}
-  
-  <div class="message-content">
-    {#if showName}
-      <div class="name">{name}</div>
-    {/if}
-    <div class="message">
-      {@html message}
-    </div>
-  </div>
-</div>
 </div>
 
 <style>
   .chat-bubble-container {
+    position: relative;
     margin-bottom: 40px;
-    padding-left: 40px;
-  }
-
-  .container-right {
-    padding-left: 0;
-    padding-right: 40px;
+    padding: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    box-sizing: border-box;
   }
 
   .chat-bubble {
@@ -62,6 +64,21 @@
     box-shadow: 
       0 4px 6px rgba(0, 0, 0, 0.05),
       0 6px 12px rgba(0, 0, 0, 0.05);
+    width: calc(100% - 80px);
+    box-sizing: border-box;
+    z-index: 1;
+  }
+  
+  .bubble-left {
+    margin-left: 40px;
+    margin-right: 20px;
+    padding-left: var(--spacing-lg);
+  }
+  
+  .bubble-right {
+    margin-right: 40px;
+    margin-left: 20px;
+    padding-right: var(--spacing-lg);
   }
 
 
@@ -100,8 +117,8 @@
 
   .avatar-bubble {
     position: absolute;
-    width: 65px;
-    height: 65px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -117,17 +134,18 @@
       0 4px 8px rgba(0, 0, 0, 0.15),
       0 8px 16px rgba(0, 0, 0, 0.1),
       inset 0 2px 3px rgba(255, 255, 255, 0.3);
-    z-index: 2;
+    z-index: 10;
+    border: 2px solid white;
   }
 
   .avatar-left {
-    top: -15px;
-    left: -40px;
+    top: 0;
+    left: 0;
   }
 
   .avatar-right {
-    top: -20px;
-    right: -30px;
+    top: 0;
+    right: 0;
   }
 
   .book-icon {
@@ -171,10 +189,18 @@
     opacity: 0.9;
   }
 
+  .message-content {
+    width: 100%;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+
   .message {
     color: var(--color-text);
     font-size: var(--font-size-base);
     line-height: 1.5;
+    max-width: 100%;
   }
 
   .message :global(.codex-md-brand) {
@@ -202,6 +228,7 @@
   .message :global(.feature-list) {
     margin: var(--spacing-xs) 0;
     padding-left: var(--spacing-lg);
+    list-style-position: outside;
   }
 
   .message :global(.feature-list li) {
@@ -226,35 +253,31 @@
 
   @media (max-width: 640px) {
     .chat-bubble-container {
-      padding-left: 35px;
-    }
-
-    .container-right {
-      padding-left: 0;
-      padding-right: 35px;
-    }
-
-    .avatar-bubble {
-      width: 55px;
-      height: 55px;
-      top: -12px;
-    }
-
-    .avatar-left {
-      left: -35px;
-    }
-
-    .avatar-right {
-      top: -16px;
-      right: -25px;
-    }
-
-    .avatar {
-      font-size: 26px;
+      margin-bottom: 30px;
     }
 
     .chat-bubble {
+      width: calc(100% - 50px);
       padding: var(--spacing-sm) var(--spacing-md);
+    }
+    
+    .bubble-left {
+      margin-left: 25px;
+      margin-right: 10px;
+    }
+    
+    .bubble-right {
+      margin-right: 25px;
+      margin-left: 10px;
+    }
+
+    .avatar-bubble {
+      width: 40px;
+      height: 40px;
+    }
+
+    .avatar {
+      font-size: 20px;
     }
   }
 </style>

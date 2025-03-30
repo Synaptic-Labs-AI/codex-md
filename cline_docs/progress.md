@@ -4,6 +4,13 @@ This document tracks what has been completed and what remains to be built in the
 
 ## Completed Features
 
+- Fixed UI Issues:
+  - Fixed chat bubble avatar display and scrolling issues
+  - Restructured ChatBubble.svelte component for proper avatar layering
+  - Modified WelcomeChat.svelte to prevent unwanted scrollbars
+  - Improved responsive behavior for different screen sizes
+  - Enhanced visual appearance of chat interface
+
 - Implemented Browser Service for Puppeteer:
   - Created a new BrowserService to manage a single Puppeteer browser instance
   - Implemented lazy initialization to start browser only when needed
