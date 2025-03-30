@@ -1,0 +1,30 @@
+{
+  "name": "mdcodex-frontend",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^5.2.11",
+    "@sveltejs/kit": "^2.20.2",
+    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "@types/node": "^22.10.5",
+    "express": "^4.21.2",
+    "file-saver": "^2.0.5",
+    "svelte": "^4.2.19",
+    "svelte-check": "^3.4.3",
+    "svelte-preprocess": "^6.0.3",
+    "typescript": "^5.7.2",
+    "uuid": "^11.0.4"
+  },
+  "dependencies": {
+    "@sveltejs/adapter-auto": "^5.0.0",
+    "archiver": "^6.0.1",
+    "skeleton-elements": "^4.0.1"
+  }
+}
