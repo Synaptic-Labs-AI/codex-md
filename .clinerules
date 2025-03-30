@@ -1,0 +1,62 @@
+# Cline Rules for Obsidian Converter
+
+This file documents important patterns, preferences, and project intelligence that help maintain consistency and best practices throughout the codebase.
+
+## UI Patterns
+
+### Welcome Messages
+- Welcome messages (chat bubbles) should only appear when the user first opens the app
+- Use the welcomeState store to track if messages have been shown during the current session
+- Pattern implemented in CodexMdConverter.svelte:
+  1. Import welcomeState store
+  2. Subscribe to store value in component
+  3. Only show welcome messages if hasSeenWelcome is false
+  4. Mark as seen after showing messages
+  5. Clean up subscription in onMount return function
+- This ensures messages don't reappear when navigating between pages
+
+### Navigation
+- Navigation between pages should preserve application state
+- Use SvelteKit's client-side navigation rather than full page reloads
+- Avoid window.location.reload() except when explicitly needed for a full reset
+
+## Code Organization
+
+### Store Pattern
+- Each store should be in its own file in frontend/src/lib/stores/
+- Export stores from index.js for easy importing
+- Stores should follow a consistent pattern:
+  - Use writable/readable as appropriate
+  - Export methods for common operations (update, reset, etc.)
+  - Include clear documentation on purpose and related components
+
+### Component Structure
+- Components should be organized by feature/function
+- Common UI components go in frontend/src/lib/components/common/
+- Feature-specific components go in dedicated subdirectories
+- Each component should have a clear single responsibility
+
+## Electron Integration
+
+### IPC Communication
+- Use IPC for all communication between main and renderer processes
+- Avoid direct Node.js API usage in renderer process
+- Follow the modular pattern in frontend/src/lib/api/electron/
+
+### File System Operations
+- Always use the FileSystemService for file operations
+- Validate paths before operations
+- Handle errors gracefully with user feedback
+
+## Documentation
+
+### Code Comments
+- Include detailed comments at the top of each file explaining its purpose
+- Document connections to other files/components
+- Use JSDoc style for function documentation
+- Explain complex logic or non-obvious implementations
+
+### Memory Bank Updates
+- Update activeContext.md with all significant changes
+- Keep progress.md current with completed and pending items
+- Document technical decisions and patterns in systemPatterns.md

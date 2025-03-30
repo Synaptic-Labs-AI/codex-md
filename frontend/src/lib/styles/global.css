@@ -1,0 +1,335 @@
+/* =================
+   Global CSS for Obsidian Note Converter
+   Organized by:
+   1. CSS Variables (Theme)
+   2. Reset & Base Styles
+   3. Typography
+   4. Layout & Grid
+   5. Component Base Styles
+   6. Utility Classes
+   7. Animations
+   8. Media Queries
+   ================= */
+
+/* ----------------- 1. CSS Variables (Theme) ----------------- */
+:root {
+  /* Colors - Interface */
+  --color-prime: #00A99D; /* Persian Green */
+  --color-prime-rgb: 0, 169, 157;
+  --color-second: #93278F; /* Dark Purple */
+  --color-second-rgb: 147, 39, 143;
+  --color-third: #33475B; /* Cello */
+  --color-third-rgb: 51, 71, 91;
+  --color-fourth: #F7931E; /* Carrot Orange */
+  --color-fourth-rgb: 247, 147, 30;
+  --color-fifth: #29ABE2; /* Summer Sky */
+  --color-fifth-rgb: 41, 171, 226;
+  --color-surface: #fbf7f1; /* Floral White - our white alternative */
+  --color-background: #fbf7f1; /* Floral White */
+  --color-border: rgba(0, 0, 0, 0.1);
+
+  /* Colors - Feedback */
+  --color-success: #23d160;
+  --color-error: #ff3860;
+  --color-error-light: #ff6b8e;
+  --color-error-rgb: 255, 56, 96;
+  --color-warning: #ffdd57;
+  --color-disabled: #cccccc;
+
+  /* Colors - Text */
+  --color-text: #333333;
+  --color-text-light: rgba(51, 51, 51, 0.7);
+  --color-text-on-dark: #ffffff;
+
+  /* Spacing Scale */
+  --spacing-2xs: 0.375rem; /* 6px */
+  --spacing-xs: 0.75rem;   /* 12px */
+  --spacing-sm: 1rem;      /* 16px */
+  --spacing-md: 1.5rem;    /* 24px */
+  --spacing-lg: 2rem;      /* 32px */
+  --spacing-xl: 3rem;      /* 48px */
+  --spacing-2xl: 4rem;     /* 64px */
+
+  /* Container Widths */
+  --content-width-sm: 35rem;  /* 560px */
+  --content-width-md: 55rem;  /* 880px */
+  --content-width-lg: 75rem;  /* 1200px */
+
+  /* Typography */
+  --font-size-xs: 0.875rem;   /* 14px */
+  --font-size-sm: 1rem;       /* 16px */
+  --font-size-base: 1.125rem; /* 18px */
+  --font-size-lg: 1.25rem;    /* 20px */
+  --font-size-xl: 1.5rem;     /* 24px */
+  --font-size-2xl: 2rem;      /* 32px */
+  --font-size-3xl: 2.5rem;    /* 40px */
+  --font-size-4xl: 3rem;      /* 48px */
+
+  /* Font Weights */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Border Radius */
+  --rounded-sm: 4px;
+  --rounded-md: 8px;
+  --rounded-lg: 12px;
+  --rounded-full: 9999px;
+
+  /* Effects */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.16);
+
+  /* Transitions */
+  --transition-duration-normal: 300ms;
+  --transition-timing-ease: ease-in-out;
+
+  /* Z-index Scale */
+  --z-behind: -1;
+  --z-normal: 1;
+  --z-above: 10;
+  --z-modal: 100;
+  --z-toast: 1000;
+}
+
+/* ----------------- 2. Reset & Base Styles ----------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Montserrat', system-ui, sans-serif;
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ----------------- 3. Typography ----------------- */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+h1 { font-size: var(--font-size-3xl); }
+h2 { font-size: var(--font-size-2xl); }
+h3 { font-size: var(--font-size-xl); }
+
+p { margin: 0 0 var(--spacing-md); }
+
+/* ----------------- 4. Layout & Grid ----------------- */
+.container {
+  width: 100%;
+  max-width: var(--content-width-lg);
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+}
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-sm { gap: var(--spacing-sm); }
+.gap-md { gap: var(--spacing-md); }
+
+/* ----------------- 5. Component Base Styles ----------------- */
+.card {
+  background: var(--color-surface);
+  border-radius: var(--rounded-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+  transition: box-shadow var(--transition-duration-normal) var(--transition-timing-ease),
+              transform var(--transition-duration-normal) var(--transition-timing-ease);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--rounded-md);
+  border: none;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+  background: var(--color-prime);
+  color: var(--color-text-on-dark);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--rounded-md);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  transition: border-color var(--transition-duration-normal) var(--transition-timing-ease);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-prime);
+}
+
+/* ----------------- 6. Utility Classes ----------------- */
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+
+.m-0 { margin: 0; }
+.p-0 { padding: 0; }
+
+.hidden { display: none; }
+.visible { visibility: visible; }
+.invisible { visibility: hidden; }
+
+/* ----------------- 7. Animations ----------------- */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-duration-normal) var(--transition-timing-ease);
+}
+
+.animate-slide-in {
+  animation: slideIn var(--transition-duration-normal) var(--transition-timing-ease);
+}
+
+/* ----------------- 8. Media Queries ----------------- */
+/* Tablet */
+@media (max-width: 768px) {
+  :root {
+    --content-width-lg: 100%;
+    --spacing-lg: var(--spacing-md);
+    --spacing-md: var(--spacing-sm);
+  }
+
+  .container {
+    padding: 0 var(--spacing-md);
+  }
+  
+  .btn {
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: var(--font-size-base);
+  }
+
+  .card {
+    padding: var(--spacing-md);
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  body {
+    font-size: var(--font-size-sm);
+  }
+
+  h1 { font-size: var(--font-size-2xl); }
+  h2 { font-size: var(--font-size-xl); }
+  h3 { font-size: var(--font-size-lg); }
+
+  .card {
+    padding: var(--spacing-sm);
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  :root {
+    --color-border: currentColor;
+  }
+
+  .card,
+  .btn,
+  .input {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-surface: #1a1a1a;
+    --color-background: #2c2c2c;
+    --color-text: #f0f0f0;
+    --color-text-light: rgba(240, 240, 240, 0.7);
+    --color-border: rgba(255, 255, 255, 0.1);
+    /* Adjust gradient colors to be more vibrant in dark mode */
+    --color-prime: #00c4b4;
+    --color-second: #b42eac;
+  }
+}
+
+/* Utility Classes */
+.u-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.u-max-width-lg {
+  max-width: var(--content-width-lg);
+  margin: 0 auto;
+}
+
+.u-gap-md {
+  gap: var(--spacing-md);
+}
+
+.u-flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Brand Styling */

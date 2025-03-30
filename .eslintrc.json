@@ -1,0 +1,43 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:electron/recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "plugins": [
+    "electron"
+  ],
+  "rules": {
+    "indent": ["error", 2],
+    "linebreak-style": ["error", "unix"],
+    "quotes": ["error", "double"],
+    "semi": ["error", "always"],
+    "no-unused-vars": ["warn"],
+    "electron/callback-sync": "error",
+    "electron/no-new-require": "error",
+    "electron/no-path-join-dirname": "error",
+    "electron/security-warnings": "error"
+  },
+  "overrides": [
+    {
+      "files": ["src/electron/**/*.js"],
+      "rules": {
+        "node/no-unpublished-require": "off",
+        "node/no-missing-require": "off"
+      }
+    }
+  ],
+  "settings": {
+    "electron": {
+      "electronVersion": "28.0.0"
+    }
+  }
+}

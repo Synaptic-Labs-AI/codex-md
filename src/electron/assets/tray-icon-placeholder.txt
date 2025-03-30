@@ -1,0 +1,1 @@
+This is a placeholder for the tray icon. Replace with an actual icon file (PNG or ICO format).
