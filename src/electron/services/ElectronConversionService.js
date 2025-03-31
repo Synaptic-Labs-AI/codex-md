@@ -172,24 +172,35 @@ class ElectronConversionService {
         }
       };
 
-      // Read file content
-      const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'webm', 'avi']
-        .includes(fileType.toLowerCase());
+      // Determine if this is a video file
+      const isVideoFile = ['mp4', 'webm', 'avi'].includes(fileType.toLowerCase());
       
-      const fileContent = await this.fileSystem.readFile(filePath, isBinaryFile ? null : undefined);
+      let conversionResult;
       
-      if (!fileContent.success) {
-        throw new Error(`Failed to read file: ${fileContent.error}`);
+      if (isVideoFile) {
+        // Use video converter adapter directly for streaming support
+        const { convertVideoToMarkdown } = require('../adapters/videoConverterAdapter');
+        conversionResult = await convertVideoToMarkdown(filePath, fileName);
+      } else {
+        // Handle other file types normally
+        const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'wav']
+          .includes(fileType.toLowerCase());
+        
+        const fileContent = await this.fileSystem.readFile(filePath, isBinaryFile ? null : undefined);
+        
+        if (!fileContent.success) {
+          throw new Error(`Failed to read file: ${fileContent.error}`);
+        }
+
+        updateProgress(20);
+
+        // Convert content
+        conversionResult = await this.converter.convertToMarkdown(fileType, fileContent.data, {
+          name: fileName,
+          ...options,
+          onProgress: (progress) => updateProgress(20 + (progress * 0.7))
+        });
       }
-
-      updateProgress(20);
-
-      // Convert content
-      const conversionResult = await this.converter.convertToMarkdown(fileType, fileContent.data, {
-        name: fileName,
-        ...options,
-        onProgress: (progress) => updateProgress(20 + (progress * 0.7))
-      });
 
       if (!conversionResult || !conversionResult.content) {
         throw new Error('Conversion produced empty content');

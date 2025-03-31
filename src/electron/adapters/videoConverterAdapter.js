@@ -15,13 +15,14 @@
 const BaseModuleAdapter = require('./BaseModuleAdapter');
 const ApiKeyService = require('../services/ApiKeyService');
 const PageMarkerService = require('../services/PageMarkerService');
+const StreamingFileService = require('../services/StreamingFileService');
 
 // Create the video converter adapter
 class VideoConverterAdapter extends BaseModuleAdapter {
   constructor() {
     super(
       'src/services/converter/multimedia/videoConverter.js',
-      'convertVideoToMarkdown'
+      'videoConverter'
     );
   }
   
@@ -31,7 +32,7 @@ class VideoConverterAdapter extends BaseModuleAdapter {
    * @param {string} originalName - Original filename
    * @returns {Promise<{content: string, images: Array, pageCount: number}>}
    */
-  async convertVideoToMarkdown(input, originalName) {
+  async convertVideoToMarkdown(filePath, originalName) {
     try {
       // Get API key from secure storage
       const apiKey = await ApiKeyService.getApiKey('openai');
@@ -39,17 +40,20 @@ class VideoConverterAdapter extends BaseModuleAdapter {
         throw new Error('OpenAI API key is required for video transcription');
       }
       
-      console.log(`🎬 [VideoConverter] Converting video file: ${originalName}`);
+      console.log(`🎬 [VideoConverter] Processing video file: ${originalName}`);
       
-      // Determine MIME type from file extension
-      const fileExt = originalName.split('.').pop().toLowerCase();
-      const mimeType = `video/${fileExt}`;
+      // Stream and process the video file
+      const { buffer, type } = await StreamingFileService.processVideoFile(filePath, {
+        onProgress: (progress) => {
+          console.log(`📊 [VideoConverter] Reading video: ${Math.round(progress)}%`);
+        }
+      });
       
       // Call the backend video converter with options
-      const result = await this.executeMethod('default', [input, { 
+      const result = await this.executeMethod('default', [buffer, { 
         name: originalName,
         apiKey,
-        mimeType
+        mimeType: `video/${type}`
       }]);
       
       console.log(`✅ [VideoConverter] Transcription successful:`, {

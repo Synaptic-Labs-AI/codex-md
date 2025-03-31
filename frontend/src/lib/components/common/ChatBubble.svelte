@@ -148,17 +148,6 @@
     right: 0;
   }
 
-  .book-icon {
-    position: absolute;
-    top: -10px;
-    right: -5px;
-    font-size: 20px;
-    opacity: 0.8;
-    transform: rotate(15deg);
-    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.1));
-    z-index: 3;
-  }
-
   .avatar-bubble::before {
     content: '';
     position: absolute;

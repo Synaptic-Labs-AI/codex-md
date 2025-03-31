@@ -9,10 +9,31 @@
   import { apiKey } from '$lib/stores/apiKey';
   
   let hasSeenWelcome = false;
+  let isOpen = true; // Always start open
+  let visibleMessages = [];
+  let apiKeyValue;
   
   // Subscribe to welcome state
   const unsubWelcome = welcomeState.subscribe(value => {
     hasSeenWelcome = value;
+  });
+
+  // Subscribe to API key store
+  const unsubApiKey = apiKey.subscribe(value => {
+    apiKeyValue = value;
+  });
+  
+  // Clean up subscriptions
+  onDestroy(() => {
+    unsubApiKey();
+    unsubWelcome();
+  });
+  
+  // Show modal for first-time visitors
+  onMount(() => {
+    if (!hasSeenWelcome) {
+      animateMessages();
+    }
   });
 
   // Define welcome messages directly in this component
@@ -37,43 +58,6 @@
       `
     }
   ];
-
-  let isOpen = false;
-  let visibleMessages = [];
-  let apiKeyValue;
-
-  // Subscribe to API key store
-  const unsubApiKey = apiKey.subscribe(value => {
-    apiKeyValue = value;
-  });
-  
-  // Clean up subscriptions
-  onDestroy(() => {
-    unsubApiKey();
-    unsubWelcome();
-  });
-  
-  // Auto-open chat for first-time visitors
-  onMount(() => {
-    if (!hasSeenWelcome) {
-      isOpen = true;
-      animateMessages();
-    }
-  });
-
-  function toggleChat() {
-    // If user has already seen welcome, don't allow reopening
-    if (hasSeenWelcome) {
-      return;
-    }
-    
-    isOpen = !isOpen;
-    if (isOpen) {
-      animateMessages();
-    } else {
-      visibleMessages = [];
-    }
-  }
 
   function handleMinimize() {
     isOpen = false;
@@ -103,17 +87,6 @@
 </script>
 
 <div class="welcome-chat">
-  <!-- Wave Button -->
-  <button 
-    class="wave-button" 
-    class:hidden={isOpen || hasSeenWelcome}
-    on:click={toggleChat}
-    title="Welcome Chat"
-  >
-    <span class="wave">👋</span>
-  </button>
-
-  <!-- Modal Overlay -->
   {#if isOpen && !hasSeenWelcome}
     <div class="modal-overlay" transition:fade={{ duration: 300 }} on:click|self={handleMinimize}>
       <div class="chat-modal" transition:fly={{ y: 50, duration: 400, easing: elasticOut }}>
@@ -181,47 +154,9 @@
 <style>
   .welcome-chat {
     position: fixed;
-    bottom: 70px;
-    right: 60px;
+    inset: 0;
     z-index: 1000;
-  }
-
-  .wave-button {
-    width: 75px;
-    height: 75px;
-    border-radius: 50%;
-    background: var(--color-surface);
-    border: 2px solid var(--color-border);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5em;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    transition: transform 0.2s ease;
-  }
-
-  .wave-button:hover {
-    transform: scale(1.05);
-  }
-
-  .wave-button.hidden {
-    display: none;
-  }
-
-  .wave {
-    animation: wave 10s ease-in-out infinite;
-    transform-origin: 70% 70%;
-  }
-
-  @keyframes wave {
-    0% { transform: rotate(0deg); }
-    15% { transform: rotate(14deg); }
-    30% { transform: rotate(-8deg); }
-    45% { transform: rotate(14deg); }
-    60% { transform: rotate(-4deg); }
-    75% { transform: rotate(10deg); }
-    100% { transform: rotate(0deg); }
+    pointer-events: none;
   }
 
   .modal-overlay {
@@ -236,6 +171,7 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    pointer-events: auto;
   }
 
   .chat-modal {

@@ -117,8 +117,16 @@ class TextConverterFactoryAdapter extends BaseModuleAdapter {
         // For audio files
         if (normalizedType === 'audio' || 
             ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'mpeg', 'mpga', 'webm'].includes(normalizedType)) {
-          console.log(`🔄 [TextConverterFactory] Delegating to Audio converter`);
-          return await this.converters.audio(content, options.name);
+          console.log(`🔄 [TextConverterFactory] Delegating to Audio converter with options:`, {
+            hasContent: !!content,
+            contentLength: content?.length,
+            options: Object.keys(options)
+          });
+          return await this.converters.audio(content, {
+            name: options.name,
+            apiKey: options.apiKey,
+            mimeType: `audio/${normalizedType}`
+          });
         }
         
         // For video files
