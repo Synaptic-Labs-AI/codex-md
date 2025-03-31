@@ -62,26 +62,48 @@ export class UrlConverter {
         throw new AppError(`Page creation failed: ${error.message}`, 500);
       }
       
-      // Navigate to URL with proper error handling
+      // Navigate to URL and wait for content
       try {
-        await page.goto(normalizedUrl, options.navigation);
+        // Navigate with longer timeout
+        await page.goto(normalizedUrl, {
+          ...options.navigation,
+          waitUntil: 'networkidle0',
+          timeout: 30000
+        });
+        
+        // Wait for content to be available
+        await page.waitForFunction(() => {
+          return document.body && document.readyState === 'complete';
+        }, { timeout: 10000 });
+        
+        // Wait for dynamic content to settle
+        if (page.waitForContentToSettle) {
+          await page.waitForContentToSettle();
+        }
       } catch (error) {
-        throw new AppError(`Navigation failed: ${error.message}`, 500);
+        throw new AppError(`Navigation or content loading failed: ${error.message}`, 500);
       }
 
       const finalUrl = page.url();
       
-      // Clean up the page
+      // Clean up the page after content has loaded
       try {
         await this.pageCleaner.removeOverlays(page);
         await this.pageCleaner.cleanupPage(page);
+        
+        // Additional wait for any cleanup-triggered changes
+        await page.waitForTimeout(1000);
+        
+        // Check for SPA and wait for dynamic content to load
+        const isDynamic = await this.contentExtractor.waitForDynamicContent(page);
+        if (isDynamic) {
+          // Final wait after dynamic content changes
+          await page.waitForTimeout(2000);
+        }
       } catch (error) {
-        console.error('Error cleaning page:', error);
-        // Continue with extraction even if cleanup fails
+        console.error('Error during page preparation:', error);
+        // Continue with extraction even if preparation fails
       }
-      
-      // Check for SPA and wait for dynamic content to load
-      await this.contentExtractor.waitForDynamicContent(page);
       
       // Extract content, metadata, and images
       let content = '', metadata = {}, images = [];
@@ -96,9 +118,13 @@ export class UrlConverter {
           }
         );
         
-        content = extractionResult.content || '';
+        content = extractionResult.content;
         metadata = extractionResult.metadata || {};
         images = extractionResult.images || [];
+        
+        if (!content) {
+          throw new Error('No content extracted');
+        }
         
         // Ensure metadata has at least a title
         if (!metadata.title) {
@@ -106,7 +132,7 @@ export class UrlConverter {
         }
       } catch (extractionError) {
         console.error('Content extraction failed:', extractionError);
-        content = `<html><body><p>Failed to extract content: ${extractionError.message}</p></body></html>`;
+        content = await page.content(); // Use full page content as fallback
         metadata = {
           title: this.contentExtractor.extractTitleFromUrl(finalUrl) || 'Untitled Page',
           source: finalUrl,

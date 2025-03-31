@@ -15,133 +15,193 @@ export class ContentExtractor {
   async findMainContent(page) {
     try {
       return await page.evaluate(() => {
-        // Helper function to get text density
-        const getTextDensity = (element) => {
-          if (!element) return 0;
-          const text = element.textContent || '';
-          const html = element.innerHTML || '';
-          return text.length / (html.length || 1);
-        };
-
-        // Helper function to get content value
-        const getContentValue = (element) => {
-          if (!element) return 0;
-          
-          const text = element.textContent || '';
-          const words = text.split(/\s+/).filter(Boolean);
-          
-          // Skip empty or very short elements
-          if (words.length < 20) return 0;
-          
-          // Count various content indicators
-          const paragraphs = element.querySelectorAll('p');
-          const headings = element.querySelectorAll('h1, h2, h3, h4, h5, h6');
-          const lists = element.querySelectorAll('ul, ol');
-          const codeBlocks = element.querySelectorAll('pre, code');
-          const links = element.querySelectorAll('a');
-          const images = element.querySelectorAll('img');
-          const tables = element.querySelectorAll('table');
-          const divs = element.querySelectorAll('div > div'); // Nested divs often contain content
-          
-          // Calculate density scores
-          const textDensity = getTextDensity(element);
-          const linkDensity = Array.from(links).reduce((sum, link) =>
-            sum + (link.textContent || '').length, 0) / (text.length || 1);
-          
-          // Calculate base score
-          let score = 0;
-          score += words.length * 0.3;
-          score += paragraphs.length * 15;
-          score += headings.length * 20;
-          score += lists.length * 10;
-          score += codeBlocks.length * 15;
-          score += images.length * 5;
-          score += tables.length * 15;
-          score += divs.length * 2;
-          score += textDensity * 100;
-          score -= linkDensity * 50;
-          
-          // Semantic meaning bonuses - prioritize modern semantic HTML5 elements
-          if (element.tagName === 'ARTICLE' || element.closest('article')) score += 150;
-          if (element.tagName === 'MAIN' || element.closest('main')) score += 150;
-          if (element.getAttribute('role') === 'main') score += 100;
-          if (element.tagName === 'SECTION' || element.closest('section')) score += 50;
-          
-          // Content-related class and ID bonuses - expanded for modern websites
-          const className = element.className || '';
-          const idName = element.id || '';
-          const attributeText = className + ' ' + idName;
-          
-          if (/content|article|post|entry|body|text|blog/i.test(attributeText)) score += 50;
-          if (/main|primary|central/i.test(attributeText)) score += 40;
-          if (/container|wrapper|inner/i.test(attributeText)) score += 30;
-          
-          // Penalize navigation, header, footer areas
-          if (/nav|header|footer|menu|sidebar|comment|ad|banner|promo/i.test(attributeText) ||
-              /nav|header|footer/i.test(element.tagName)) {
-            score -= 200;
-          }
-          
-          // Bonus for deep article structure
-          if (element.querySelectorAll('article p').length > 3) score += 100;
-          if (element.querySelectorAll('section p').length > 3) score += 50;
-          
-          // Bonus for structured content
-          if (headings.length > 0 && paragraphs.length > headings.length * 2) score += 100;
-          
-          return score;
-        };
-
-        // Try specific selectors first for common website layouts
-        const commonSelectors = [
-          'main[role="main"]',
-          'div[role="main"]',
-          'article',
-          'main',
-          '.main-content',
-          '.article-content',
-          '.post-content',
-          '.entry-content',
-          '.content-main',
-          '#content',
-          '.content'
-        ];
+      // Priority ordered selectors for content
+      const selectors = [
+        // React and SPA specific
+        '#root',
+        '#___gatsby',
+        '#__next',
+        'div[data-reactroot]',
+        '[data-testid*="content"]',
+        '[data-testid*="main"]',
         
-        for (const selector of commonSelectors) {
-          const element = document.querySelector(selector);
-          if (element && element.textContent.trim().length > 200) {
-            const score = getContentValue(element);
-            if (score > 100) {
-              return {
-                content: element.outerHTML,
-                score: score
-              };
-            }
-          }
+        // Common semantic elements
+        'main[role="main"]',
+        'div[role="main"]',
+        'article',
+        'main',
+        
+        // Content-specific classes
+        '.main-content',
+        '.article-content',
+        '.post-content',
+        '.entry-content',
+        '.content-main',
+        '[class*="MainContent"]',
+        '[class*="main-content"]',
+        '[class*="content-container"]',
+        
+        // Generic content containers
+        '#content',
+        '.content',
+        '.article',
+        '.post',
+        '.page-content',
+        '.markdown-body',
+        '.documentation',
+        '.blog-post',
+        
+        // Last resort containers
+        'div.container',
+        'div.wrapper',
+        'div.page'
+      ];
+
+      // Helper function to check if element has meaningful content
+      const hasContent = (element) => {
+        if (!element) return false;
+        
+        // Remove script and style elements for text length check
+        const clone = element.cloneNode(true);
+        clone.querySelectorAll('script, style, noscript').forEach(el => el.remove());
+        
+        const text = clone.textContent.trim();
+        
+        // Check for meaningful content
+        const hasMeaningfulText = text.length > 50;
+        const hasHeadings = clone.querySelectorAll('h1, h2, h3, h4, h5, h6').length > 0;
+        const hasParagraphs = clone.querySelectorAll('p').length > 0;
+        const hasLists = clone.querySelectorAll('ul, ol').length > 0;
+        
+        return hasMeaningfulText && (hasHeadings || hasParagraphs || hasLists);
+      };
+
+      // Find all text nodes recursively
+      const getAllTextNodes = (element) => {
+        const nodes = [];
+        const walk = document.createTreeWalker(
+          element,
+          NodeFilter.SHOW_TEXT,
+          null,
+          false
+        );
+        let node;
+        while (node = walk.nextNode()) {
+          nodes.push(node);
         }
+        return nodes;
+      };
 
-        // If no good match with common selectors, scan all elements
-        const allElements = document.querySelectorAll('body *');
-        let bestElement = null;
-        let bestScore = 0;
+      // Try to find all content sections first
+      const contentSections = [];
+      console.log('Searching for content sections...');
+      
+      // Try each selector for multiple matches
+      for (const selector of selectors) {
+        try {
+          const elements = document.querySelectorAll(selector);
+          elements.forEach(element => {
+            if (hasContent(element)) {
+              console.log(`Found content section using selector: ${selector}`);
+              console.log('Section preview:', element.textContent.substring(0, 100));
+              contentSections.push({
+                element: element,
+                content: element.outerHTML,
+                textLength: element.textContent.trim().length
+              });
+            }
+          });
+        } catch (err) {
+          console.error(`Error checking selector ${selector}:`, err);
+        }
+      }
 
-        allElements.forEach(element => {
-          const score = getContentValue(element);
-          if (score > bestScore) {
-            bestElement = element;
-            bestScore = score;
-          }
-        });
-
-        // Return the best content found
+      // If we found multiple content sections, combine them
+      if (contentSections.length > 0) {
+        console.log(`Found ${contentSections.length} content sections`);
+        // Sort by text length to identify main content
+        contentSections.sort((a, b) => b.textLength - a.textLength);
+        
+        // Create a container for all content
+        const combinedContent = contentSections.map(section => section.content).join('\n');
         return {
-          content: bestElement ? bestElement.outerHTML : document.body.outerHTML,
-          score: bestScore
+          content: `<div class="combined-content">${combinedContent}</div>`,
+          selector: 'multiple-sections'
         };
+      }
+
+      // If no content sections found, try finding content blocks
+      console.log('No content sections found, searching for content blocks...');
+      const allBlocks = document.querySelectorAll('div, section, article, main');
+      const contentBlocks = [];
+
+      // Process each block
+      allBlocks.forEach(block => {
+        try {
+          // Skip if this is a container for something we already found
+          if (contentSections.some(section => section.element.contains(block) || 
+              block.contains(section.element))) {
+            return;
+          }
+
+          const textNodes = getAllTextNodes(block);
+          const textContent = textNodes
+            .map(node => node.textContent.trim())
+            .filter(text => text.length > 0)
+            .join('\n');
+          
+          if (textContent.length > 100 && hasContent(block)) {
+            contentBlocks.push({
+              content: block.outerHTML,
+              textLength: textContent.length
+            });
+          }
+        } catch (err) {
+          console.error('Error processing block:', err);
+        }
+      });
+
+      if (contentBlocks.length > 0) {
+        console.log(`Found ${contentBlocks.length} content blocks`);
+        // Sort by text length and combine the top ones
+        contentBlocks.sort((a, b) => b.textLength - a.textLength);
+        const topBlocks = contentBlocks.slice(0, 5); // Take top 5 largest blocks
+        
+        return {
+          content: `<div class="content-blocks">${topBlocks.map(b => b.content).join('\n')}</div>`,
+          selector: 'content-blocks'
+        };
+      }
+
+      // If still no content found, get all meaningful text
+      const allTextNodes = getAllTextNodes(document.body);
+      const meaningfulText = allTextNodes
+        .map(node => node.textContent.trim())
+        .filter(text => text.length > 0)
+        .join('\n');
+
+      if (meaningfulText.length > 0) {
+        console.log('Using extracted text content as fallback');
+        return {
+          content: `<div class="extracted-content">${meaningfulText}</div>`,
+          selector: 'text-extraction'
+        };
+      }
+
+      // Ultimate fallback
+      console.log('Using document body as final fallback');
+      return {
+        content: document.body.outerHTML,
+        selector: 'body-fallback'
+      };
       });
     } catch (error) {
       console.error('Error finding main content:', error);
-      return { content: '', score: 0 };
+      // Return full HTML as ultimate fallback
+      return {
+        content: await page.content(),
+        selector: 'full-page'
+      };
     }
   }
 
@@ -183,50 +243,10 @@ export class ContentExtractor {
         };
       }
 
-      // Try enhanced content detection first
-      try {
-        const result = await this.findMainContent(page);
-        if (result.content && result.score > 50) {
-          content = result.content;
-          score = result.score;
-          console.log(`Found main content with score: ${score}`);
-        }
-      } catch (e) {
-        console.error('Error in main content detection:', e);
-      }
-
-      // If no good content found, try fallback approaches
-      if (!content || content.length < 1000 || score < 30) {
-        console.log('Content too short or low quality, trying fallback strategies');
-        
-        // Try to get content from article or main elements
-        try {
-          const articleContent = await page.evaluate(() => {
-            const article = document.querySelector('article');
-            if (article && article.textContent.length > 500) {
-              return article.outerHTML;
-            }
-            
-            const main = document.querySelector('main');
-            if (main && main.textContent.length > 500) {
-              return main.outerHTML;
-            }
-            
-            return null;
-          });
-          
-          if (articleContent) {
-            console.log('Found content in article/main element');
-            content = articleContent;
-          } else {
-            console.log('No article/main content found, using body content');
-            content = cleanedRawHtml;
-          }
-        } catch (fallbackError) {
-          console.error('Error in fallback content extraction:', fallbackError);
-          content = cleanedRawHtml;
-        }
-      }
+      // Get content using simplified selector approach
+      const result = await this.findMainContent(page);
+      content = result.content;
+      console.log(`Found content using selector: ${result.selector}`);
       
       // Extract images if requested
       if (options.includeImages) {
@@ -477,43 +497,72 @@ export class ContentExtractor {
     try {
       console.log('Checking for dynamic content loading...');
       
-      // First check if it's an SPA
-      const isSpa = await page.evaluate(() => {
+      // First check if it's an SPA and monitor content changes
+      const result = await page.evaluate(async () => {
         // Check for common SPA frameworks
-        return !!(
+        const isSpa = !!(
           window.angular ||
           window.React ||
           window.Vue ||
           document.querySelector('[ng-app]') ||
           document.querySelector('[data-reactroot]') ||
           document.querySelector('#app') ||
-          document.querySelector('#root')
+          document.querySelector('#root') ||
+          document.querySelector('#___gatsby') ||
+          document.querySelector('#__next')
         );
-      });
-      
-      if (isSpa) {
-        console.log('Detected SPA, waiting for content to stabilize...');
         
-        // Wait for network to be idle
-        await page.waitForNetworkIdle({ idleTime: 1000, timeout: 5000 }).catch(() => {
-          console.log('Network idle timeout reached, continuing anyway');
-        });
-        
-        // Wait a bit more for rendering
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Check if content has changed
-        const initialContentLength = await page.evaluate(() => document.body.textContent.length);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const finalContentLength = await page.evaluate(() => document.body.textContent.length);
-        
-        const contentChanged = Math.abs(finalContentLength - initialContentLength) > 50;
-        if (contentChanged) {
-          console.log(`Content changed during wait (${initialContentLength} -> ${finalContentLength})`);
-          // Wait a bit more for final rendering
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        if (isSpa) {
+          console.log('SPA detected, monitoring content changes...');
+          
+          // Function to get content state
+          const getContentState = () => {
+            const mainContent = document.querySelector('main, article, [role="main"], #root, #app');
+            return {
+              length: document.body.textContent.length,
+              elements: document.body.getElementsByTagName('*').length,
+              mainContent: mainContent ? mainContent.textContent.length : 0
+            };
+          };
+
+          // Monitor content changes
+          const initialState = getContentState();
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Initial wait
+          
+          let lastState = getContentState();
+          let stable = false;
+          let attempts = 0;
+          
+          while (!stable && attempts < 5) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const currentState = getContentState();
+            
+            stable = (
+              Math.abs(currentState.length - lastState.length) < 50 &&
+              Math.abs(currentState.elements - lastState.elements) < 5 &&
+              Math.abs(currentState.mainContent - lastState.mainContent) < 50
+            );
+            
+            lastState = currentState;
+            attempts++;
+          }
+          
+          return {
+            isSpa: true,
+            contentChanged: Math.abs(lastState.length - initialState.length) > 50,
+            finalLength: lastState.length
+          };
         }
         
+        return { isSpa: false };
+      });
+      
+      if (result.isSpa) {
+        console.log(`SPA content stabilized (Length: ${result.finalLength})`);
+        if (result.contentChanged) {
+          // Additional wait after content changes
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
         return true;
       }
       

@@ -2,10 +2,9 @@
  * URL Converter Adapter
  */
 
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 const { pathToFileURL } = require('url');
-const PageMarkerService = require('../services/PageMarkerService');
 const BrowserService = require('../services/BrowserService');
 
 async function loadUrlConverter() {
@@ -28,140 +27,10 @@ async function loadUrlConverter() {
 }
 
 /**
- * Common selectors for cookie consent buttons and dialogs
- */
-const COOKIE_SELECTORS = {
-  buttons: [
-    // Cookie accept buttons
-    '#onetrust-accept-btn-handler',
-    '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
-    '#gdpr-cookie-accept',
-    '.cc-accept',
-    '.js-accept-cookies',
-    // Common button patterns
-    'button[id*="accept" i], button[class*="accept" i]',
-    'button[id*="agree" i], button[class*="agree" i]',
-    'button[id*="consent" i], button[class*="consent" i]',
-    '[id*="accept"][role="button"]',
-    '[class*="accept"][role="button"]',
-    // Text-based buttons (more specific first)
-    'button:has-text("Accept All")',
-    'button:has-text("Accept Cookies")',
-    'button:has-text("Accept")',
-    'button:has-text("Agree")',
-    'button:has-text("Allow")',
-    'button:has-text("Close")',
-    // Link-based accepts
-    'a:has-text("Accept All")',
-    'a:has-text("Accept")',
-    'a:has-text("Agree")'
-  ],
-  dialogs: [
-    // Cookie dialog containers
-    '#onetrust-banner-sdk',
-    '#cookiebanner',
-    '#CybotCookiebotDialog',
-    '.cookie-consent',
-    '.cookie-notice',
-    // Common patterns
-    '[id*="cookie" i][class*="banner" i]',
-    '[id*="cookie" i][class*="notice" i]',
-    '[id*="cookie" i][class*="popup" i]',
-    '[class*="cookie" i][class*="banner" i]',
-    '[id*="gdpr"]',
-    '[class*="gdpr"]',
-    '[id*="consent"][role="dialog"]',
-    '[class*="consent"][role="dialog"]',
-    // Common overlay patterns
-    '.modal[aria-label*="cookie" i]',
-    '.dialog[aria-label*="cookie" i]',
-    '[role="dialog"][aria-label*="cookie" i]'
-  ]
-};
-
-/**
  * Delay helper that works with Puppeteer page
  */
 async function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Handles cookie consent dialogs by finding and clicking accept buttons
- */
-async function handleCookieDialog(page) {
-  console.log('🍪 Checking for cookie consent dialog...');
-  
-  try {
-    const dialogSelectors = COOKIE_SELECTORS.dialogs.join(', ');
-    const buttonSelectors = COOKIE_SELECTORS.buttons.join(', ');
-    
-    // First check if there's a visible cookie dialog
-    const dialogFound = await page.waitForSelector(dialogSelectors, { 
-      timeout: 5000,
-      visible: true 
-    }).catch(() => null);
-
-    if (dialogFound) {
-      console.log('Found cookie dialog');
-      
-      // Try clicking accept buttons with retries
-      for (let attempt = 0; attempt < 3; attempt++) {
-        // Use page.evaluate for more reliable clicking
-        const clicked = await page.evaluate((selectors) => {
-          const buttons = [...document.querySelectorAll(selectors)];
-          for (const button of buttons) {
-            const style = window.getComputedStyle(button);
-            const isVisible = style.display !== 'none' && 
-                            style.visibility !== 'hidden' && 
-                            style.opacity !== '0' &&
-                            button.offsetWidth > 0 &&
-                            button.offsetHeight > 0;
-            
-            if (isVisible) {
-              button.click();
-              return true;
-            }
-          }
-          return false;
-        }, buttonSelectors);
-        
-        if (clicked) {
-          console.log('🍪 Clicked cookie accept button');
-          // Wait for dialog to disappear and animations to complete
-          await delay(1500);
-          
-          // Verify dialog is gone
-          const dialogStillVisible = await page.evaluate((selector) => {
-            const dialog = document.querySelector(selector);
-            if (dialog) {
-              const style = window.getComputedStyle(dialog);
-              return style.display !== 'none' && style.visibility !== 'hidden';
-            }
-            return false;
-          }, dialogSelectors);
-          
-          if (!dialogStillVisible) {
-            console.log('🍪 Cookie dialog handled successfully');
-            return true;
-          }
-        }
-        
-        // Wait before next attempt
-        if (attempt < 2) {
-          await delay(1000);
-        }
-      }
-      
-      console.log('🍪 Could not handle cookie dialog after retries');
-    } else {
-      console.log('No visible cookie dialog found');
-    }
-  } catch (error) {
-    console.error('🍪 Error handling cookie dialog:', error);
-  }
-  
-  return false;
 }
 
 /**
@@ -245,25 +114,11 @@ async function convertUrl(url, options = {}) {
     await page.screenshot({ path: 'debug-screenshot-initial.png' });
     console.log('Saved initial screenshot');
 
-    // Handle cookie dialog with retries
-    await delay(1000); // Wait for dialogs to appear
-    let cookieHandled = await handleCookieDialog(page);
-    
-    if (!cookieHandled) {
-      // Try one more time if first attempt failed
-      await delay(1000);
-      cookieHandled = await handleCookieDialog(page);
-    }
-
-    // Let page settle after cookie handling
+    // Wait for network idle
     await page.waitForNetworkIdle({ 
       timeout: 5000,
       idleTime: 1000
     }).catch(() => console.log('Network still active, continuing anyway'));
-
-    // Take post-cookie screenshot
-    await page.screenshot({ path: 'debug-screenshot-post-cookie.png' });
-    console.log('Saved screenshot after cookie handling');
 
     // Wait for and find main content
     const result = await findMainContent(page, mergedOptions);
@@ -284,11 +139,11 @@ async function convertUrl(url, options = {}) {
     // Load the URL converter module and convert
     const { convertUrlToMarkdown } = await modulePromise;
     
-    // Add necessary properties to options
-    mergedOptions.browser = page.browser();
-    
-    // Convert the page
-    const converted = await convertUrlToMarkdown(url, mergedOptions);
+    // Convert the page using existing browser instance
+    const converted = await convertUrlToMarkdown(url, {
+      ...mergedOptions,
+      externalBrowser: page.browser()  // Tell BrowserManager to use our browser
+    });
     
     if (!converted || !converted.content) {
       throw new Error('Converter returned empty content');

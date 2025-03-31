@@ -15,6 +15,10 @@ const path = require('path');
 const { app } = require('electron');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const { PuppeteerBlocker } = require('@cliqz/adblocker-puppeteer');
+const fetch = require('cross-fetch');
+const autoconsent = require('@duckduckgo/autoconsent/dist/autoconsent.puppet.js');
+const extraRules = require('@duckduckgo/autoconsent/rules/rules.json');
 
 class BrowserService {
   constructor() {
@@ -22,15 +26,43 @@ class BrowserService {
     this.browserPromise = null;
     this.isInitializing = false;
     this.initializationError = null;
+    this.blocker = null;
     
     // Set up Puppeteer with Stealth plugin
     puppeteer.use(StealthPlugin());
+    
+    // Set up autoconsent rules
+    const consentomatic = extraRules.consentomatic;
+    this.rules = [
+      ...autoconsent.rules,
+      ...Object.keys(consentomatic).map(name => 
+        new autoconsent.ConsentOMaticCMP(`com_${name}`, consentomatic[name])),
+      ...extraRules.autoconsent.map(spec => autoconsent.createAutoCMP(spec))
+    ];
+    
+    // Initialize adblocker
+    this.initializeBlocker();
     
     // Bind methods
     this.initialize = this.initialize.bind(this);
     this.getBrowser = this.getBrowser.bind(this);
     this.createPage = this.createPage.bind(this);
     this.close = this.close.bind(this);
+  }
+
+  /**
+   * Initialize the adblocker with cookie list
+   */
+  async initializeBlocker() {
+    try {
+      console.log('🛡️ Initializing adblocker...');
+      this.blocker = await PuppeteerBlocker.fromLists(fetch, [
+        'https://secure.fanboy.co.nz/fanboy-cookiemonster.txt'
+      ]);
+      console.log('🛡️ Adblocker initialized successfully');
+    } catch (error) {
+      console.error('🛡️ Failed to initialize adblocker:', error);
+    }
   }
 
   /**
@@ -120,11 +152,35 @@ class BrowserService {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
 
+    // Set longer timeouts for SPA content
+    await page.setDefaultNavigationTimeout(30000);
+    await page.setDefaultTimeout(30000);
+    
+    // Enable adblocker if initialized
+    if (this.blocker) {
+      await this.blocker.enableBlockingInPage(page);
+    }
+
     // Set up common user agent
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
 
-    // Additional page configurations
+    // Set viewport to ensure all content is visible
+    await page.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1
+    });
+
+    // Additional page configurations for React/SPA support
     await page.evaluateOnNewDocument(() => {
+      // Add React DevTools global hook
+      window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        renderers: new Map(),
+        supportsFiber: true,
+        inject: function() {},
+        onCommitFiberRoot: function() {},
+        onCommitFiberUnmount: function() {}
+      };
       // Add language configuration
       Object.defineProperty(navigator, 'languages', {
         get: () => ['en-US', 'en'],
@@ -199,6 +255,72 @@ class BrowserService {
       );
     };
 
+    // Enhanced autoconsent setup with retry
+    page.once('load', async () => {
+      try {
+        const currentUrl = await page.url();
+        // Wait for page to be fully interactive
+        await page.waitForFunction(() => {
+          return document.readyState === 'complete' && 
+                 !!document.body &&
+                 !!document.querySelector('button, a, input');
+        }, { timeout: 10000 }).catch(() => console.log('Page interaction wait timed out'));
+        
+        // Try autoconsent
+        const tab = autoconsent.attachToPage(page, currentUrl, this.rules, 20);
+        await tab.checked;
+        await tab.doOptIn().catch(() => console.log('Cookie consent handling failed'));
+        
+        // Additional wait for any post-consent reflows
+        await page.waitForTimeout(1000);
+      } catch (e) {
+        console.warn('CMP handling error:', e);
+        // Continue anyway as this shouldn't block content extraction
+      }
+    });
+
+    // Add helper method for waiting for network and content to settle
+    page.waitForContentToSettle = async (timeout = 10000) => {
+      const startTime = Date.now();
+      
+      try {
+        // Wait for network to be idle
+        await page.waitForNetworkIdle({ idleTime: 1000, timeout: 5000 })
+          .catch(() => console.log('Network idle timeout reached'));
+
+        // Wait for no significant DOM changes
+        await page.waitForFunction(() => {
+          return new Promise(resolve => {
+            let mutations = 0;
+            const observer = new MutationObserver(mutationsList => {
+              mutations += mutationsList.length;
+            });
+            
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              characterData: true
+            });
+            
+            setTimeout(() => {
+              observer.disconnect();
+              resolve(mutations < 10); // Consider stable if few mutations
+            }, 1000);
+          });
+        }, { timeout });
+
+      } catch (e) {
+        console.warn('Content settlement timeout:', e);
+      }
+      
+      // Ensure minimum wait time
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await page.waitForTimeout(2000 - elapsed);
+      }
+    };
+    
     return page;
   }
 
