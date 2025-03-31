@@ -12,7 +12,6 @@ let browserInstance = null;
 export class BrowserManager {
   constructor() {
     this.externalBrowser = null;
-    this.shouldCloseBrowser = false;
   }
 
   /**
@@ -21,22 +20,22 @@ export class BrowserManager {
    * @returns {Promise<Browser>} Browser instance
    */
   async getBrowser(options = {}) {
-    // If an external browser is provided, use it
-    if (options.externalBrowser) {
-      this.externalBrowser = options.externalBrowser;
-      return options.externalBrowser;
-    }
-    
-    // If we already have an external browser, use it
-    if (this.externalBrowser) {
-      return this.externalBrowser;
-    }
-    
-    // Otherwise, use or create the cached browser instance
-    if (!browserInstance) {
-      console.log('🌐 Launching new Puppeteer browser instance...');
-      
-      try {
+    try {
+      // If an external browser is provided, always use it
+      if (options.externalBrowser) {
+        this.externalBrowser = options.externalBrowser;
+        return this.externalBrowser;
+      }
+
+      // If we already have an external browser, continue using it
+      if (this.externalBrowser) {
+        return this.externalBrowser;
+      }
+
+      // Only create a new browser if absolutely necessary
+      if (!browserInstance) {
+        console.warn('⚠️ No external browser provided, creating new instance');
+        
         // Ensure options are properly structured
         const launchOptions = {
           headless: options.headless || 'new',
@@ -71,14 +70,12 @@ export class BrowserManager {
           console.log('🌐 Browser disconnected, clearing instance');
           browserInstance = null;
         });
-        
-        this.shouldCloseBrowser = true;
-      } catch (error) {
-        throw new AppError(`Failed to launch browser: ${error.message}`, 500);
       }
+
+      return browserInstance;
+    } catch (error) {
+      throw new AppError(`Failed to get browser instance: ${error.message}`, 500);
     }
-    
-    return browserInstance;
   }
   
   /**
@@ -113,12 +110,8 @@ export class BrowserManager {
       // Set request interception
       if (options.interceptRequests) {
         await page.setRequestInterception(true);
-        
         page.on('request', (request) => {
-          const resourceType = request.resourceType();
-          
-          // Block unnecessary resources
-          if (['image', 'stylesheet', 'font', 'media'].includes(resourceType) && options.blockResources) {
+          if (options.blockResources && ['image', 'stylesheet', 'font', 'media'].includes(request.resourceType())) {
             request.abort();
           } else {
             request.continue();
@@ -138,65 +131,12 @@ export class BrowserManager {
   }
   
   /**
-   * Navigate to a URL
-   * @param {Page} page - Page instance
-   * @param {string} url - URL to navigate to
-   * @param {Object} options - Navigation options
-   * @returns {Promise<Response>} Navigation response
-   */
-  async navigateToUrl(page, url, options = {}) {
-    try {
-      // Set default navigation options
-      const navigationOptions = {
-        waitUntil: options.waitUntil || 'networkidle2',
-        timeout: options.timeout || 30000
-      };
-      
-      // Navigate to URL
-      const response = await page.goto(url, navigationOptions);
-      
-      // Check for navigation errors
-      if (!response) {
-        throw new AppError(`Failed to navigate to ${url}: No response received`, 500);
-      }
-      
-      const status = response.status();
-      if (status >= 400) {
-        throw new AppError(`Failed to navigate to ${url}: HTTP status ${status}`, status);
-      }
-      
-      return response;
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError(`Navigation error: ${error.message}`, 500);
-    }
-  }
-  
-  /**
    * Close the browser instance
    * @returns {Promise<void>}
    */
   async closeBrowser() {
-    // Only close the browser if it's not an external one and we should close it
-    if (browserInstance && !this.externalBrowser && this.shouldCloseBrowser) {
-      try {
-        await browserInstance.close();
-        browserInstance = null;
-        console.log('🌐 Browser closed successfully');
-      } catch (error) {
-        console.error('Error closing browser:', error);
-      }
-    }
-  }
-  
-  /**
-   * Static method to close the browser instance
-   * @returns {Promise<void>}
-   */
-  static async closeBrowser() {
-    if (browserInstance) {
+    // Only close browser if we created it (not external)
+    if (browserInstance && !this.externalBrowser) {
       try {
         await browserInstance.close();
         browserInstance = null;

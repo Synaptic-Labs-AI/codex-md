@@ -285,17 +285,41 @@ export function htmlToMarkdown(element, options = {}) {
  */
 export async function generateMarkdown(content, metadata = {}, images = [], url = '', options = {}) {
   try {
-    if (!content || content.length < 10) {
-      console.error('Invalid content received');
+    if (!content) {
+      console.error('No content received');
       return `# ${metadata.title || 'Page Content'}\n\nNo content could be extracted from this page.`;
     }
 
+    // Log content details for debugging
+    console.log('Raw content details:', {
+      length: content.length,
+      preview: content.substring(0, 200),
+      tags: {
+        main: (content.match(/<main[^>]*>/g) || []).length,
+        article: (content.match(/<article[^>]*>/g) || []).length,
+        div: (content.match(/<div[^>]*>/g) || []).length,
+        header: (content.match(/<h[1-6][^>]*>/g) || []).length,
+        paragraph: (content.match(/<p[^>]*>/g) || []).length
+      }
+    });
+
+    // Clean HTML but preserve more content
     content = cleanHtmlContent(content);
     const dom = new JSDOM(content);
     const document = dom.window.document;
     
+    // Log DOM structure
+    console.log('DOM structure:', {
+      hasBody: !!document?.body,
+      bodyChildren: document?.body?.children?.length,
+      mainContent: document?.querySelector('main, article, [role="main"]')?.textContent?.length,
+      totalText: document?.body?.textContent?.length
+    });
+    
+    // Always try to extract content, even if document seems empty
     if (!document || !document.body) {
-      return `# ${metadata.title || 'Page Content'}\n\nFailed to parse page content.`;
+      console.error('Failed to parse document or no body found');
+      return `# ${metadata.title || 'Page Content'}\n\n${content.replace(/<[^>]+>/g, '')}`;
     }
     
     removeUnwantedElements(document);
@@ -324,8 +348,23 @@ export async function generateMarkdown(content, metadata = {}, images = [], url 
     markdown = cleanMarkdown(markdown);
     markdown = removeJavaScriptContent(markdown);
     
-    if (markdown.length < 50) {
+    // Log markdown details
+    console.log('Markdown details:', {
+      rawLength: markdown.length,
+      cleanedLength: markdown.trim().length,
+      headings: (markdown.match(/^#+\s/gm) || []).length,
+      paragraphs: (markdown.match(/\n\n[^#\n]/g) || []).length
+    });
+    
+    // Only add note if absolutely no real content was found
+    if (!markdown.match(/^#+\s.*$(?:\n+[^#\n].*$)+/m)) {
+      console.log('No structured content found, adding note');
       markdown += `\n\nNote: Limited content was extracted from ${url}. You may want to visit the original page for more information.`;
+    }
+
+    // Structure the content better if it's just a blob of text
+    if (!markdown.includes('\n\n')) {
+      markdown = markdown.split(/[.!?]\s+/).map(s => s.trim()).filter(Boolean).join('.\n\n');
     }
 
     return markdown;

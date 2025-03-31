@@ -11,65 +11,97 @@ export class PageCleaner {
    */
   async cleanupPage(page) {
     try {
-      // Remove script tags and their content
       await page.evaluate(() => {
-        const elementsToRemove = [
-          'script',
-          'style',
-          'noscript',
-          'iframe',
-          '[id*="cookie"]',
-          '[class*="cookie"]',
-          '[id*="consent"]',
-          '[class*="consent"]',
-          '[id*="popup"]',
-          '[class*="popup"]',
-          '[id*="banner"]',
-          '[class*="banner"]',
-          '[id*="modal"]',
-          '[class*="modal"]',
-          '[id*="dialog"]',
-          '[class*="dialog"]',
-          '[id*="overlay"]',
-          '[class*="overlay"]',
-          '[id*="notification"]',
-          '[class*="notification"]',
-          '[class*="hs-"]',
-          '[id*="hs-"]',
-          '[data-hs-]'
+        // Log initial content structure
+        console.log('Initial content structure:', {
+          bodyLength: document.body.innerHTML.length,
+          mainElements: document.querySelectorAll('main, article, [role="main"]').length,
+          scripts: document.querySelectorAll('script').length
+        });
+
+        // Only remove non-content elements
+        const cleanupSelectors = [
+          // Tracking and analytics
+          'script[src*="google-analytics"]',
+          'script[src*="gtag"]',
+          'script[src*="facebook"]',
+          'script[src*="pixel"]',
+          
+          // Chat widgets and overlays
+          'iframe[src*="chat"]',
+          'iframe[src*="messenger"]',
+          'iframe[src*="intercom"]',
+          
+          // Cookie notices that are overlays
+          'div[class*="cookie-banner"]:not([class*="content"])',
+          'div[id*="cookie-banner"]:not([id*="content"])',
+          
+          // Third party widgets
+          '.intercom-lightweight-app',
+          '.drift-frame-controller',
+          '.fb-customerchat'
         ];
         
-        elementsToRemove.forEach(selector => {
-          document.querySelectorAll(selector).forEach(el => el.remove());
+        cleanupSelectors.forEach(selector => {
+          document.querySelectorAll(selector).forEach(el => {
+            // Don't remove if it might be content
+            const isContent = el.closest('main, article, [role="main"], [class*="content"], [id*="content"]');
+            if (!isContent) {
+              console.log(`Removing element: ${selector}`);
+              el.remove();
+            } else {
+              console.log(`Preserving content element: ${selector}`);
+            }
+          });
         });
-        
-        // Remove inline JavaScript
-        document.querySelectorAll('[onclick], [onload], [onunload], [onchange], [onsubmit], [onfocus], [onblur]').forEach(el => {
-          el.removeAttribute('onclick');
-          el.removeAttribute('onload');
-          el.removeAttribute('onunload');
-          el.removeAttribute('onchange');
-          el.removeAttribute('onsubmit');
-          el.removeAttribute('onfocus');
-          el.removeAttribute('onblur');
+
+        // Clean attributes but preserve React props
+        document.querySelectorAll('*').forEach(el => {
+          Array.from(el.attributes).forEach(attr => {
+            const name = attr.name;
+            // Only remove non-React attributes
+            if (name.startsWith('on') && 
+                !name.startsWith('data-') && 
+                !name.startsWith('react') && 
+                !name.startsWith('aria-')) {
+              el.removeAttribute(name);
+            }
+          });
+        });
+
+        // Log final structure
+        console.log('Final content structure:', {
+          bodyLength: document.body.innerHTML.length,
+          mainElements: document.querySelectorAll('main, article, [role="main"]').length,
+          remainingScripts: document.querySelectorAll('script').length
         });
       });
       
-      // Clean up JavaScript variable assignments in HTML
+      // Clean JavaScript more carefully
       await page.evaluate(() => {
-        // Find and remove script blocks that set window variables
-        const html = document.documentElement.outerHTML;
-        const cleanedHtml = html.replace(/window\.__[^;]+;/g, '')
-                               .replace(/var\s+\w+\s*=\s*{[^}]+};/g, '')
-                               .replace(/const\s+\w+\s*=\s*{[^}]+};/g, '')
-                               .replace(/let\s+\w+\s*=\s*{[^}]+};/g, '');
-        
-        // This is a bit of a hack, but it works to clean up the HTML
-        if (html !== cleanedHtml) {
-          document.open();
-          document.write(cleanedHtml);
-          document.close();
-        }
+        // Only clean obvious non-React scripts
+        const scripts = document.getElementsByTagName('script');
+        Array.from(scripts).forEach(script => {
+          const src = script.getAttribute('src') || '';
+          const content = script.textContent || '';
+          
+          // Keep React-related scripts
+          if (src.includes('react') || 
+              src.includes('chunk') || 
+              content.includes('React') || 
+              content.includes('ReactDOM')) {
+            return;
+          }
+          
+          // Remove tracking and analytics scripts
+          if (src.includes('analytics') || 
+              src.includes('pixel') || 
+              src.includes('tracking') || 
+              content.includes('fbq(') || 
+              content.includes('gtag(')) {
+            script.remove();
+          }
+        });
       });
     } catch (error) {
       console.error('Error cleaning up page:', error);
@@ -78,7 +110,7 @@ export class PageCleaner {
   }
 
   /**
-   * Perform a more thorough cleanup of a page
+   * Light cleanup that preserves most content
    * @param {Page} page - Puppeteer page object
    * @param {Object} options - Cleanup options
    * @returns {Promise<void>}
@@ -86,108 +118,45 @@ export class PageCleaner {
   async thoroughCleanup(page, options = {}) {
     try {
       await page.evaluate(() => {
-        const selectorsToRemove = [
-          // Scripts and styles
-          'script',
-          'style',
-          'noscript',
-          'iframe',
+        // Only clean up known unwanted elements
+        const cleanupElements = [
+          // Ads and tracking
+          'ins.adsbygoogle',
+          'div[id*="google_ads"]',
+          'div[id*="carbonads"]',
           
-          // Navigation elements
-          'nav',
-          'header',
-          'footer',
-          '.nav',
-          '.navigation',
-          '.menu',
-          '.header',
-          '.footer',
-          '.breadcrumbs',
+          // Third party widgets
+          '.intercom-lightweight-app',
+          '.drift-frame-controller',
+          '.zopim',
+          '.fb-like',
           
-          // Sidebars and widgets
-          'aside',
-          '.sidebar',
-          '.side-bar',
-          '.widget',
-          '.widgets',
+          // Specific tracking and analytics
+          'script[src*="google-analytics"]',
+          'script[src*="hotjar"]',
+          'script[src*="analytics"]',
           
-          // Comments
-          '.comments',
-          '.comment-section',
-          '#comments',
-          '.disqus',
-          
-          // Social sharing
-          '.share',
-          '.social',
-          '.social-share',
-          '.sharing',
-          
-          // Ads
-          '.ad',
-          '.ads',
-          '.advertisement',
-          '.advert',
-          '.banner',
-          '.sponsored',
-          '.promotion',
-          
-          // Popups and overlays
-          '.popup',
-          '.modal',
-          '.overlay',
-          '.newsletter-signup',
-          '.subscription',
-          
-          // HubSpot elements
-          '[class*="hs-"]',
-          '[id*="hs-"]',
-          '[data-hs-]',
-          '.hubspot-wrapper',
-          '.hbspt-form',
-          '.hs-form',
-          '#hsForm',
-          
-          // Dynamic elements
-          '[data-widget]',
-          '[data-analytics]',
-          '[data-tracking]',
-          '[data-ad]',
-          '[data-testid*="banner"]',
-          '[data-testid*="popup"]',
-          
-          // Framework-specific
-          '[data-reactroot]',
-          '[data-react-app]',
-          '[data-react-component]',
-          '[ng-app]',
-          '[ng-controller]',
-          '[v-app]',
-          '[data-v-]'
+          // Generic cleanup - be conservative
+          'link[rel="preload"]',
+          'link[rel="prefetch"]',
+          'meta[http-equiv="refresh"]'
         ];
 
-        // Remove elements matching selectors
-        selectorsToRemove.forEach(selector => {
+        cleanupElements.forEach(selector => {
           document.querySelectorAll(selector).forEach(element => {
             try {
-              element.remove();
+              // Don't remove if it's part of main content
+              const isMainContent = element.closest('main, article, [role="main"]');
+              if (!isMainContent) {
+                element.remove();
+              }
             } catch (e) {
-              // Ignore errors if element can't be removed
+              // Ignore removal errors
             }
           });
         });
 
-        // Remove inline JavaScript event handlers
-        document.querySelectorAll('*').forEach(element => {
-          // Remove all attributes that start with "on" (event handlers)
-          Array.from(element.attributes).forEach(attr => {
-            if (attr.name.startsWith('on')) {
-              element.removeAttribute(attr.name);
-            }
-          });
-        });
-
-        // Clean up excessive whitespace and empty elements
+        // Only clean empty text nodes
         const cleanup = (element) => {
           if (!element) return;
           
@@ -195,17 +164,6 @@ export class PageCleaner {
           Array.from(element.childNodes).forEach(node => {
             if (node.nodeType === 3 && !node.textContent.trim()) {
               node.remove();
-            }
-          });
-          
-          // Remove elements with no content
-          Array.from(element.children).forEach(child => {
-            cleanup(child);
-            if (!child.textContent.trim() && 
-                !child.querySelector('img') && 
-                !child.querySelector('video') &&
-                !child.querySelector('svg')) {
-              child.remove();
             }
           });
         };
