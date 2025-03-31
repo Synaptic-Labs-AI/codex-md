@@ -20,8 +20,8 @@ const PageMarkerService = require('../services/PageMarkerService');
 class AudioConverterAdapter extends BaseModuleAdapter {
   constructor() {
     super(
-      'src/services/converter/multimedia/audioconverter.js',
-      'convertAudioToMarkdown'
+      "src/services/converter/multimedia/audioconverter.js",
+      "convertAudioToMarkdown"
     );
   }
   
@@ -34,15 +34,23 @@ class AudioConverterAdapter extends BaseModuleAdapter {
   async convertAudioToMarkdown(input, originalName) {
     try {
       // Get API key from secure storage
-      const apiKey = await ApiKeyService.getApiKey('openai');
+      const apiKey = await ApiKeyService.getApiKey("openai");
       if (!apiKey) {
-        throw new Error('OpenAI API key is required for audio transcription');
+        throw new Error("OpenAI API key is required for audio transcription");
       }
       
       console.log(`🎵 [AudioConverter] Converting audio file: ${originalName}`);
       
-      // Call the backend audio converter
-      const result = await this.executeMethod('default', [input, originalName, apiKey]);
+      // Determine MIME type from file extension
+      const fileExt = originalName.split(".").pop().toLowerCase();
+      const mimeType = `audio/${fileExt}`;
+      
+      // Call the backend audio converter with options
+      const result = await this.executeMethod("default", [input, {
+        name: originalName,
+        apiKey,
+        mimeType
+      }]);
       
       console.log(`✅ [AudioConverter] Transcription successful:`, {
         hasContent: !!result?.content,
@@ -50,9 +58,9 @@ class AudioConverterAdapter extends BaseModuleAdapter {
       });
       
       // Validate the result
-      if (!result || !result.content || result.content.trim() === '') {
+      if (!result || !result.content || result.content.trim() === "") {
         console.error(`❌ [AudioConverter] Empty transcription result`);
-        throw new Error('Audio transcription produced empty content');
+        throw new Error("Audio transcription produced empty content");
       }
       
       // Calculate page breaks based on word count
@@ -75,10 +83,10 @@ class AudioConverterAdapter extends BaseModuleAdapter {
       
       return result;
     } catch (error) {
-      console.error('Audio conversion failed:', error);
+      console.error("Audio conversion failed:", error);
       return {
         success: false,
-        error: error.message || 'Audio conversion failed'
+        error: error.message || "Audio conversion failed"
       };
     }
   }

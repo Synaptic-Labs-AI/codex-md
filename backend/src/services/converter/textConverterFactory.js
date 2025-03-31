@@ -302,16 +302,25 @@ class TextConverterFactory {
           console.log('🌐 Converting parent URL content');
           return await convertParentUrlToMarkdown(content, options);
         default:
-          console.error('❌ Unsupported file type:', fileType);
           // Handle multimedia types
-          if (fileType === 'audio') {
+          if (this.isAudioType(fileType)) {
             console.log('🎵 Converting audio content');
-            return await convertAudioToMarkdown(content, options.name, options.apiKey);
+            return await convertAudioToMarkdown(content, {
+              name: options.name,
+              apiKey: options.apiKey
+            });
           }
-          if (fileType === 'video') {
+          
+          if (fileType === 'video' || ['mp4', 'webm', 'avi'].includes(fileType)) {
             console.log('🎥 Converting video content');
-            return await convertVideoToMarkdown(content, options.name, options.apiKey);
+            return await convertVideoToMarkdown(content, {
+              name: options.name,
+              apiKey: options.apiKey,
+              mimeType: `video/${fileType}`
+            });
           }
+          
+          console.error('❌ Unsupported file type:', fileType);
           throw new Error(`Unsupported file type: ${fileType}`);
       }
     } catch (error) {

@@ -39,10 +39,10 @@
       
       // If key exists, try to load it
       if (result.exists) {
-        const key = await window.electronAPI.getApiKey('openai');
-        if (key) {
-          apiKeyValue = key;
-          apiKey.set(key);
+        const response = await window.electronAPI.getApiKey('openai');
+        if (response.success && response.key) {
+          apiKeyValue = response.key;
+          apiKey.set(response.key);
         }
       }
     } catch (err) {

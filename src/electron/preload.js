@@ -70,6 +70,7 @@ contextBridge.exposeInMainWorld(
     checkApiKeyExists: (provider) => ipcRenderer.invoke('mdcode:apikey:exists', { provider }),
     deleteApiKey: (provider) => ipcRenderer.invoke('mdcode:apikey:delete', { provider }),
     validateApiKey: (key, provider) => ipcRenderer.invoke('mdcode:apikey:validate', { key, provider }),
+    getApiKey: (provider) => ipcRenderer.invoke('mdcode:apikey:get', { provider }),
     
     // Transcription
     transcribeAudio: (filePath) => ipcRenderer.invoke('mdcode:transcribe:audio', { filePath }),

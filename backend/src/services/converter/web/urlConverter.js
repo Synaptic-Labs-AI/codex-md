@@ -4,10 +4,11 @@
  */
 
 import { AppError } from '../../../utils/errorHandler.js';
-import { generateMarkdown } from './utils/htmlToMarkdown.js';
+import { htmlToMarkdown } from './utils/htmlToMarkdown.js';
 import { BrowserManager } from './utils/BrowserManager.js';
 import { PageCleaner } from './utils/PageCleaner.js';
 import { ContentExtractor } from './utils/ContentExtractor.js';
+import { generateMarkdown } from '../../../utils/markdownGenerator.js';
 import { mergeOptions, generateNameFromUrl } from './utils/converterConfig.js';
 
 export class UrlConverter {
@@ -168,7 +169,20 @@ export class UrlConverter {
           };
         }
         
-        markdown = await generateMarkdown(content, metadata, images, finalUrl, options);
+        // First convert HTML to markdown
+        const markdownContent = await htmlToMarkdown(content);
+
+        // Then generate final markdown with metadata and images
+        markdown = generateMarkdown({
+          title: metadata.title,
+          content: markdownContent,
+          metadata: {
+            ...metadata,
+            source: finalUrl,
+            type: 'web-page',
+            captured: new Date().toISOString()
+          }
+        });
       } catch (markdownError) {
         console.error('Error generating Markdown:', markdownError);
         // Create a simple markdown as fallback
