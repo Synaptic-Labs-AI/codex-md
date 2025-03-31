@@ -4,6 +4,19 @@ This document tracks what has been completed and what remains to be built in the
 
 ## Completed Features
 
+- Enhanced Welcome Modal Behavior:
+  - Updated WelcomeChat.svelte to use SvelteKit's client-side navigation
+  - Replaced window.location.href with goto() from '$app/navigation'
+  - Ensured modal is properly closed before navigation
+  - Changed API key link from anchor tag to button with proper styling
+  - Added link-button class for consistent styling
+  - Improved user experience by maintaining application state during navigation
+  - Fixed potential issues with full page reloads
+  - Modified wave button to only appear on startup and disappear permanently when closed
+  - Updated modal visibility to respect the welcomeState store value
+  - Prevented reopening of welcome modal after it has been dismissed
+  - Ensured consistent behavior across all dismiss actions
+
 - Fixed UI Issues:
   - Fixed chat bubble avatar display and scrolling issues
   - Restructured ChatBubble.svelte component for proper avatar layering

@@ -2,6 +2,7 @@
   import { fade, fly } from 'svelte/transition';
   import { elasticOut, backOut } from 'svelte/easing';
   import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
   import ChatBubble from './ChatBubble.svelte';
   import Button from './Button.svelte';
   import welcomeState from '$lib/stores/welcomeState';
@@ -61,6 +62,11 @@
   });
 
   function toggleChat() {
+    // If user has already seen welcome, don't allow reopening
+    if (hasSeenWelcome) {
+      return;
+    }
+    
     isOpen = !isOpen;
     if (isOpen) {
       animateMessages();
@@ -75,11 +81,13 @@
   }
 
   function goToHelp() {
-    window.location.href = '/help';
+    handleMinimize(); // Close modal first
+    goto('/help');
   }
 
   function goToSettings() {
-    window.location.href = '/settings';
+    handleMinimize(); // Close modal first
+    goto('/settings');
   }
 
   // Animate messages appearing one by one
@@ -98,7 +106,7 @@
   <!-- Wave Button -->
   <button 
     class="wave-button" 
-    class:hidden={isOpen}
+    class:hidden={isOpen || hasSeenWelcome}
     on:click={toggleChat}
     title="Welcome Chat"
   >
@@ -106,7 +114,7 @@
   </button>
 
   <!-- Modal Overlay -->
-  {#if isOpen}
+  {#if isOpen && !hasSeenWelcome}
     <div class="modal-overlay" transition:fade={{ duration: 300 }} on:click|self={handleMinimize}>
       <div class="chat-modal" transition:fly={{ y: 50, duration: 400, easing: elasticOut }}>
         <div class="modal-header">
@@ -159,7 +167,7 @@
               
               {#if !apiKeyValue}
                 <div class="api-key-notice" in:fade={{ duration: 300, delay: 500 }}>
-                  Don't forget to <a href="#" on:click|preventDefault={goToSettings}>set up your API key</a> for advanced features!
+                  Don't forget to <button class="link-button" on:click={goToSettings}>set up your API key</button> for advanced features!
                 </div>
               {/if}
             </div>
@@ -173,14 +181,14 @@
 <style>
   .welcome-chat {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    bottom: 70px;
+    right: 60px;
     z-index: 1000;
   }
 
   .wave-button {
-    width: 50px;
-    height: 50px;
+    width: 75px;
+    height: 75px;
     border-radius: 50%;
     background: var(--color-surface);
     border: 2px solid var(--color-border);
@@ -202,7 +210,7 @@
   }
 
   .wave {
-    animation: wave 3s ease-in-out infinite;
+    animation: wave 10s ease-in-out infinite;
     transform-origin: 70% 70%;
   }
 
@@ -232,7 +240,7 @@
 
   .chat-modal {
     width: 90%;
-    max-width: 700px;
+    max-width: 900px;
     max-height: 80vh;
     background: var(--color-surface);
     border-radius: var(--rounded-md);
@@ -353,14 +361,19 @@
     border-left: 3px solid var(--color-prime);
   }
 
-  .api-key-notice a {
+  .api-key-notice .link-button {
     color: var(--color-prime);
     text-decoration: none;
     font-weight: var(--font-weight-medium);
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
     border-bottom: 1px dotted var(--color-prime);
   }
 
-  .api-key-notice a:hover {
+  .api-key-notice .link-button:hover {
     color: var(--color-fourth);
     border-color: var(--color-fourth);
   }

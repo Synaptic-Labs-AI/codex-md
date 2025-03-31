@@ -7,6 +7,20 @@ Transitioning to Phase 4: Desktop Features - Implementing system tray integratio
 - Enhancing URL and Parent URL conversion with Puppeteer for better content extraction
 
 ## Recent Changes
+- Enhanced WelcomeChat Modal UI and Navigation:
+  - Updated WelcomeChat.svelte to use SvelteKit's client-side navigation
+  - Replaced window.location.href with goto() from '$app/navigation'
+  - Ensured modal is properly closed before navigation with handleMinimize()
+  - Changed API key link from anchor tag to button with proper styling
+  - Added link-button class for consistent styling of button-as-link elements
+  - Improved user experience by maintaining application state during navigation
+  - Fixed potential issues with full page reloads during navigation
+  - Adjusted wave button position (moved up and to the left) for better visibility and accessibility
+  - Modified wave button to only appear on startup and disappear permanently when closed
+  - Updated modal visibility to respect the welcomeState store value
+  - Prevented reopening of welcome modal after it has been dismissed
+  - Ensured consistent behavior across all dismiss actions (X button, Help Guide, I'm Ready)
+
 - Fixed Chat Bubble Avatar Display and Scrolling Issues:
   - Completely restructured ChatBubble.svelte component for proper avatar display
   - Moved avatars outside the chat bubble to create a layered effect
