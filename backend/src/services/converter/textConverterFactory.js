@@ -98,7 +98,7 @@ function getSupportedMimeTypes() {
   return Object.values(converters).flatMap(c => c.config.mimeTypes);
 }
 
-export default {
+export const textConverterFactory = {
   getConverterByExtension,
   getConverterByMimeType,
   getSupportedExtensions,
