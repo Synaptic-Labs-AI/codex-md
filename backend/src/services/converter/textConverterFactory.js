@@ -11,6 +11,7 @@
 
 import pdfConverter from './pdf/PdfConverterFactory.js';
 import docxConverter from './text/docxConverter.js';
+import * as xlsxConverter from './data/xlsxConverter.js';
 
 const converters = {
   // PDF Converter
@@ -35,6 +36,22 @@ const converters = {
     config: docxConverter.config
   },
 
+  // Excel Spreadsheets
+  xlsx: {
+    convert: xlsxConverter.convertXlsxToMarkdown,
+    validate: (input) => {
+      return Buffer.isBuffer(input) && input.length > 0;
+    },
+    config: {
+      name: 'Excel Spreadsheet',
+      extensions: ['.xlsx', '.xls'],
+      mimeTypes: [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel'
+      ],
+      maxSize: 50 * 1024 * 1024, // 50MB
+    }
+  },
 };
 
 /**

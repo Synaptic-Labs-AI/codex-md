@@ -25,6 +25,7 @@ const { convertVideoToMarkdown } = require('./videoConverterAdapter');
 const { convertAudioToMarkdown } = require('./audioConverterAdapter');
 const { convertUrl } = require('./urlConverterAdapter');
 const { convertParentUrl } = require('./parentUrlConverterAdapter');
+const { convertXlsxToMarkdown } = require('./xlsxConverterAdapter');
 
 // Default browser options with modern browser settings
 const defaultBrowserOptions = {
@@ -81,7 +82,9 @@ class ConversionServiceAdapter extends BaseModuleAdapter {
       'mp3': convertAudioToMarkdown,
       'wav': convertAudioToMarkdown,
       'url': convertUrl,
-      'parenturl': convertParentUrl
+      'parenturl': convertParentUrl,
+      'xlsx': convertXlsxToMarkdown,
+      'xls': convertXlsxToMarkdown
     };
     
     console.log('🔄 [ConversionServiceAdapter] Initializing adapter for backend ConversionService');
@@ -190,6 +193,11 @@ class ConversionServiceAdapter extends BaseModuleAdapter {
         // Handle audio files
         if (normalizedType === 'audio' || ['mp3', 'wav'].includes(normalizedType)) {
           return await this.specializedConverters.audio(data.content, data.name);
+        }
+        
+        // Handle XLSX files
+        if (normalizedType === 'xlsx' || normalizedType === 'xls') {
+          return await this.specializedConverters.xlsx(data.content, data.name, data.apiKey);
         }
       }
       
