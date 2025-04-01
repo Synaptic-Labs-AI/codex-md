@@ -33,6 +33,10 @@ class ElectronClient {
     }
     
     this.supportedTypes = ['file', 'url', 'parent', 'youtube', 'audio', 'video'];
+    
+    // Constants for chunked file transfer
+    this.CHUNK_SIZE = 24 * 1024 * 1024; // 24MB chunks
+    this.PROGRESS_INTERVAL = 250; // 250ms between progress updates
   }
 
   /**
@@ -161,6 +165,121 @@ class ElectronClient {
    */
   validateItem(item) {
     return validateAndNormalizeItem(item, this.supportedTypes);
+  }
+
+  /**
+   * Transfers a large file to the main process in chunks
+   * @param {File} file - The File object to transfer
+   * @param {string} tempFilePath - Path to the temporary file
+   * @param {Function} onProgress - Progress callback
+   * @returns {Promise<{success: boolean, finalPath: string, error?: string}>}
+   */
+  async transferLargeFile(file, tempFilePath, onProgress = null) {
+    if (!this.isElectron || !window.electronAPI) {
+      throw new ConversionError('Cannot transfer large file: Not running in Electron environment');
+    }
+    
+    console.log(`📤 [transferLargeFile] Starting chunked transfer for ${file.name} (${Math.round(file.size / (1024 * 1024))}MB)`);
+    
+    try {
+      // Initialize the transfer
+      const initResult = await window.electronAPI.initLargeFileTransfer({
+        tempFilePath,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        chunkSize: this.CHUNK_SIZE // Pass the chunk size to the server
+      });
+      
+      if (!initResult.success) {
+        throw new Error(`Failed to initialize file transfer: ${initResult.error}`);
+      }
+      
+      const transferId = initResult.transferId;
+      console.log(`📤 [transferLargeFile] Transfer initialized with ID: ${transferId}`);
+      
+      // Calculate number of chunks
+      const totalChunks = Math.ceil(file.size / this.CHUNK_SIZE);
+      console.log(`📤 [transferLargeFile] File will be sent in ${totalChunks} chunks of ${this.CHUNK_SIZE / (1024 * 1024)}MB each`);
+      
+      // Track progress
+      let lastProgressUpdate = Date.now();
+      let bytesTransferred = 0;
+      
+      // Transfer file in chunks
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * this.CHUNK_SIZE;
+        const end = Math.min(start + this.CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        
+        // Read chunk as array buffer
+        const arrayBuffer = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(chunk);
+        });
+        
+        // Convert to base64 for transfer
+        const base64Chunk = btoa(
+          new Uint8Array(arrayBuffer).reduce(
+            (data, byte) => data + String.fromCharCode(byte), ''
+          )
+        );
+        
+        // Send chunk to main process
+        const chunkResult = await window.electronAPI.transferFileChunk({
+          transferId,
+          chunkIndex,
+          totalChunks,
+          data: base64Chunk,
+          size: chunk.size
+        });
+        
+        if (!chunkResult.success) {
+          throw new Error(`Failed to transfer chunk ${chunkIndex}: ${chunkResult.error}`);
+        }
+        
+        // Update progress
+        bytesTransferred += chunk.size;
+        const progress = (bytesTransferred / file.size) * 100;
+        
+        const now = Date.now();
+        if (onProgress && now - lastProgressUpdate >= this.PROGRESS_INTERVAL) {
+          onProgress(progress);
+          lastProgressUpdate = now;
+        }
+        
+        console.log(`📤 [transferLargeFile] Chunk ${chunkIndex + 1}/${totalChunks} transferred (${Math.round(progress)}%)`);
+      }
+      
+      // Finalize the transfer
+      const finalizeResult = await window.electronAPI.finalizeLargeFileTransfer({
+        transferId
+      });
+      
+      if (!finalizeResult.success) {
+        throw new Error(`Failed to finalize file transfer: ${finalizeResult.error}`);
+      }
+      
+      console.log(`✅ [transferLargeFile] Transfer completed successfully: ${finalizeResult.finalPath}`);
+      
+      // Ensure 100% progress is reported
+      if (onProgress) {
+        onProgress(100);
+      }
+      
+      return {
+        success: true,
+        finalPath: finalizeResult.finalPath
+      };
+    } catch (error) {
+      console.error(`❌ [transferLargeFile] Transfer failed:`, error);
+      return {
+        success: false,
+        error: error.message || 'File transfer failed'
+      };
+    }
   }
 
   /**

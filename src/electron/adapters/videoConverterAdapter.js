@@ -22,8 +22,21 @@ class VideoConverterAdapter extends BaseModuleAdapter {
   constructor() {
     super(
       'src/services/converter/multimedia/videoConverter.js',
-      'default'
+      'default',
+      {},
+      false // Set validateDefaultExport to false for class-based exports
     );
+    this.converterInstance = null;
+  }
+  
+  /**
+   * Initialize the video converter instance
+   * @returns {Promise<void>}
+   */
+  async initializeConverter() {
+    const module = await this.modulePromise;
+    const VideoConverter = module.default;
+    this.converterInstance = new VideoConverter();
   }
   
   /**
@@ -34,6 +47,11 @@ class VideoConverterAdapter extends BaseModuleAdapter {
    */
   async convertVideoToMarkdown(filePath, originalName) {
     try {
+      // Initialize converter if not already done
+      if (!this.converterInstance) {
+        await this.initializeConverter();
+      }
+      
       // Get API key from secure storage
       const apiKey = await ApiKeyService.getApiKey('openai');
       if (!apiKey) {
@@ -51,12 +69,12 @@ class VideoConverterAdapter extends BaseModuleAdapter {
       
       console.log('🚀 [VideoConverterAdapter] Executing backend conversion method');
       
-      // Create instance and call convertToMarkdown method
-      const result = await this.executeMethod('convertToMarkdown', [buffer, {
+      // Call the convertToMarkdown method on the converter instance
+      const result = await this.converterInstance.convertToMarkdown(buffer, {
         name: originalName,
         apiKey,
         mimeType: `video/${type}`
-      }]);
+      });
       
       // Include metadata from the converter in the result
       if (result.metadata) {

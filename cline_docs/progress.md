@@ -4,6 +4,35 @@ This document tracks what has been completed and what remains to be built in the
 
 ## Completed Features
 
+- Improved Large File Transfer Performance:
+  - Increased chunk size from 5MB to 24MB for faster file transfers
+  - Updated client to pass chunk size to server during initialization
+  - Modified server to use client-specified chunk size
+  - Added better logging of chunk size and transfer statistics
+  - Reduced number of chunks needed for large video files
+  - Improved transfer speed for large video files
+  - Enhanced documentation in IPC types
+
+- Fixed Video Converter Adapter Error:
+  - Fixed "Method 'convertToMarkdown' not found in export 'default'" error in video conversion
+  - Updated VideoConverterAdapter to properly handle class-based exports
+  - Added instance initialization pattern to match AudioConverterAdapter
+  - Modified adapter to instantiate the VideoConverter class before calling methods
+  - Improved error handling and logging for video conversion
+  - Ensured consistency with other adapters in the codebase
+  - Fixed the root cause of video conversion failures
+
+- Fixed Video Conversion Error:
+  - Fixed "Cannot read properties of undefined (reading 'length')" error in video conversion
+  - Implemented robust null/undefined checks in saveTempFile function
+  - Added special handling for large video files with chunked file transfer
+  - Created new IPC handlers for large file transfer operations
+  - Implemented client-side chunking of large files to avoid memory issues
+  - Added progress tracking for large file transfers
+  - Enhanced error handling and cleanup for temporary files
+  - Improved logging for better diagnostics
+  - Added validation of transferred data to ensure integrity
+
 - Fixed Image Links in PDF Conversion:
   - Modified MistralPdfConverter.js to properly handle image references in OCR results
   - Created a mapping between Mistral's image IDs and our generated image paths

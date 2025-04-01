@@ -37,6 +37,11 @@ contextBridge.exposeInMainWorld(
     moveItem: (sourcePath, destPath) => ipcRenderer.invoke('mdcode:fs:move', { sourcePath, destPath }),
     selectInputDirectory: (options) => ipcRenderer.invoke('mdcode:fs:select-input-directory', options),
     
+    // Large file transfer operations
+    initLargeFileTransfer: (params) => ipcRenderer.invoke('mdcode:fs:init-large-file-transfer', params),
+    transferFileChunk: (params) => ipcRenderer.invoke('mdcode:fs:transfer-file-chunk', params),
+    finalizeLargeFileTransfer: (params) => ipcRenderer.invoke('mdcode:fs:finalize-large-file-transfer', params),
+    
     // Settings management
     getSetting: (key) => ipcRenderer.invoke('mdcode:get-setting', key),
     setSetting: (key, value) => ipcRenderer.invoke('mdcode:set-setting', key, value),
