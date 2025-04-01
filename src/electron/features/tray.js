@@ -4,7 +4,7 @@
  * 
  * Related files:
  * - main.js: Main process entry point
- * - assets/tray-icon-placeholder.txt: Placeholder for tray icon (TODO: Replace with actual icon)
+ * - frontend/static/logo.png: Application tray icon
  */
 
 const { app, Tray, Menu, MenuItem, dialog, shell } = require('electron');
@@ -40,9 +40,7 @@ class TrayManager {
    */
   createTray() {
     try {
-      // TODO: Replace with actual icon file
-      // For now, use a default icon from Electron
-      const iconPath = path.join(__dirname, '../assets/tray-icon-placeholder.txt');
+      const iconPath = path.join(__dirname, '../../../frontend/static/logo.png');
       
       // Create the tray icon
       this.tray = new Tray(iconPath);
