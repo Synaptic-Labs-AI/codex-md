@@ -74,11 +74,11 @@ export async function convertHtmlToMarkdown(buffer, originalName, options = {}) 
             originalSrc: src,
             alt,
             title,
-            path: `attachments/${baseName}/${imageName}`
+            path: `images/${baseName}/${imageName}`
           });
           
           // Update the src attribute to point to the new location
-          img.setAttribute('src', `attachments/${baseName}/${imageName}`);
+          img.setAttribute('src', `images/${baseName}/${imageName}`);
         }
       });
     }
@@ -126,7 +126,7 @@ export async function convertHtmlToMarkdown(buffer, originalName, options = {}) 
     const markdown = [
       '---',
       `title: ${cleanTitle}`,
-      `attachmentFolder: attachments/${baseName}`,
+      `imagesFolder: images/${baseName}`,
       'created: ' + new Date().toISOString(),
       `originalName: ${originalName}`,
       `conversionTime: ${Date.now() - startTime}ms`,

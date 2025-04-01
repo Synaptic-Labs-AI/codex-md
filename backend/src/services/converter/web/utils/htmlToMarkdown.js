@@ -93,7 +93,7 @@ function configureTurndown(options = {}) {
       const src = node.getAttribute('src')?.trim() || '';
       
       // Handle attachments differently
-      if (src.startsWith('attachments/')) {
+      if (src.startsWith('images/')) {
         return `![[${src}]]`;
       }
       

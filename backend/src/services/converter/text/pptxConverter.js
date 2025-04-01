@@ -141,7 +141,7 @@ export async function convertPptxToMarkdown(input, originalName, apiKey) {
         data: img.data,
         type: img.type,
         // Ensure path follows Obsidian attachment structure
-        path: `attachments/${presentationName}/${img.filename}`
+        path: `images/${presentationName}/${img.filename}`
       }))
     };
   } catch (error) {
