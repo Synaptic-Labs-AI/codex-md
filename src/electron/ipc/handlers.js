@@ -10,7 +10,7 @@
 
 const { shell, ipcMain, app } = require('electron');
 const { createStore } = require('../utils/storeFactory');
-const { registerFileSystemHandlers } = require('./handlers/filesystem');
+const { registerFileSystemHandlers, cleanupFileSystemHandlers } = require('./handlers/filesystem');
 const { registerConversionHandlers } = require('./handlers/conversion');
 const { registerFileWatcherHandlers, cleanupFileWatchers } = require('./handlers/filewatcher');
 const { registerOfflineHandlers, cleanupOfflineHandlers } = require('./handlers/offline');
@@ -44,6 +44,7 @@ function setupIPCHandlers(app, mainWindow) {
     await cleanupOfflineHandlers();
     await cleanupApiKeyHandlers();
     await cleanupTranscriptionHandlers();
+    await cleanupFileSystemHandlers();
   });
 
   // Settings Management is now handled in handlers/settings.js

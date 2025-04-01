@@ -105,6 +105,54 @@
  */
 
 /**
+ * @typedef {Object} LargeFileTransferInitRequest
+ * @property {string} tempFilePath Path to save the file
+ * @property {string} fileName Original file name
+ * @property {number} fileSize File size in bytes
+ * @property {string} [fileType] File MIME type
+ * @property {number} [chunkSize] Size of each chunk in bytes (default: 24MB)
+ */
+
+/**
+ * @typedef {Object} LargeFileTransferInitResponse
+ * @property {boolean} success Operation success status
+ * @property {string} [transferId] Unique transfer ID
+ * @property {string} [error] Error message if operation failed
+ */
+
+/**
+ * @typedef {Object} LargeFileTransferChunkRequest
+ * @property {string} transferId Transfer ID
+ * @property {number} chunkIndex Chunk index
+ * @property {number} totalChunks Total number of chunks
+ * @property {string} data Base64-encoded chunk data
+ * @property {number} size Original chunk size in bytes
+ */
+
+/**
+ * @typedef {Object} LargeFileTransferChunkResponse
+ * @property {boolean} success Operation success status
+ * @property {number} [receivedChunks] Number of chunks received
+ * @property {number} [totalChunks] Total number of chunks
+ * @property {string} [error] Error message if operation failed
+ */
+
+/**
+ * @typedef {Object} LargeFileTransferFinalizeRequest
+ * @property {string} transferId Transfer ID
+ */
+
+/**
+ * @typedef {Object} LargeFileTransferFinalizeResponse
+ * @property {boolean} success Operation success status
+ * @property {string} [finalPath] Path to the final file
+ * @property {number} [size] Final file size in bytes
+ * @property {number} [transferTime] Transfer time in seconds
+ * @property {number} [transferSpeed] Transfer speed in MB/s
+ * @property {string} [error] Error message if operation failed
+ */
+
+/**
  * @typedef {Object} FileWatchRequest
  * @property {string|string[]} paths Paths to watch
  * @property {Object} [options] Watch options
@@ -252,6 +300,11 @@ const IPCChannels = {
   MOVE_ITEM: 'mdcode:fs:move',
   SELECT_DIRECTORY: 'mdcode:fs:select-directory',
   SELECT_INPUT_DIRECTORY: 'mdcode:fs:select-input-directory',
+  
+  // Large file transfer operations
+  INIT_LARGE_FILE_TRANSFER: 'mdcode:fs:init-large-file-transfer',
+  TRANSFER_FILE_CHUNK: 'mdcode:fs:transfer-file-chunk',
+  FINALIZE_LARGE_FILE_TRANSFER: 'mdcode:fs:finalize-large-file-transfer',
   
   // Settings
   GET_SETTING: 'mdcode:get-setting',

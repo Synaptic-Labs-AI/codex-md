@@ -68,53 +68,121 @@ async function saveTempFile(file) {
   // For binary files like PDFs, we need to handle them differently
   const isBinaryFile = ['pdf', 'pptx', 'docx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'webm', 'avi'].includes(fileExt.toLowerCase());
   
-  if (isBinaryFile) {
-    console.log(`📊 [saveTempFile] Handling as binary file: ${fileExt}`);
+  // Special handling for large video files
+  const isVideoFile = ['mp4', 'webm', 'avi'].includes(fileExt.toLowerCase());
+  const isLargeFile = file.size > 100 * 1024 * 1024; // 100MB threshold
+  
+  if (isVideoFile && isLargeFile) {
+    console.log(`📊 [saveTempFile] Handling as large video file: ${fileExt} (${Math.round(file.size / (1024 * 1024))}MB)`);
     
-    // For binary files, we need to convert the base64 to a binary format
-    // First read as base64
-    console.log(`📊 [saveTempFile] Reading file as base64...`);
-    const startTime = Date.now();
-    const base64Data = await readFileAsBase64(file);
-    const readTime = Date.now() - startTime;
+    // For large video files, use a different approach that doesn't rely on base64 conversion
+    // Use a special prefix to indicate this is a large file that needs special handling
+    // The main process will recognize this prefix and handle accordingly
     
-    console.log(`📊 [saveTempFile] Base64 conversion complete in ${readTime}ms`);
-    console.log(`📊 [saveTempFile] Base64 data length: ${base64Data.length} characters`);
+    // Write a placeholder file with metadata about the original file
+    const metadataObj = {
+      originalName: file.name,
+      originalSize: file.size,
+      originalType: file.type,
+      timestamp: Date.now(),
+      needsStreamProcessing: true
+    };
     
-    // Calculate expected decoded size (approximate)
-    const expectedDecodedSize = Math.ceil(base64Data.length * 0.75);
-    console.log(`📊 [saveTempFile] Expected decoded size: ~${expectedDecodedSize} bytes`);
+    const metadataStr = `LARGE_FILE:${JSON.stringify(metadataObj)}`;
     
-    // Add a special prefix to indicate this is base64 data that needs to be decoded
-    // The main process will recognize this prefix and decode it
-    const prefixedData = `BASE64:${base64Data}`;
-    
-    // Write the file with the prefix
-    console.log(`📊 [saveTempFile] Writing to temporary file: ${tempFilePath}`);
-    const writeStartTime = Date.now();
-    const writeResult = await fileSystemOperations.writeFile(tempFilePath, prefixedData);
-    const writeTime = Date.now() - writeStartTime;
+    console.log(`📊 [saveTempFile] Writing metadata placeholder for large file`);
+    const writeResult = await fileSystemOperations.writeFile(tempFilePath, metadataStr);
     
     if (!writeResult.success) {
       console.error(`❌ [saveTempFile] Write failed: ${writeResult.error}`);
-      throw new Error(`Failed to write temporary binary file: ${writeResult.error}`);
+      throw new Error(`Failed to write temporary file metadata: ${writeResult.error}`);
     }
     
-    console.log(`📊 [saveTempFile] File written in ${writeTime}ms`);
+    // Now write the actual file data in chunks using a special IPC channel
+    console.log(`📊 [saveTempFile] Starting chunked file transfer for large video`);
     
-    // Verify file was written correctly
     try {
-      const stats = await fileSystemOperations.getStats(tempFilePath);
-      if (stats.success) {
-        console.log(`📊 [saveTempFile] Temporary file stats: Size=${stats.stats.size} bytes`);
-        
-        // Check if file size is reasonable (should be at least close to original size)
-        if (stats.stats.size < file.size * 0.9) {
-          console.warn(`⚠️ [saveTempFile] File size mismatch! Original: ${file.size}, Written: ${stats.stats.size}`);
+      // Use the specialized video file transfer method from electronClient
+      const transferResult = await electronClient.transferLargeFile(file, tempFilePath, (progress) => {
+        console.log(`📊 [saveTempFile] Transfer progress: ${Math.round(progress)}%`);
+      });
+      
+      if (!transferResult.success) {
+        throw new Error(`Failed to transfer large file: ${transferResult.error}`);
+      }
+      
+      console.log(`✅ [saveTempFile] Large file transfer complete: ${transferResult.finalPath}`);
+      return transferResult.finalPath;
+    } catch (error) {
+      console.error(`❌ [saveTempFile] Large file transfer failed:`, error);
+      
+      // Attempt to clean up the placeholder file
+      try {
+        await fileSystemOperations.deleteItem(tempFilePath, false);
+      } catch (cleanupError) {
+        console.warn(`⚠️ [saveTempFile] Failed to clean up placeholder file:`, cleanupError);
+      }
+      
+      throw new Error(`Failed to transfer large video file: ${error.message}`);
+    }
+  } else if (isBinaryFile) {
+    console.log(`📊 [saveTempFile] Handling as binary file: ${fileExt}`);
+    
+    try {
+      // For binary files, we need to convert the base64 to a binary format
+      // First read as base64
+      console.log(`📊 [saveTempFile] Reading file as base64...`);
+      const startTime = Date.now();
+      const base64Data = await readFileAsBase64(file);
+      const readTime = Date.now() - startTime;
+      
+      console.log(`📊 [saveTempFile] Base64 conversion complete in ${readTime}ms`);
+      
+      // Check if base64Data is valid
+      if (!base64Data) {
+        throw new Error(`Failed to convert file to base64: ${file.name}`);
+      }
+      
+      console.log(`📊 [saveTempFile] Base64 data length: ${base64Data.length} characters`);
+      
+      // Calculate expected decoded size (approximate)
+      const expectedDecodedSize = Math.ceil(base64Data.length * 0.75);
+      console.log(`📊 [saveTempFile] Expected decoded size: ~${expectedDecodedSize} bytes`);
+      
+      // Add a special prefix to indicate this is base64 data that needs to be decoded
+      // The main process will recognize this prefix and decode it
+      const prefixedData = `BASE64:${base64Data}`;
+      
+      // Write the file with the prefix
+      console.log(`📊 [saveTempFile] Writing to temporary file: ${tempFilePath}`);
+      const writeStartTime = Date.now();
+      const writeResult = await fileSystemOperations.writeFile(tempFilePath, prefixedData);
+      const writeTime = Date.now() - writeStartTime;
+      
+      if (!writeResult.success) {
+        console.error(`❌ [saveTempFile] Write failed: ${writeResult.error}`);
+        throw new Error(`Failed to write temporary binary file: ${writeResult.error}`);
+      }
+      
+      console.log(`📊 [saveTempFile] File written in ${writeTime}ms`);
+      
+      // Verify file was written correctly
+      try {
+        const stats = await fileSystemOperations.getStats(tempFilePath);
+        if (stats.success) {
+          console.log(`📊 [saveTempFile] Temporary file stats: Size=${stats.stats.size} bytes`);
+          
+          // Check if file size is reasonable (should be at least close to original size)
+          if (stats.stats.size < file.size * 0.9) {
+            console.warn(`⚠️ [saveTempFile] File size mismatch! Original: ${file.size}, Written: ${stats.stats.size}`);
+          }
         }
+      } catch (error) {
+        console.warn(`⚠️ [saveTempFile] Could not verify file stats: ${error.message}`);
       }
     } catch (error) {
-      console.warn(`⚠️ [saveTempFile] Could not verify file stats: ${error.message}`);
+      console.error(`❌ [saveTempFile] Error processing binary file:`, error);
+      throw new Error(`Failed to process binary file: ${error.message}`);
     }
   } else {
     // For text files, just read as text and write directly

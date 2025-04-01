@@ -5,16 +5,21 @@
  * Related files:
  * - services/FileSystemService.js: Core file system operations
  * - ipc/types.js: Type definitions for IPC messages
+ * - handlers/filesystem/largeFileTransfer.js: Handlers for large file transfers
  */
 
 const { ipcMain, dialog } = require('electron');
 const { IPCChannels } = require('../../types');
 const FileSystemService = require('../../../services/FileSystemService');
+const { registerLargeFileTransferHandlers, cleanupLargeFileTransfers } = require('./largeFileTransfer');
 
 /**
  * Registers all file system IPC handlers
  */
 function registerFileSystemHandlers() {
+  // Register large file transfer handlers
+  registerLargeFileTransferHandlers();
+  
   // Read file contents
   ipcMain.handle(IPCChannels.READ_FILE, async (event, request) => {
     if (!request?.path) {
@@ -136,6 +141,14 @@ function registerFileSystemHandlers() {
   });
 }
 
+/**
+ * Cleans up any file system resources
+ */
+async function cleanupFileSystemHandlers() {
+  await cleanupLargeFileTransfers();
+}
+
 module.exports = {
-  registerFileSystemHandlers
+  registerFileSystemHandlers,
+  cleanupFileSystemHandlers
 };
