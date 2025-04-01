@@ -67,7 +67,8 @@ class MetadataExtractorAdapter extends BaseModuleAdapter {
         // Named exports configuration
         extractMetadata: true,
         formatMetadata: true
-      }
+      },
+      false // Don't validate default export
     );
     
     // Initialize with fallbacks
