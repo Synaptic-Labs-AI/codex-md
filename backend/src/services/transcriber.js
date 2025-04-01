@@ -6,13 +6,15 @@ import path from 'path';
 import { OpenAI } from 'openai';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
+import { path as ffprobePath } from '@ffmpeg-installer/ffmpeg';
 import { Readable } from 'stream';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import transcriptionConfig from '../config/transcription.esm.js';
 
-// Set ffmpeg path only
+// Set ffmpeg and ffprobe paths
 ffmpeg.setFfmpegPath(ffmpegStatic);
+ffmpeg.setFfprobePath(ffprobePath);
 
 class Transcriber {
   constructor() {

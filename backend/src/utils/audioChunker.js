@@ -1,4 +1,7 @@
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegStatic from 'ffmpeg-static';
+import ffprobe from 'ffprobe';
+import ffprobeStatic from 'ffprobe-static';
 import { Readable } from 'stream';
 import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -7,6 +10,9 @@ import os from 'os';
 
 export class AudioChunker {
   constructor(options = {}) {
+    // Configure ffmpeg path
+    ffmpeg.setFfmpegPath(ffmpegStatic);
+
     this.chunkSize = options.chunkSize || 24 * 1024 * 1024; // 24MB default
     this.overlapSeconds = options.overlapSeconds || 2;
     this.tempDir = path.join(os.tmpdir(), 'audio-chunks');
@@ -44,13 +50,17 @@ export class AudioChunker {
     }
   }
 
-  getAudioDuration(filePath) {
-    return new Promise((resolve, reject) => {
-      ffmpeg.ffprobe(filePath, (err, metadata) => {
-        if (err) reject(err);
-        else resolve(metadata.format.duration);
-      });
-    });
+  async getAudioDuration(filePath) {
+    try {
+      const info = await ffprobe(filePath, { path: ffprobeStatic.path });
+      if (!info.streams || !info.streams[0]) {
+        throw new Error('No media streams found');
+      }
+      return info.streams[0].duration;
+    } catch (error) {
+      console.error('Error getting audio duration:', error);
+      throw new Error(`Failed to get audio duration: ${error.message}`);
+    }
   }
 
   calculateChunks(totalDuration) {

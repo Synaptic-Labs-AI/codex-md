@@ -40,6 +40,8 @@ contextBridge.exposeInMainWorld(
     // Settings management
     getSetting: (key) => ipcRenderer.invoke('mdcode:get-setting', key),
     setSetting: (key, value) => ipcRenderer.invoke('mdcode:set-setting', key, value),
+    getOcrEnabled: () => ipcRenderer.invoke('mdcode:settings:get-ocr-enabled'),
+    setOcrEnabled: (enabled) => ipcRenderer.invoke('mdcode:settings:set-ocr-enabled', { enabled }),
     
     // Application
     getVersion: () => ipcRenderer.invoke('mdcode:get-version'),

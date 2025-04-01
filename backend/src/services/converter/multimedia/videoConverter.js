@@ -75,28 +75,36 @@ class VideoConverter {
       try {
         // Extract audio from video
         const audioBuffer = await transcriber.extractAudioFromVideo(input);
-        
-        // Initialize AudioChunker with 25MB limit
-        const chunker = new AudioChunker({ chunkSize: 25 * 1024 * 1024 });
-        
-        // Split audio if needed and get chunks
-        let chunks;
-        if (audioBuffer.length > 25 * 1024 * 1024) {
-          console.log("Audio size exceeds 25MB, splitting into chunks");
-          chunks = await chunker.splitAudio(audioBuffer);
-        } else {
-          chunks = [audioBuffer];
-        }
+        console.log("Audio extracted, checking size...");
 
+        // Initialize AudioChunker with 25MB limit and 2s overlap
+        const chunker = new AudioChunker({ 
+          chunkSize: 25 * 1024 * 1024,
+          overlapSeconds: 2
+        });
+        
+        // Always split audio to ensure consistent processing
+        console.log("Splitting audio into manageable chunks...");
+        const chunks = await chunker.splitAudio(audioBuffer);
+        console.log(`Created ${chunks.length} chunks for processing`);
+
+        // Process chunks in parallel with progress tracking
         console.log(`Transcribing ${chunks.length} chunks`);
         const transcriptions = await Promise.all(
           chunks.map(async (chunk, index) => {
-            console.log(`Transcribing chunk ${index + 1}/${chunks.length}`);
-            return transcriber.transcribe(chunk, apiKey);
+            try {
+              console.log(`Transcribing chunk ${index + 1}/${chunks.length}`);
+              return await transcriber.transcribe(chunk, apiKey);
+            } catch (error) {
+              console.error(`Error transcribing chunk ${index + 1}:`, error);
+              // Return placeholder for failed chunk to maintain sequence
+              return `[Transcription failed for segment ${index + 1}]`;
+            }
           })
         );
 
-        // Merge transcriptions using AudioChunker's smart merge
+        // Smart merge transcriptions with overlap handling
+        console.log("Merging transcribed chunks...");
         const fullTranscript = chunks.length > 1 
           ? chunker.mergeTranscriptions(transcriptions)
           : transcriptions[0];
@@ -108,21 +116,21 @@ class VideoConverter {
           baseName = baseName.replace(/^temp_\d+_/, "");
         }
         
-        // Generate markdown
-        const markdown = generateMarkdown({
-          title: `Video Transcription: ${baseName}`,
-          content: fullTranscript,
-          metadata: {
-            source: name,
-            type: "video-transcription",
-            mimeType: mimeType,
-            created: new Date().toISOString()
-          }
-        });
+        // Generate content without frontmatter
+        const content = `# Video Transcription: ${baseName}\n\n${fullTranscript}`;
+        
+        // Include metadata separately for ElectronConversionService to handle
+        const metadata = {
+          source: name,
+          type: "video-transcription",
+          mimeType: mimeType,
+          created: new Date().toISOString()
+        };
 
         return {
           success: true,
-          content: markdown,
+          content: content,
+          metadata: metadata,
           type: "video",
           name,
           category: "video",
@@ -153,10 +161,10 @@ class VideoConverter {
   }
 }
 
-// Export singleton instance
-export const videoConverter = new VideoConverter();
+// Create and export singleton instance
+const instance = new VideoConverter();
 
-// Export named function for adapter compatibility
-export const convertVideoToMarkdown = async (input, options) => {
-  return videoConverter.convertToMarkdown(input, options);
+// Export the instance with its methods
+export const videoConverter = {
+  convertToMarkdown: (input, options) => instance.convertToMarkdown(input, options)
 };

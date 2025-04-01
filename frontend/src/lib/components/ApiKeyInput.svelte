@@ -2,28 +2,36 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { slide, fade } from 'svelte/transition';
-  import { apiKey } from '$lib/stores/apiKey.js';
+  import { getApiKey, setApiKey } from '$lib/stores/apiKey.js';
   import Button from './common/Button.svelte';
+
+  // Props
+  export let provider = 'openai';
+  export let title = provider === 'openai' ? 'OpenAI API Key' : 'Mistral API Key';
+  export let placeholder = provider === 'openai' ? 'Enter your OpenAI API Key' : 'Enter your Mistral API Key';
+  export let infoText = provider === 'openai' 
+    ? 'Required for audio/video transcription.' 
+    : 'Required for advanced OCR processing.';
+  export let helpLink = provider === 'openai' 
+    ? '/help#api-keys' 
+    : 'https://console.mistral.ai/';
+  export let helpText = provider === 'openai'
+    ? 'Learn more about API keys'
+    : 'Get a Mistral API key';
 
   let apiKeyValue = '';
   let showApiKey = false;
-  let validating = false;
+  let saving = false;
   let error = '';
   let isElectron = false;
   let keyStatus = { exists: false, valid: false };
 
-  // Subscribe to the apiKey store so we can stay in sync
-  const unsubscribe = apiKey.subscribe(value => {
-    apiKeyValue = value || '';
-  });
-
-  onDestroy(() => {
-    unsubscribe();
-  });
-
   onMount(() => {
     // Check if we're running in Electron
     isElectron = !!window.electronAPI;
+    
+    // Initialize with current value from store
+    apiKeyValue = getApiKey(provider) || '';
     
     // If in Electron, check if API key exists
     if (isElectron) {
@@ -34,26 +42,26 @@
   // Check if API key exists in Electron
   async function checkApiKey() {
     try {
-      const result = await window.electronAPI.checkApiKeyExists('openai');
+      const result = await window.electronAPI.checkApiKeyExists(provider);
       keyStatus = { exists: result.exists, valid: true };
       
       // If key exists, try to load it
       if (result.exists) {
-        const response = await window.electronAPI.getApiKey('openai');
+        const response = await window.electronAPI.getApiKey(provider);
         if (response.success && response.key) {
           apiKeyValue = response.key;
-          apiKey.set(response.key);
+          setApiKey(response.key, provider);
         }
       }
     } catch (err) {
-      console.error('Error checking API key:', err);
+      console.error(`Error checking ${provider} API key:`, err);
     }
   }
 
   // Update store directly as user types
   function handleInput(event) {
     apiKeyValue = event.target.value;
-    apiKey.set(apiKeyValue);
+    setApiKey(apiKeyValue, provider);
     error = '';
   }
 
@@ -61,42 +69,30 @@
     showApiKey = !showApiKey;
   }
   
-  // Validate API key
-  async function validateApiKey() {
+  // Save API key without validation
+  async function saveApiKey() {
     if (!apiKeyValue) return;
     
-    validating = true;
+    saving = true;
     error = '';
     
     try {
-      // Basic validation
-      if (!apiKeyValue.startsWith('sk-')) {
-        throw new Error('Invalid API key format. Key should start with "sk-"');
-      }
-      
-      // If in Electron, validate with API
+      // If in Electron, save with API
       if (isElectron) {
-        const validation = await window.electronAPI.validateApiKey(apiKeyValue);
-        
-        if (!validation.valid) {
-          throw new Error(validation.error || 'API key validation failed');
-        }
-        
-        // Save key if valid
-        const result = await window.electronAPI.saveApiKey(apiKeyValue);
+        const result = await window.electronAPI.saveApiKey(apiKeyValue, provider);
         if (!result.success) {
           throw new Error(result.error || 'Failed to save API key');
         }
         
         keyStatus = { exists: true, valid: true };
       } else {
-        // In web mode, just do basic validation
-        apiKey.set(apiKeyValue);
+        // In web mode, just update the store
+        setApiKey(apiKeyValue, provider);
       }
     } catch (e) {
       error = e.message;
     } finally {
-      validating = false;
+      saving = false;
     }
   }
   
@@ -105,10 +101,10 @@
     if (!isElectron) return;
     
     try {
-      await window.electronAPI.deleteApiKey('openai');
+      await window.electronAPI.deleteApiKey(provider);
       keyStatus = { exists: false, valid: false };
       apiKeyValue = '';
-      apiKey.set('');
+      setApiKey('', provider);
     } catch (e) {
       error = e.message;
     }
@@ -117,7 +113,7 @@
 
 <div class="api-key-wrapper api-key-input-section">
   <div class="api-key-header">
-    <h3>OpenAI API Key</h3>
+    <h3>{title}</h3>
     {#if isElectron && keyStatus.exists}
       <div class="key-status success">
         <span>✓ API key is configured</span>
@@ -133,7 +129,7 @@
         <input
           type="text"
           class="api-key-input"
-          placeholder="Enter your OpenAI API Key (sk-...)"
+          placeholder={placeholder}
           bind:value={apiKeyValue}
           on:input={handleInput}
           class:error={!!error}
@@ -142,7 +138,7 @@
         <input
           type="password"
           class="api-key-input"
-          placeholder="Enter your OpenAI API Key (sk-...)"
+          placeholder={placeholder}
           bind:value={apiKeyValue}
           on:input={handleInput}
           class:error={!!error}
@@ -161,15 +157,15 @@
       
       {#if isElectron}
         <Button
-          on:click={validateApiKey}
-          disabled={validating || !apiKeyValue}
+          on:click={saveApiKey}
+          disabled={saving || !apiKeyValue}
           variant="primary"
           size="small"
         >
-          {#if validating}
-            Validating...
+          {#if saving}
+            Saving...
           {:else}
-            Validate & Save
+            Save
           {/if}
         </Button>
       {/if}
@@ -183,12 +179,12 @@
   <div class="api-key-info">
     <p>
       {#if isElectron}
-        Required for audio/video transcription. Your key is stored securely on your device.
+        {infoText} Your key is stored securely on your device.
       {:else}
-        Required for audio/video transcription. Won't persist on refresh.
+        {infoText} Won't persist on refresh.
       {/if}
     </p>
-    <a href="/help#api-keys" class="help-link">Learn more about API keys</a>
+    <a href={helpLink} target={provider !== 'openai' ? '_blank' : undefined} rel={provider !== 'openai' ? 'noopener noreferrer' : undefined} class="help-link">{helpText}</a>
   </div>
 </div>
 

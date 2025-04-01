@@ -14,9 +14,22 @@ const { extractMetadata } = require('../adapters/metadataExtractorAdapter');
 
 /**
  * Helper function to escape special characters in strings for use in regular expressions
+ * @param {string} string - The string to escape
+ * @returns {string} The escaped string
  */
 function escapeRegExp(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Handle null, undefined, or non-string inputs
+  if (string === null || string === undefined || typeof string !== 'string') {
+    console.warn(`⚠️ Invalid input to escapeRegExp: ${string}`);
+    return '';
+  }
+  
+  try {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  } catch (error) {
+    console.error(`❌ Error in escapeRegExp:`, error);
+    return '';
+  }
 }
 
 class ElectronConversionService {
@@ -36,23 +49,48 @@ class ElectronConversionService {
   formatMetadata(metadata) {
     const lines = ['---'];
 
-    // Filter out any image-related metadata
-    const cleanedMetadata = Object.fromEntries(
-      Object.entries(metadata).filter(([key]) => !key.toLowerCase().includes('image'))
-    );
+    // Ensure metadata is an object
+    if (!metadata || typeof metadata !== 'object') {
+      console.warn('⚠️ Invalid metadata provided to formatMetadata, using empty object');
+      metadata = {};
+    }
 
-    for (const [key, value] of Object.entries(cleanedMetadata)) {
-      if (Array.isArray(value)) {
-        if (value.length > 0) {
-          lines.push(`${key}:`);
-          value.forEach(item => lines.push(`  - ${item}`));
+    try {
+      // Filter out any image-related metadata
+      const cleanedMetadata = Object.fromEntries(
+        Object.entries(metadata).filter(([key]) => 
+          key && typeof key === 'string' && !key.toLowerCase().includes('image')
+        )
+      );
+
+      for (const [key, value] of Object.entries(cleanedMetadata)) {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            lines.push(`${key}:`);
+            value.forEach(item => {
+              if (item !== null && item !== undefined) {
+                lines.push(`  - ${item}`);
+              }
+            });
+          }
+        } else if (value !== null && value !== undefined && value !== '') {
+          try {
+            // Safely convert to string and escape special characters
+            const valueStr = String(value);
+            const needsQuotes = /[:#\[\]{}",\n]/g.test(valueStr);
+            const escapedValue = valueStr.replace(/"/g, '\\"');
+            lines.push(`${key}: ${needsQuotes ? `"${escapedValue}"` : value}`);
+          } catch (error) {
+            console.warn(`⚠️ Error formatting metadata value for key "${key}":`, error);
+            // Skip this problematic entry
+          }
         }
-      } else if (value !== null && value !== undefined && value !== '') {
-        // Escape special characters and wrap values containing special chars in quotes
-        const needsQuotes = /[:#\[\]{}",\n]/g.test(value.toString());
-        const escapedValue = value.toString().replace(/"/g, '\\"');
-        lines.push(`${key}: ${needsQuotes ? `"${escapedValue}"` : value}`);
       }
+    } catch (error) {
+      console.error('❌ Error in formatMetadata:', error);
+      // Add a minimal set of metadata to avoid breaking the format
+      lines.push(`type: "unknown"`);
+      lines.push(`converted: "${new Date().toISOString()}"`);
     }
 
     lines.push('---\n');
@@ -64,24 +102,51 @@ class ElectronConversionService {
    * @private
    */
   updateImageReferences(content, images) {
+    // Validate inputs
+    if (!content || typeof content !== 'string') {
+      console.warn('⚠️ Invalid content provided to updateImageReferences');
+      return content || '';
+    }
+    
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return content;
+    }
+    
     let updatedContent = content;
-
-    // Replace standard markdown image syntax with Obsidian link syntax
-    images.forEach(image => {
-      // First replace standard markdown image syntax
-      const markdownPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(image.src)}[^)]*\\)`, 'g');
-      updatedContent = updatedContent.replace(markdownPattern, `![[${image.src}]]`);
-      
-      // Then replace any Obsidian syntax that might use relative paths
-      if (image.path) {
-        const obsidianPattern = new RegExp(`!\\[\\[${escapeRegExp(image.path)}\\]\\]`, 'g');
-        updatedContent = updatedContent.replace(obsidianPattern, `![[${image.src}]]`);
-      }
-      if (image.name) {
-        const obsidianPattern = new RegExp(`!\\[\\[${escapeRegExp(image.name)}\\]\\]`, 'g');
-        updatedContent = updatedContent.replace(obsidianPattern, `![[${image.src}]]`);
-      }
-    });
+    
+    try {
+      // Replace standard markdown image syntax with Obsidian link syntax
+      images.forEach(image => {
+        // Skip invalid image objects
+        if (!image || typeof image !== 'object' || !image.src) {
+          console.warn('⚠️ Invalid image object in updateImageReferences:', image);
+          return;
+        }
+        
+        try {
+          // First replace standard markdown image syntax
+          const markdownPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(image.src)}[^)]*\\)`, 'g');
+          updatedContent = updatedContent.replace(markdownPattern, `![[${image.src}]]`);
+          
+          // Then replace any Obsidian syntax that might use relative paths
+          if (image.path && typeof image.path === 'string') {
+            const obsidianPattern = new RegExp(`!\\[\\[${escapeRegExp(image.path)}\\]\\]`, 'g');
+            updatedContent = updatedContent.replace(obsidianPattern, `![[${image.src}]]`);
+          }
+          if (image.name && typeof image.name === 'string') {
+            const obsidianPattern = new RegExp(`!\\[\\[${escapeRegExp(image.name)}\\]\\]`, 'g');
+            updatedContent = updatedContent.replace(obsidianPattern, `![[${image.src}]]`);
+          }
+        } catch (imageError) {
+          console.warn(`⚠️ Error processing image reference for ${image.src}:`, imageError);
+          // Continue with next image
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error in updateImageReferences:', error);
+      // Return original content on error
+      return content;
+    }
 
     return updatedContent;
   }
@@ -175,6 +240,9 @@ class ElectronConversionService {
       // Determine if this is a video file
       const isVideoFile = ['mp4', 'webm', 'avi'].includes(fileType.toLowerCase());
       
+      // Determine if this is likely an academic paper or complex document
+      const isLikelyAcademic = /arxiv|paper|journal|conference|proceedings|thesis|dissertation/i.test(fileName);
+      
       let conversionResult;
       
       if (isVideoFile) {
@@ -194,12 +262,21 @@ class ElectronConversionService {
 
         updateProgress(20);
 
-        // Convert content
-        conversionResult = await this.converter.convertToMarkdown(fileType, fileContent.data, {
-          name: fileName,
+        // Add enhanced options for PDF files
+        const enhancedOptions = {
           ...options,
+          name: fileName,
           onProgress: (progress) => updateProgress(20 + (progress * 0.7))
-        });
+        };
+        
+        // Add specific options for PDF files
+        if (fileType.toLowerCase() === 'pdf') {
+          enhancedOptions.enhancedLayout = options.enhancedLayout !== false; // Enable by default
+          enhancedOptions.isAcademic = isLikelyAcademic || options.isAcademic;
+        }
+
+        // Convert content
+        conversionResult = await this.converter.convertToMarkdown(fileType, fileContent.data, enhancedOptions);
       }
 
       if (!conversionResult || !conversionResult.content) {
@@ -208,15 +285,30 @@ class ElectronConversionService {
 
       updateProgress(90);
 
+      // Determine file category with error handling
+      let fileCategory;
+      try {
+        fileCategory = getFileCategory(fileType, fileType);
+        // Ensure we have a valid string value
+        if (fileCategory === undefined || fileCategory === null) {
+          console.warn(`⚠️ getFileCategory returned undefined/null for ${fileType}, defaulting to "text"`);
+          fileCategory = 'text';
+        }
+      } catch (error) {
+        console.error(`❌ Error determining file category:`, error);
+        fileCategory = 'text'; // Default to text on error
+      }
+
       // Save the conversion result
       const result = await this.saveConversionResult({
         content: conversionResult.content,
         metadata: {
           originalFile: baseName.startsWith('temp_') ? `${finalBaseName}.${fileType}` : fileName,
           type: fileType,
-          category: getFileCategory(fileType, fileType),
+          category: fileCategory,
           ...(conversionResult.pageCount ? { pageCount: conversionResult.pageCount } : {}),
-          ...(conversionResult.slideCount ? { slideCount: conversionResult.slideCount } : {})
+          ...(conversionResult.slideCount ? { slideCount: conversionResult.slideCount } : {}),
+          ...(conversionResult.metadata || {}) // Include any metadata from the converter
         },
         images: conversionResult.images || [],
         name: finalBaseName,

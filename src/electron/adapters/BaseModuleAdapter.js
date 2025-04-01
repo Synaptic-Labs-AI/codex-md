@@ -13,10 +13,12 @@ class BaseModuleAdapter {
    * Constructor for the base adapter
    * @param {string} modulePath - Relative path to the ES module from the backend root
    * @param {string} exportName - Name of the export to use from the module
+   * @param {Object} [namedExports] - Configuration for named exports
    */
-  constructor(modulePath, exportName) {
+  constructor(modulePath, exportName, namedExports = {}) {
     this.modulePath = modulePath;
     this.exportName = exportName;
+    this.namedExports = namedExports;
     this.modulePromise = this.loadModule();
     this.isLoaded = false;
     
@@ -94,7 +96,7 @@ class BaseModuleAdapter {
   }
   
   /**
-   * Execute a method from the loaded module
+   * Execute a method from the loaded module's default export
    * @param {string} methodName - Name of the method to execute
    * @param {Array} args - Arguments to pass to the method
    * @returns {Promise<any>} - Result of the method execution
@@ -129,6 +131,50 @@ class BaseModuleAdapter {
       
       // No fallback - throw the error to be handled by the caller
       throw new Error(`Failed to execute ${methodName}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Execute a method from a named export
+   * @param {string} exportName - Name of the export
+   * @param {Array} args - Arguments to pass to the method
+   * @returns {Promise<any>} - Result of the method execution
+   */
+  async executeMethodFromExport(exportName, args = []) {
+    console.log(`⏳ [BaseModuleAdapter] Executing named export '${exportName}'`);
+    try {
+      // Wait for the module to load
+      const module = await this.modulePromise;
+      
+      // Check if the named export is configured
+      if (!this.namedExports[exportName]) {
+        console.error(`❌ [BaseModuleAdapter] Named export '${exportName}' not configured`);
+        throw new Error(`Named export '${exportName}' not configured`);
+      }
+      
+      // Get the named export
+      const exportedFunction = module[exportName];
+      
+      // Check if the export exists and is a function
+      if (typeof exportedFunction !== 'function') {
+        console.error(`❌ [BaseModuleAdapter] Named export '${exportName}' is not a function`);
+        throw new Error(`Named export '${exportName}' is not a function`);
+      }
+      
+      // Execute the function
+      console.log(`🔄 [BaseModuleAdapter] Calling named export '${exportName}' with ${args.length} arguments`);
+      const result = await exportedFunction(...args);
+      console.log(`✅ [BaseModuleAdapter] Named export '${exportName}' executed successfully`);
+      return result;
+    } catch (error) {
+      console.error(`❌ [BaseModuleAdapter] Error executing named export '${exportName}':`, error);
+      console.error(`🔍 [BaseModuleAdapter] Error details:`, {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      throw new Error(`Failed to execute named export ${exportName}: ${error.message}`);
     }
   }
   

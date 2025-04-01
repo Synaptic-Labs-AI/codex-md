@@ -7,6 +7,7 @@
     "install:all": "npm install"
   },
   "dependencies": {
+    "@mistralai/mistralai": "^1.2.0",
     "@bundled-es-modules/pdfjs-dist": "^3.6.172-alpha.1",
     "@iarna/rtf-to-html": "^1.1.0",
     "@smui/button": "7.0.0",
