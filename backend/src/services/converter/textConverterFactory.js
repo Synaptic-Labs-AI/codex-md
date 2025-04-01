@@ -12,6 +12,7 @@
 import pdfConverter from './pdf/PdfConverterFactory.js';
 import docxConverter from './text/docxConverter.js';
 import * as xlsxConverter from './data/xlsxConverter.js';
+import * as csvConverter from './data/csvConverter.js';
 
 const converters = {
   // PDF Converter
@@ -47,6 +48,25 @@ const converters = {
       extensions: ['.xlsx', '.xls'],
       mimeTypes: [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel'
+      ],
+      maxSize: 50 * 1024 * 1024, // 50MB
+    }
+  },
+
+  // CSV Spreadsheets
+  csv: {
+    convert: csvConverter.convertCsvToMarkdown,
+    validate: (input) => {
+      return (Buffer.isBuffer(input) || typeof input === 'string') && input.length > 0;
+    },
+    config: {
+      name: 'CSV Spreadsheet',
+      extensions: ['.csv'],
+      mimeTypes: [
+        'text/csv',
+        'application/csv',
+        'text/comma-separated-values',
         'application/vnd.ms-excel'
       ],
       maxSize: 50 * 1024 * 1024, // 50MB
@@ -115,10 +135,53 @@ function getSupportedMimeTypes() {
   return Object.values(converters).flatMap(c => c.config.mimeTypes);
 }
 
+/**
+ * Convert content to Markdown based on type
+ * @param {string} type - The type of content (file extension without dot, or special type like 'url')
+ * @param {Buffer|string} content - The content to convert
+ * @param {Object} options - Conversion options including name, apiKey, etc.
+ * @returns {Promise<Object>} - Converted content with images if any
+ */
+async function convertToMarkdown(type, content, options = {}) {
+  // Normalize the type (remove dot if present, lowercase)
+  const normalizedType = type.toLowerCase().replace(/^\./, '');
+  
+  // Get the appropriate converter
+  let converter;
+  
+  // First check if we have a direct converter for this type
+  if (converters[normalizedType]) {
+    converter = converters[normalizedType];
+  } else {
+    // Try to find by extension
+    converter = getConverterByExtension(normalizedType);
+    
+    // If still not found, try by mime type if provided
+    if (!converter && options.mimeType) {
+      converter = getConverterByMimeType(options.mimeType);
+    }
+  }
+  
+  if (!converter) {
+    throw new Error(`No converter available for type: ${type}`);
+  }
+  
+  // Validate the input
+  if (converter.validate && !converter.validate(content)) {
+    throw new Error(`Invalid content for ${type} conversion`);
+  }
+  
+  // Convert the content
+  const result = await converter.convert(content, options.name, options.apiKey);
+  
+  return result;
+}
+
 export const textConverterFactory = {
   getConverterByExtension,
   getConverterByMimeType,
   getSupportedExtensions,
   getSupportedMimeTypes,
+  convertToMarkdown,
   converters
 };

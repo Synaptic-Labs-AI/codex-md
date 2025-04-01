@@ -155,19 +155,30 @@ class BaseModuleAdapter {
       }
       
       // Get the named export
-      const exportedFunction = module[exportName];
+      const exportedItem = module[exportName];
       
       // Check if the export exists and is a function
-      if (typeof exportedFunction !== 'function') {
+      if (typeof exportedItem !== 'function') {
         console.error(`❌ [BaseModuleAdapter] Named export '${exportName}' is not a function`);
         throw new Error(`Named export '${exportName}' is not a function`);
       }
       
-      // Execute the function
-      console.log(`🔄 [BaseModuleAdapter] Calling named export '${exportName}' with ${args.length} arguments`);
-      const result = await exportedFunction(...args);
-      console.log(`✅ [BaseModuleAdapter] Named export '${exportName}' executed successfully`);
-      return result;
+      // Check if this is a class constructor
+      const isClassConstructor =
+        exportedItem.toString().startsWith('class') || // ES6 class syntax
+        (exportedItem.prototype && Object.getOwnPropertyNames(exportedItem.prototype).includes('constructor'));
+      
+      if (isClassConstructor) {
+        // If it's a class constructor, just return it without executing
+        console.log(`🔄 [BaseModuleAdapter] Detected class constructor for '${exportName}'`);
+        return exportedItem;
+      } else {
+        // Execute the function
+        console.log(`🔄 [BaseModuleAdapter] Calling named export '${exportName}' with ${args.length} arguments`);
+        const result = await exportedItem(...args);
+        console.log(`✅ [BaseModuleAdapter] Named export '${exportName}' executed successfully`);
+        return result;
+      }
     } catch (error) {
       console.error(`❌ [BaseModuleAdapter] Error executing named export '${exportName}':`, error);
       console.error(`🔍 [BaseModuleAdapter] Error details:`, {
