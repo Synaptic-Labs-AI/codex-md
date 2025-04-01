@@ -22,15 +22,8 @@ class VideoConverterAdapter extends BaseModuleAdapter {
   constructor() {
     super(
       'src/services/converter/multimedia/videoConverter.js',
-      'videoConverter'
+      'default'
     );
-    
-    // Log available methods after initialization
-    this.modulePromise.then(module => {
-      console.log('🔍 [VideoConverter] Available methods:', Object.keys(module.videoConverter));
-    }).catch(error => {
-      console.error('❌ [VideoConverter] Failed to load module:', error);
-    });
   }
   
   /**
@@ -56,8 +49,10 @@ class VideoConverterAdapter extends BaseModuleAdapter {
         }
       });
       
-      // Call the backend video converter with options
-      const result = await this.executeMethod('convertToMarkdown', [buffer, { 
+      console.log('🚀 [VideoConverterAdapter] Executing backend conversion method');
+      
+      // Create instance and call convertToMarkdown method
+      const result = await this.executeMethod('convertToMarkdown', [buffer, {
         name: originalName,
         apiKey,
         mimeType: `video/${type}`

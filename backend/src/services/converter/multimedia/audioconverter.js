@@ -7,6 +7,15 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB (OpenAI's current limit)
 const SUPPORTED_FORMATS = ["mp3", "mp4", "mpeg", "mpga", "m4a", "wav", "webm"];
 
 class AudioConverter {
+  constructor() {
+    this.config = {
+      name: 'Audio Converter',
+      version: '1.0.0',
+      supportedFormats: ["mp3", "mp4", "mpeg", "mpga", "m4a", "wav", "webm"],
+      maxFileSize: 25 * 1024 * 1024 // 25 MB (OpenAI's current limit)
+    };
+  }
+
   /**
    * Convert audio content to markdown format
    * @param {Buffer} input - Audio file buffer
@@ -19,8 +28,17 @@ class AudioConverter {
     const { name: originalName, apiKey } = options || {};
 
     try {
+      console.log('🎵 [AudioConverter] Starting conversion with options:', {
+        hasInput: !!input,
+        inputType: input ? typeof input : 'none',
+        originalName,
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey ? apiKey.length : 0
+      });
+
       // Check for required API key first
       if (!apiKey) {
+        console.error('❌ [AudioConverter] Missing API key');
         throw new AppError(
           "OpenAI API key is required for audio transcription",
           400
@@ -75,10 +93,18 @@ class AudioConverter {
       formData.append("model", "whisper-1");
       formData.append("response_format", "text");
 
+      console.log('📝 [AudioConverter] Preparing OpenAI request...');
+      
       // Get transcription
       const transcription = await openaiProxy.makeRequest(apiKey, "audio/transcriptions", formData);
       
+      console.log('📝 [AudioConverter] Transcription result:', {
+        hasTranscription: !!transcription,
+        transcriptionLength: transcription ? transcription.length : 0
+      });
+      
       if (!transcription) {
+        console.error('❌ [AudioConverter] Empty transcription received from OpenAI');
         throw new AppError("No transcription received", 500);
       }
 
@@ -126,10 +152,5 @@ class AudioConverter {
   }
 }
 
-// Export singleton instance
-export const audioConverter = new AudioConverter();
-
-// Export named function for adapter compatibility
-export const convertAudioToMarkdown = async (input, options) => {
-  return audioConverter.convertToMarkdown(input, options);
-};
+// Export default
+export default AudioConverter;
