@@ -66,8 +66,9 @@ export class BasePdfConverter {
     // Generate standard image name with UUID
     const imageName = `${baseName}-p${pageIndex + 1}-${uuid}.${cleanExt}`;
     
-    // Use images/ folder for Obsidian compatibility
-    return `images/${imageName}`;
+    // Use document-specific images folder for better organization
+    // Format: "filename - images/filename-p1-uuid.ext"
+    return `${baseName} - images/${imageName}`;
   }
 
   /**
@@ -150,14 +151,14 @@ export class BasePdfConverter {
   }
 
   /**
-   * Creates frontmatter for markdown output
+   * Creates metadata object for the PDF
    * @protected
    * @param {string} baseName - Base filename
    * @param {number} imageCount - Number of extracted images
    * @param {number} pageCount - Number of pages
-   * @returns {string} Formatted frontmatter
+   * @returns {Object} Metadata object
    */
-  createFrontmatter(baseName, imageCount, pageCount) {
+  createMetadata(baseName, imageCount, pageCount) {
     // Remove temp_ prefix from title if present
     let cleanTitle = baseName;
     if (cleanTitle.startsWith('temp_')) {
@@ -165,17 +166,14 @@ export class BasePdfConverter {
       cleanTitle = cleanTitle.replace(/^temp_\d+_/, '');
     }
     
-    return [
-      '---',
-      `title: ${cleanTitle}`,
-      `created: ${new Date().toISOString()}`,
-      `source: ${baseName}`,
-      `type: pdf`,
-      `image_count: ${imageCount}`,
-      `page_count: ${pageCount}`,
-      '---',
-      ''
-    ].join('\n');
+    return {
+      title: cleanTitle,
+      created: new Date().toISOString(),
+      source: baseName,
+      type: 'pdf',
+      image_count: imageCount,
+      page_count: pageCount
+    };
   }
 
   /**

@@ -64,7 +64,41 @@ class ConversionResultManager {
     let updatedContent = content;
     
     try {
-      // Replace standard markdown image syntax with Obsidian link syntax
+      // First, handle any generic standard Markdown image links that might not be associated with our images
+      // This is especially important for Mistral OCR results
+      const genericMarkdownPattern = /!\[(.*?)\]\((.*?)\)/g;
+      const processedImageIds = new Set();
+      
+      // Create a map of image paths for quick lookup
+      const imagePaths = new Map();
+      images.forEach(image => {
+        if (image && typeof image === 'object') {
+          const imagePath = image.path || image.name || (image.src ? image.src : null);
+          if (imagePath) {
+            // Store both the full path and the basename for matching
+            imagePaths.set(imagePath, imagePath);
+            imagePaths.set(path.basename(imagePath), imagePath);
+          }
+        }
+      });
+      
+      // Replace generic Markdown image links with Obsidian format if we have a matching image
+      updatedContent = updatedContent.replace(genericMarkdownPattern, (match, alt, src) => {
+        // Extract the image ID from the src
+        const imageId = path.basename(src);
+        
+        // If we have a matching image, use the Obsidian format
+        if (imagePaths.has(imageId) || imagePaths.has(src)) {
+          const imagePath = imagePaths.get(imageId) || imagePaths.get(src);
+          processedImageIds.add(imageId);
+          return `![[${imagePath}]]`;
+        }
+        
+        // Otherwise, keep the original reference
+        return match;
+      });
+      
+      // Now process each image specifically
       images.forEach(image => {
         // Skip invalid image objects
         if (!image || typeof image !== 'object') {
@@ -81,6 +115,12 @@ class ConversionResultManager {
             return;
           }
           
+          // Skip if we already processed this image in the generic pass
+          const imageId = path.basename(imagePath);
+          if (processedImageIds.has(imageId)) {
+            return;
+          }
+          
           // First replace standard markdown image syntax
           if (image.src) {
             const markdownPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(image.src)}[^)]*\\)`, 'g');
@@ -91,7 +131,7 @@ class ConversionResultManager {
           const markdownAnyPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(imagePath)}[^)]*\\)`, 'g');
           updatedContent = updatedContent.replace(markdownAnyPattern, `![[${imagePath}]]`);
           
-          // Replace any existing Obsidian syntax
+          // Replace any existing Obsidian syntax that doesn't match our expected format
           const obsidianPattern = new RegExp(`!\\[\\[[^\\]]*\\]\\]`, 'g');
           
           // Only replace if it's not already in the correct format
@@ -117,6 +157,11 @@ class ConversionResultManager {
           // Continue with next image
         }
       });
+      
+      // Finally, remove any "Extracted Images" section that might have been added
+      const extractedImagesPattern = /\n\n## Extracted Images\n\n(?:!\[\[[^\]]+\]\]\n\n)*/g;
+      updatedContent = updatedContent.replace(extractedImagesPattern, '');
+      
     } catch (error) {
       console.error('❌ Error in updateImageReferences:', error);
       // Return original content on error
@@ -158,30 +203,52 @@ class ConversionResultManager {
 
     // Create images directory if we have images
     if (images && images.length > 0) {
-      const imagesDir = path.join(outputBasePath, 'images');
-      console.log(`📁 Creating images directory: ${imagesDir}`);
-      await this.fileSystem.createDirectory(imagesDir);
+      // Group images by their directory paths
+      const imagesByDir = new Map();
       
-      // Save images to the images directory
       for (const image of images) {
-        if (image && image.data) {
-          try {
-            const imagePath = path.join(outputBasePath, image.path);
-            console.log(`💾 Saving image: ${imagePath}`);
-            
-            // Ensure the image data is in the right format
-            const imageData = Buffer.isBuffer(image.data) 
-              ? image.data 
-              : (typeof image.data === 'string' && image.data.startsWith('data:'))
-                ? Buffer.from(image.data.split(',')[1], 'base64')
-                : Buffer.from(image.data, 'base64');
-                
-            await this.fileSystem.writeFile(imagePath, imageData);
-          } catch (imageError) {
-            console.error(`❌ Failed to save image: ${image.path}`, imageError);
+        if (!image || !image.path) {
+          console.warn(`⚠️ Invalid image object or missing path:`, image);
+          continue;
+        }
+        
+        // Extract the directory part from the image path
+        const dirPath = path.dirname(image.path);
+        
+        if (!imagesByDir.has(dirPath)) {
+          imagesByDir.set(dirPath, []);
+        }
+        
+        imagesByDir.get(dirPath).push(image);
+      }
+      
+      // Create each unique directory and save its images
+      for (const [dirPath, dirImages] of imagesByDir.entries()) {
+        const fullDirPath = path.join(outputBasePath, dirPath);
+        console.log(`📁 Creating images directory: ${fullDirPath}`);
+        await this.fileSystem.createDirectory(fullDirPath);
+        
+        // Save images to their respective directories
+        for (const image of dirImages) {
+          if (image && image.data) {
+            try {
+              const imagePath = path.join(outputBasePath, image.path);
+              console.log(`💾 Saving image: ${imagePath}`);
+              
+              // Ensure the image data is in the right format
+              const imageData = Buffer.isBuffer(image.data) 
+                ? image.data 
+                : (typeof image.data === 'string' && image.data.startsWith('data:'))
+                  ? Buffer.from(image.data.split(',')[1], 'base64')
+                  : Buffer.from(image.data, 'base64');
+                  
+              await this.fileSystem.writeFile(imagePath, imageData);
+            } catch (imageError) {
+              console.error(`❌ Failed to save image: ${image.path}`, imageError);
+            }
+          } else {
+            console.warn(`⚠️ Invalid image object:`, image);
           }
-        } else {
-          console.warn(`⚠️ Invalid image object:`, image);
         }
       }
     }
@@ -194,18 +261,29 @@ class ConversionResultManager {
     // Update image references to use Obsidian format
     const updatedContent = this.updateImageReferences(content, images);
 
-    // Generate YAML frontmatter
+    // Create metadata object
     const fullMetadata = {
       type,
       converted: new Date().toISOString(),
       ...metadata
     };
 
-    // Use the formatMetadata function from the adapter
-    const frontmatter = formatMetadata(fullMetadata);
+    // Check if content already has frontmatter
+    const hasFrontmatter = updatedContent.trim().startsWith('---');
     
-    // Combine frontmatter and content
-    const fullContent = frontmatter + updatedContent;
+    let fullContent;
+    
+    if (hasFrontmatter) {
+      // Content already has frontmatter, use it as is
+      console.log('Content already has frontmatter, using as is');
+      fullContent = updatedContent;
+    } else {
+      // Use the formatMetadata function from the adapter
+      const frontmatter = formatMetadata(fullMetadata);
+      
+      // Combine frontmatter and content
+      fullContent = frontmatter + updatedContent;
+    }
 
     // Save the markdown content
     await this.fileSystem.writeFile(mainFilePath, fullContent);

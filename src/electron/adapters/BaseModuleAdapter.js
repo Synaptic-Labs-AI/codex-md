@@ -12,13 +12,15 @@ class BaseModuleAdapter {
   /**
    * Constructor for the base adapter
    * @param {string} modulePath - Relative path to the ES module from the backend root
-   * @param {string} exportName - Name of the export to use from the module
-   * @param {Object} [namedExports] - Configuration for named exports
+   * @param {string|null} [exportName=null] - Name of the export to use from the module, or null if only using named exports
+   * @param {Object} [namedExports={}] - Configuration for named exports
+   * @param {boolean} [validateDefaultExport=true] - Whether to validate the default export
    */
-  constructor(modulePath, exportName, namedExports = {}) {
+  constructor(modulePath, exportName = null, namedExports = {}, validateDefaultExport = true) {
     this.modulePath = modulePath;
     this.exportName = exportName;
     this.namedExports = namedExports;
+    this.validateDefaultExport = validateDefaultExport;
     this.modulePromise = this.loadModule();
     this.isLoaded = false;
     
@@ -75,8 +77,8 @@ class BaseModuleAdapter {
       // Log available exports
       console.log(`📋 [BaseModuleAdapter] Available exports:`, Object.keys(module));
       
-      // Check if the requested export exists
-      if (!module[this.exportName]) {
+      // Check if the requested export exists (only if validateDefaultExport is true and exportName is not null)
+      if (this.validateDefaultExport && this.exportName !== null && !module[this.exportName]) {
         console.error(`❌ [BaseModuleAdapter] Export '${this.exportName}' not found in module`);
         throw new Error(`Export '${this.exportName}' not found in module: ${this.modulePath}`);
       }

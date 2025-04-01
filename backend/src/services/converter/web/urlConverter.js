@@ -172,17 +172,16 @@ export class UrlConverter {
         // First convert HTML to markdown
         const markdownContent = await htmlToMarkdown(content);
 
-        // Then generate final markdown with metadata and images
-        markdown = generateMarkdown({
-          title: metadata.title,
-          content: markdownContent,
-          metadata: {
-            ...metadata,
-            source: finalUrl,
-            type: 'web-page',
-            captured: new Date().toISOString()
-          }
-        });
+        // Store the metadata separately
+        const finalMetadata = {
+          ...metadata,
+          source: finalUrl,
+          type: 'web-page',
+          captured: new Date().toISOString()
+        };
+        
+        // Just return the markdown content without frontmatter
+        markdown = markdownContent;
       } catch (markdownError) {
         console.error('Error generating Markdown:', markdownError);
         // Create a simple markdown as fallback

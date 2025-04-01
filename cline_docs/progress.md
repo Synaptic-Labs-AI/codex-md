@@ -4,6 +4,24 @@ This document tracks what has been completed and what remains to be built in the
 
 ## Completed Features
 
+- Fixed Image Links in PDF Conversion:
+  - Modified MistralPdfConverter.js to properly handle image references in OCR results
+  - Created a mapping between Mistral's image IDs and our generated image paths
+  - Replaced standard Markdown image links with Obsidian format (![[imagename.type]])
+  - Removed the separate "Extracted Images" section at the end of the document
+  - Enhanced ConversionResultManager.updateImageReferences to better handle image references
+  - Added a generic pass to handle standard Markdown image links
+  - Added tracking of processed image IDs to avoid duplicate processing
+  - Added cleanup of any remaining "Extracted Images" sections
+  - Ensured all image references appear inline where they should in the text
+
+- Fixed PDF OCR Conversion Error:
+  - Fixed "this.createFrontmatter is not a function" error in MistralPdfConverter.js
+  - Updated MistralPdfConverter to use createMetadata method from BasePdfConverter
+  - Modified MistralPdfConverter to return metadata separately in the result object
+  - Aligned MistralPdfConverter with StandardPdfConverter's approach to metadata handling
+  - Ensured consistent architecture where ConversionResultManager handles frontmatter formatting
+
 - Enhanced Welcome Modal Behavior:
   - Updated WelcomeChat.svelte to use SvelteKit's client-side navigation
   - Replaced window.location.href with goto() from '$app/navigation'
@@ -69,14 +87,19 @@ This document tracks what has been completed and what remains to be built in the
 
 - Enhanced ES module adapter system:
   - Fixed "formatMetadata is not a function" error in PDF conversion
+  - Fixed duplicate metadata in converted files by centralizing metadata handling
   - Enhanced metadataExtractorAdapter.js to use BaseModuleAdapter pattern
+  - Fixed BaseModuleAdapter to properly handle modules with only named exports
   - Implemented robust fallback functions for when modules haven't loaded yet
   - Added synchronous fallback methods with identical behavior to real functions
   - Improved error handling for ES module imports in CommonJS environment
   - Added comprehensive logging for module loading and function execution
   - Implemented proper error recovery for metadata formatting
   - Ensured PDF files can be properly converted even during module loading
-- Standardized attachment folder structure: Images extracted from PDFs and slides are now saved to a `{{filename}}_attachments` folder
+  - Modified BasePdfConverter to return metadata as a separate property
+  - Updated ConversionResultManager to be the single source of truth for frontmatter
+  - Updated URL converter to not add its own frontmatter
+- Enhanced PDF image organization: Images extracted from PDFs are now saved to a `{filename} - images` folder specific to each PDF file
 - Consistent page/slide numbering: Fixed duplicate page numbering in PDFs and slide numbering in PPTX files
 - Electron-based file conversion with native file system access
 - PDF conversion with image extraction

@@ -131,20 +131,12 @@ export class MistralPdfConverter extends BasePdfConverter {
     const pageBreaks = [];
     let currentPosition = 0;
     
+    // Create a mapping between Mistral's image IDs and our generated image paths
+    const imageIdToPathMap = {};
+    
+    // First pass: extract images and create the mapping
     for (let i = 0; i < ocrResult.pages.length; i++) {
       const page = ocrResult.pages[i];
-      
-      // Add page content
-      markdown += page.markdown + '\n\n';
-      
-      // Calculate page breaks
-      if (i < ocrResult.pages.length - 1) {
-        currentPosition += page.markdown.length + 2; // +2 for the newlines
-        pageBreaks.push({
-          pageNumber: i + 2, // +2 because we're using 1-based page numbers
-          position: currentPosition
-        });
-      }
       
       // Extract images if available
       if (page.images && page.images.length > 0) {
@@ -153,23 +145,73 @@ export class MistralPdfConverter extends BasePdfConverter {
             const baseName = path.basename(originalName, '.pdf');
             const generatedPath = this.generateUniqueImageName(baseName, page.index - 1, 'jpeg');
 
+            // Extract the actual base64 data, removing any data URL prefix
+            let base64Data = image.image_base64;
+            if (typeof base64Data === 'string' && base64Data.startsWith('data:')) {
+              console.log(`🔍 Detected data URL prefix in image on page ${page.index}, extracting base64 data`);
+              base64Data = base64Data.split(',')[1];
+            }
+
             const imageObject = {
-              data: Buffer.from(image.image_base64, 'base64'),
+              data: Buffer.from(base64Data, 'base64'),
               pageIndex: page.index - 1,
               name: generatedPath,
               type: 'image/jpeg',
               path: generatedPath,
-              size: Buffer.from(image.image_base64, 'base64').length
+              size: Buffer.from(base64Data, 'base64').length
             };
 
             if (this.validateImageObject(imageObject)) {
+              // Add to images array
               images.push(imageObject);
-              console.log(`📸 Added OCR image on page ${page.index} (${this.truncateBase64(image.image_base64)})`);
+              
+              // Add to mapping
+              if (image.id) {
+                imageIdToPathMap[image.id] = generatedPath;
+                console.log(`📸 Added OCR image mapping: ${image.id} -> ${generatedPath}`);
+              }
+              
+              console.log(`📸 Added OCR image on page ${page.index} (${this.truncateBase64(base64Data)})`);
             } else {
               console.warn(`⚠️ Invalid OCR image object on page ${page.index}`);
             }
           }
         }
+      }
+    }
+    
+    // Second pass: process markdown content and replace image references
+    for (let i = 0; i < ocrResult.pages.length; i++) {
+      const page = ocrResult.pages[i];
+      
+      // Replace image references in the markdown content
+      let pageMarkdown = page.markdown;
+      
+      // Replace standard Markdown image links with Obsidian format
+      const markdownImageRegex = /!\[(.*?)\]\((.*?)\)/g;
+      pageMarkdown = pageMarkdown.replace(markdownImageRegex, (match, alt, src) => {
+        // Extract the image ID from the src
+        const imageId = path.basename(src);
+        
+        // If we have a mapping for this image ID, use the Obsidian format
+        if (imageIdToPathMap[imageId]) {
+          return this.generateImageMarkdown(imageIdToPathMap[imageId]);
+        }
+        
+        // Otherwise, keep the original reference
+        return match;
+      });
+      
+      // Add page content
+      markdown += pageMarkdown + '\n\n';
+      
+      // Calculate page breaks
+      if (i < ocrResult.pages.length - 1) {
+        currentPosition += pageMarkdown.length + 2; // +2 for the newlines
+        pageBreaks.push({
+          pageNumber: i + 2, // +2 because we're using 1-based page numbers
+          position: currentPosition
+        });
       }
     }
     
@@ -285,8 +327,8 @@ export class MistralPdfConverter extends BasePdfConverter {
       
       const baseName = path.basename(originalName, '.pdf');
       
-      // Create frontmatter
-      const frontmatter = this.createFrontmatter(baseName, images.length, pageCount);
+      // Create metadata object
+      const metadata = this.createMetadata(baseName, images.length, pageCount);
 
       // Process text content
       const processedText = markdown
@@ -294,23 +336,13 @@ export class MistralPdfConverter extends BasePdfConverter {
         .replace(/[^\S\r\n]+/g, ' ')
         .trim();
 
-      // Add image references using Obsidian format
-      let imageSection = '';
-      if (images.length > 0) {
-        imageSection = '\n\n## Extracted Images\n\n' +
-          images.map(img => this.generateImageMarkdown(img.path)).join('\n\n');
-      }
-
-      const markdownContent = [
-        frontmatter,
-        '## Content\n',
-        processedText,
-        imageSection
-      ].join('\n');
+      // No need to add a separate "Extracted Images" section since images are now referenced inline
+      const markdownContent = processedText;
 
       return {
         success: true,
         content: markdownContent,
+        metadata: metadata,
         images,
         pageBreaks: options.preservePageInfo ? pageBreaks : undefined,
         stats: {

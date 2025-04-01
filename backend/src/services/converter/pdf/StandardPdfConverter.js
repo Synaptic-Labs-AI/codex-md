@@ -416,8 +416,8 @@ export class StandardPdfConverter extends BasePdfConverter {
       
       const baseName = path.basename(originalName, '.pdf');
       
-      // Create frontmatter
-      const frontmatter = this.createFrontmatter(baseName, images.length, options.preservePageInfo ? pageBreaks.length + 1 : 1);
+      // Create metadata object
+      const metadata = this.createMetadata(baseName, images.length, options.preservePageInfo ? pageBreaks.length + 1 : 1);
 
       // Process text content
       const processedText = textContent
@@ -433,7 +433,6 @@ export class StandardPdfConverter extends BasePdfConverter {
       }
 
       const markdownContent = [
-        frontmatter,
         '## Content\n',
         processedText,
         imageSection
@@ -442,6 +441,7 @@ export class StandardPdfConverter extends BasePdfConverter {
       return {
         success: true,
         content: markdownContent,
+        metadata: metadata,
         images: images,
         pageBreaks: options.preservePageInfo ? pageBreaks : undefined,
         stats: {
