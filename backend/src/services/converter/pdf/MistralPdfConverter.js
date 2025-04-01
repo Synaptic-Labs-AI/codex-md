@@ -150,12 +150,15 @@ export class MistralPdfConverter extends BasePdfConverter {
       if (page.images && page.images.length > 0) {
         for (const image of page.images) {
           if (image.image_base64) {
+            const baseName = path.basename(originalName, '.pdf');
+            const generatedPath = this.generateUniqueImageName(baseName, page.index - 1, 'jpeg');
+
             const imageObject = {
               data: Buffer.from(image.image_base64, 'base64'),
               pageIndex: page.index - 1,
-              name: `image-${page.index}-${image.id}.jpeg`,
+              name: generatedPath,
               type: 'image/jpeg',
-              path: `attachments/${originalName}/image-${page.index}-${image.id}.jpeg`,
+              path: generatedPath,
               size: Buffer.from(image.image_base64, 'base64').length
             };
 
@@ -291,13 +294,11 @@ export class MistralPdfConverter extends BasePdfConverter {
         .replace(/[^\S\r\n]+/g, ' ')
         .trim();
 
-      // Add image references
+      // Add image references using Obsidian format
       let imageSection = '';
       if (images.length > 0) {
         imageSection = '\n\n## Extracted Images\n\n' +
-          images.map(img => 
-            `![${img.name}](${img.path})`
-          ).join('\n\n');
+          images.map(img => this.generateImageMarkdown(img.path)).join('\n\n');
       }
 
       const markdownContent = [

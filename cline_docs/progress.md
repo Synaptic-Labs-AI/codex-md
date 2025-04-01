@@ -66,6 +66,16 @@ This document tracks what has been completed and what remains to be built in the
   - Changed DOCX conversion to use HTML output and then convert to Markdown
   - Added HTML file converter for direct HTML to Markdown conversion
   - Added support for HTML and HTM file types
+
+- Enhanced ES module adapter system:
+  - Fixed "formatMetadata is not a function" error in PDF conversion
+  - Enhanced metadataExtractorAdapter.js to use BaseModuleAdapter pattern
+  - Implemented robust fallback functions for when modules haven't loaded yet
+  - Added synchronous fallback methods with identical behavior to real functions
+  - Improved error handling for ES module imports in CommonJS environment
+  - Added comprehensive logging for module loading and function execution
+  - Implemented proper error recovery for metadata formatting
+  - Ensured PDF files can be properly converted even during module loading
 - Standardized attachment folder structure: Images extracted from PDFs and slides are now saved to a `{{filename}}_attachments` folder
 - Consistent page/slide numbering: Fixed duplicate page numbering in PDFs and slide numbering in PPTX files
 - Electron-based file conversion with native file system access

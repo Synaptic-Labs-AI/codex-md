@@ -182,13 +182,13 @@ export class StandardPdfConverter extends BasePdfConverter {
             const format = filter === 'DCTDecode' ? 'jpeg' : 'png';
 
             const baseName = path.basename(originalName, '.pdf');
-            const imageName = `${baseName}-image-${i + 1}-${images.length + 1}.${format}`;
+            const generatedPath = this.generateUniqueImageName(baseName, i, format);
 
             const imageObject = {
-              name: imageName,
+              name: generatedPath,
               data: imageData.toString('base64'),
               type: `image/${format}`,
-              path: `attachments/${baseName}/${imageName}`,
+              path: generatedPath,
               hash: hash,
               size: imageData.length,
               pageIndex: i
@@ -196,9 +196,9 @@ export class StandardPdfConverter extends BasePdfConverter {
 
             if (this.validateImageObject(imageObject)) {
               images.push(imageObject);
-              console.log(`📸 Added image from page ${i}: ${imageName} (${imageData.length} bytes, data: ${this.truncateBase64(imageObject.data)})`);
+              console.log(`📸 Added image from page ${i}: ${imageObject.name} (${imageData.length} bytes, data: ${this.truncateBase64(imageObject.data)})`);
             } else {
-              console.warn(`⚠️ Invalid image object structure for ${imageName} on page ${i}`);
+              console.warn(`⚠️ Invalid image object structure for ${imageObject.name} on page ${i}`);
             }
           } catch (imageError) {
             console.warn(`Failed to extract image from page ${i}:`, imageError);
@@ -256,22 +256,22 @@ export class StandardPdfConverter extends BasePdfConverter {
 
           const ext = path.extname(imageFile).slice(1);
           const baseName = path.basename(originalName, '.pdf');
-          const newImageName = `${baseName}-image-${images.length + 1}.${ext}`;
+          const generatedPath = this.generateUniqueImageName(baseName, 0, ext);
 
           const imageObject = {
-            name: newImageName,
+            name: generatedPath,
             data: imageBuffer.toString('base64'),
             type: `image/${ext}`,
-            path: `attachments/${baseName}/${newImageName}`,
+            path: generatedPath,
             hash: hash,
             size: stats.size
           };
 
           if (this.validateImageObject(imageObject)) {
             images.push(imageObject);
-            console.log(`📸 Added image: ${newImageName} (${stats.size} bytes, data: ${this.truncateBase64(imageObject.data)})`);
+            console.log(`📸 Added image: ${imageObject.name} (${stats.size} bytes, data: ${this.truncateBase64(imageObject.data)})`);
           } else {
-            console.warn(`⚠️ Invalid image object structure for ${newImageName}`);
+            console.warn(`⚠️ Invalid image object structure for ${imageObject.name}`);
           }
         }
 
@@ -425,13 +425,11 @@ export class StandardPdfConverter extends BasePdfConverter {
         .replace(/[^\S\r\n]+/g, ' ')
         .trim();
 
-      // Add image references
+      // Add image references using Obsidian format
       let imageSection = '';
       if (images.length > 0) {
         imageSection = '\n\n## Extracted Images\n\n' +
-          images.map(img => 
-            `![${img.name}](${img.path})`
-          ).join('\n\n');
+          images.map(img => this.generateImageMarkdown(img.path)).join('\n\n');
       }
 
       const markdownContent = [

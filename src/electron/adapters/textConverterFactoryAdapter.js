@@ -2,25 +2,16 @@
  * Text Converter Factory Adapter
  * 
  * Provides a unified adapter for all text converters.
- * Uses individual adapters for each converter type.
+ * Delegates to ConversionServiceAdapter for most conversions while maintaining
+ * backward compatibility with the existing API.
  * 
  * Related files:
  * - backend/src/services/converter/textConverterFactory.js: Original implementation
- * - src/electron/adapters/pdfConverterAdapter.js: PDF converter adapter
- * - src/electron/adapters/docxConverterAdapter.js: DOCX converter adapter
- * - src/electron/adapters/pptxConverterAdapter.js: PPTX converter adapter
- * - src/electron/adapters/audioConverterAdapter.js: Audio converter adapter
- * - src/electron/adapters/videoConverterAdapter.js: Video converter adapter
+ * - src/electron/adapters/conversionServiceAdapter.js: Main conversion adapter
  * - src/electron/adapters/BaseModuleAdapter.js: Base adapter class
  */
 const BaseModuleAdapter = require('./BaseModuleAdapter');
-const { convertPdfToMarkdown } = require('./pdfConverterAdapter');
-const { convertDocxToMarkdown } = require('./docxConverterAdapter');
-const { convertPptxToMarkdown } = require('./pptxConverterAdapter');
-const { convertHtmlToMarkdown } = require('./htmlConverterAdapter');
-const { convertUrl } = require('./urlConverterAdapter');
-const { convertAudioToMarkdown } = require('./audioConverterAdapter');
-const { convertVideoToMarkdown } = require('./videoConverterAdapter');
+const conversionServiceAdapter = require('./conversionServiceAdapter');
 
 // Create the text converter factory adapter
 class TextConverterFactoryAdapter extends BaseModuleAdapter {
@@ -35,20 +26,7 @@ class TextConverterFactoryAdapter extends BaseModuleAdapter {
       console.error(`❌ [DIAGNOSTICS] Failed to run diagnostics:`, error);
     });
     
-    // Initialize specialized converters
-    this.converters = {
-      pdf: convertPdfToMarkdown,
-      docx: convertDocxToMarkdown,
-      pptx: convertPptxToMarkdown,
-      html: convertHtmlToMarkdown,
-      htm: convertHtmlToMarkdown, // Also support .htm extension
-      url: convertUrl,
-      audio: convertAudioToMarkdown,
-      video: convertVideoToMarkdown
-      // Add other converters as needed
-    };
-    
-    console.log(`📋 [TextConverterFactory] Initialized with converters:`, Object.keys(this.converters));
+    console.log(`📋 [TextConverterFactory] Initialized with ConversionServiceAdapter`);
   }
   
   /**
@@ -69,77 +47,23 @@ class TextConverterFactoryAdapter extends BaseModuleAdapter {
     });
     
     try {
-      // Normalize type to lowercase
-      const normalizedType = type.toLowerCase();
+      // Prepare data for ConversionServiceAdapter
+      const conversionData = {
+        type,
+        content,
+        name: options.name || `file.${type}`,
+        apiKey: options.apiKey,
+        options
+      };
       
-      // Check if we have a specialized converter for this type
-      if (this.converters[normalizedType]) {
-        console.log(`📦 [TextConverterFactory] Using specialized converter for ${normalizedType}`);
-        
-        // For PDF files
-        if (normalizedType === 'pdf') {
-          console.log(`🔄 [TextConverterFactory] Delegating to PDF converter`);
-          const result = await this.converters.pdf(content, options.name);
-          
-          // Validate result
-          if (!result || !result.content || result.content.trim() === '') {
-            console.error(`❌ [TextConverterFactory] PDF converter returned empty content`);
-            throw new Error('PDF conversion produced empty content');
-          }
-          
-          return result;
-        }
-        
-        // For DOCX files
-        if (normalizedType === 'docx') {
-          console.log(`🔄 [TextConverterFactory] Delegating to DOCX converter`);
-          return await this.converters.docx(content, options.name);
-        }
-        
-        // For PPTX files
-        if (normalizedType === 'pptx') {
-          console.log(`🔄 [TextConverterFactory] Delegating to PPTX converter`);
-          return await this.converters.pptx(content, options.name);
-        }
-        
-        // For HTML files
-        if (normalizedType === 'html' || normalizedType === 'htm') {
-          console.log(`🔄 [TextConverterFactory] Delegating to HTML converter`);
-          return await this.converters.html(content, options.name);
-        }
-        
-        // For URLs
-        if (normalizedType === 'url') {
-          console.log(`🔄 [TextConverterFactory] Delegating to URL converter`);
-          return await this.converters.url(content, options);
-        }
-        
-        // For audio files
-        if (normalizedType === 'audio' || 
-            ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'mpeg', 'mpga', 'webm'].includes(normalizedType)) {
-          console.log(`🔄 [TextConverterFactory] Delegating to Audio converter with options:`, {
-            hasContent: !!content,
-            contentLength: content?.length,
-            options: Object.keys(options)
-          });
-          return await this.converters.audio(content, {
-            name: options.name,
-            apiKey: options.apiKey,
-            mimeType: `audio/${normalizedType}`
-          });
-        }
-        
-        // For video files
-        if (normalizedType === 'video' || 
-            ['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(normalizedType)) {
-          console.log(`🔄 [TextConverterFactory] Delegating to Video converter`);
-          return await this.converters.video(content, options.name);
-        }
+      // Special handling for video files that need a file path
+      if (type === 'video' || ['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(type.toLowerCase())) {
+        conversionData.filePath = options.filePath;
       }
       
-      // For other types, use the factory from the backend
-      console.log(`📦 [TextConverterFactory] Using backend factory for ${normalizedType}`);
-      return await this.executeMethod('convertToMarkdown', [normalizedType, content, options]);
+      // Delegate to ConversionServiceAdapter
+      console.log(`🔄 [TextConverterFactory] Delegating to ConversionServiceAdapter`);
+      return await conversionServiceAdapter.convert(conversionData);
     } catch (error) {
       console.error(`❌ [TextConverterFactory] Conversion error for ${type}:`, error);
       console.error(`🔍 [TextConverterFactory] Error details:`, {
