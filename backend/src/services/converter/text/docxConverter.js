@@ -111,11 +111,11 @@ export async function convertDocxToMarkdown(buffer, originalName, options = {}) 
             name: imageName,
             data: imageBuffer.toString('base64'),
             type: image.contentType,
-            path: `attachments/${baseName}/${imageName}`
+            path: `images/${baseName}/${imageName}`
           });
           
           return {
-            src: `attachments/${baseName}/${imageName}`
+            src: `images/${baseName}/${imageName}`
           };
         } catch (error) {
           console.error('Image processing error:', error);
@@ -369,7 +369,7 @@ export async function convertDocxToMarkdown(buffer, originalName, options = {}) 
     const markdown = [
       '---',
       `title: ${cleanTitle}`,
-      `attachmentFolder: attachments/${baseName}`,
+      `imagesFolder: images/${baseName}`,
       'created: ' + new Date().toISOString(),
       `originalName: ${originalName}`,
       `conversionTime: ${Date.now() - startTime}ms`,
