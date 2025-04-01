@@ -161,10 +161,5 @@ class VideoConverter {
   }
 }
 
-// Create and export singleton instance
-const instance = new VideoConverter();
-
-// Export the instance with its methods
-export const videoConverter = {
-  convertToMarkdown: (input, options) => instance.convertToMarkdown(input, options)
-};
+// Export default
+export default VideoConverter;

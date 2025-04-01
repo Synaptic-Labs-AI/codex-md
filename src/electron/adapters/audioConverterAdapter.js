@@ -21,8 +21,21 @@ class AudioConverterAdapter extends BaseModuleAdapter {
   constructor() {
     super(
       "src/services/converter/multimedia/audioconverter.js",
-      "convertAudioToMarkdown"
+      "default",
+      {},
+      false
     );
+    this.converterInstance = null;
+  }
+
+  /**
+   * Initialize the audio converter instance
+   * @returns {Promise<void>}
+   */
+  async initializeConverter() {
+    const module = await this.modulePromise;
+    const AudioConverter = module.default;
+    this.converterInstance = new AudioConverter();
   }
   
   /**
@@ -33,24 +46,51 @@ class AudioConverterAdapter extends BaseModuleAdapter {
    */
   async convertAudioToMarkdown(input, originalName) {
     try {
+      // Initialize converter if not already done
+      if (!this.converterInstance) {
+        await this.initializeConverter();
+      }
+
+      console.log('🔑 [AudioConverterAdapter] Retrieving API key from secure storage');
+      
       // Get API key from secure storage
       const apiKey = await ApiKeyService.getApiKey("openai");
+      
+      console.log('🔑 [AudioConverterAdapter] API key status:', {
+        hasKey: !!apiKey,
+        keyLength: apiKey?.length || 0
+      });
+      
       if (!apiKey) {
+        console.error('❌ [AudioConverterAdapter] Missing OpenAI API key');
         throw new Error("OpenAI API key is required for audio transcription");
       }
       
-      console.log(`🎵 [AudioConverter] Converting audio file: ${originalName}`);
+      console.log(`🎵 [AudioConverterAdapter] Converting audio file:`, {
+        name: originalName,
+        inputSize: input?.length || 0,
+        inputType: input ? typeof input : 'none'
+      });
       
       // Determine MIME type from file extension
       const fileExt = originalName.split(".").pop().toLowerCase();
       const mimeType = `audio/${fileExt}`;
       
-      // Call the backend audio converter with options
-      const result = await this.executeMethod("default", [input, {
+      console.log('🚀 [AudioConverterAdapter] Executing backend conversion method');
+      
+      // Call the convertToMarkdown method on the converter instance
+      const result = await this.converterInstance.convertToMarkdown(input, {
         name: originalName,
         apiKey,
         mimeType
-      }]);
+      });
+      
+      console.log('📝 [AudioConverterAdapter] Backend method execution completed:', {
+        success: !!result,
+        hasContent: !!result?.content,
+        contentLength: result?.content?.length || 0,
+        error: result?.error
+      });
       
       console.log(`✅ [AudioConverter] Transcription successful:`, {
         hasContent: !!result?.content,

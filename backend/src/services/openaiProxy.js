@@ -27,14 +27,23 @@ class OpenAIProxy {
   }
 
   async initialize(apiKey) {
+    console.log('🔑 [OpenAIProxy] Initializing with API key:', {
+      keyLength: apiKey?.length,
+      hasKey: !!apiKey
+    });
+
+    if (!apiKey) {
+      console.error('❌ [OpenAIProxy] No API key provided for initialization');
+      throw new AppError('API key is required', 401);
+    }
+
     if (!this.openai) {
       this.openai = new OpenAI({
         apiKey,
         baseURL: config.api.openai.baseUrl,
         timeout: config.api.openai.timeout,
       });
-
-      // Remove axiosRetry(this.openai.httpClient, {...}) since httpClient is undefined
+      console.log('✅ [OpenAIProxy] OpenAI client initialized');
     }
   }
 
@@ -48,10 +57,11 @@ class OpenAIProxy {
     }
 
     try {
-      console.log('Making OpenAI request:', {
+      console.log('🚀 [OpenAIProxy] Making request:', {
         endpoint,
         hasData: !!data,
-        isFormData: data instanceof FormData
+        isFormData: data instanceof FormData,
+        dataSize: data instanceof FormData ? 'FormData size unknown' : JSON.stringify(data).length
       });
 
       const headers = {
@@ -66,17 +76,28 @@ class OpenAIProxy {
 
       const response = await this.axiosInstance.post(`/${endpoint}`, data, { headers });
       
+      console.log('✅ [OpenAIProxy] Response received:', {
+        status: response?.status,
+        hasData: !!response?.data,
+        dataType: response?.data ? typeof response.data : 'none',
+        dataLength: response?.data ? JSON.stringify(response.data).length : 0
+      });
+      
       if (!response?.data) {
+        console.error('❌ [OpenAIProxy] Empty response data');
         throw new Error('Empty response from OpenAI API');
       }
 
       this.cache.set(cacheKey, response.data);
       return response.data;
     } catch (error) {
-      console.error('OpenAI API Error:', {
+      console.error('❌ [OpenAIProxy] API Error:', {
         message: error.message,
         response: error.response?.data,
-        status: error.response?.status
+        status: error.response?.status,
+        endpoint,
+        headers: Object.keys(headers || {}),
+        isFormData: data instanceof FormData
       });
       throw this.handleApiError(error);
     }
