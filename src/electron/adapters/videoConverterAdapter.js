@@ -24,6 +24,13 @@ class VideoConverterAdapter extends BaseModuleAdapter {
       'src/services/converter/multimedia/videoConverter.js',
       'videoConverter'
     );
+    
+    // Log available methods after initialization
+    this.modulePromise.then(module => {
+      console.log('🔍 [VideoConverter] Available methods:', Object.keys(module.videoConverter));
+    }).catch(error => {
+      console.error('❌ [VideoConverter] Failed to load module:', error);
+    });
   }
   
   /**
@@ -50,11 +57,16 @@ class VideoConverterAdapter extends BaseModuleAdapter {
       });
       
       // Call the backend video converter with options
-      const result = await this.executeMethod('default', [buffer, { 
+      const result = await this.executeMethod('convertToMarkdown', [buffer, { 
         name: originalName,
         apiKey,
         mimeType: `video/${type}`
       }]);
+      
+      // Include metadata from the converter in the result
+      if (result.metadata) {
+        result.metadata = { ...result.metadata };
+      }
       
       console.log(`✅ [VideoConverter] Transcription successful:`, {
         hasContent: !!result?.content,
@@ -66,6 +78,14 @@ class VideoConverterAdapter extends BaseModuleAdapter {
         console.error(`❌ [VideoConverter] Empty transcription result`);
         throw new Error('Video transcription produced empty content');
       }
+      
+      // Log the result structure
+      console.log(`🔍 [VideoConverter] Result structure:`, {
+        hasContent: !!result?.content,
+        hasSuccess: 'success' in result,
+        contentLength: result?.content?.length || 0,
+        resultKeys: Object.keys(result || {})
+      });
       
       // Calculate page breaks based on word count
       console.log(`📄 [VideoConverter] Calculating word-based page breaks`);

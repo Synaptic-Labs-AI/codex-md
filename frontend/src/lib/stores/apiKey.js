@@ -1,10 +1,26 @@
 // src/lib/stores/apiKey.js
 import { writable, get } from 'svelte/store';
 
-// Create an in-memory store for the API key (ephemeral)
-const apiKey = writable('');
+// Create a store for API keys
+const apiKeys = writable({
+  openai: '',
+  mistral: ''
+});
 
-// Optional helper to retrieve the current value
-const getApiKey = () => get(apiKey);
+// Helper functions
+export const getApiKey = (provider = 'openai') => get(apiKeys)[provider] || '';
 
-export { apiKey, getApiKey };
+export const setApiKey = (key, provider = 'openai') => {
+  apiKeys.update(keys => {
+    keys[provider] = key;
+    return keys;
+  });
+};
+
+// For backward compatibility
+export const apiKey = {
+  subscribe: callback => {
+    return apiKeys.subscribe(keys => callback(keys.openai || ''));
+  },
+  set: value => setApiKey(value, 'openai')
+};

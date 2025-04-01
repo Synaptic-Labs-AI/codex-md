@@ -8,7 +8,6 @@
  * - preload.js: API exposure to renderer
  */
 
-const fetch = require('node-fetch');
 const { createStore } = require('../utils/storeFactory');
 
 class ApiKeyService {
@@ -22,7 +21,7 @@ class ApiKeyService {
   /**
    * Save an API key securely
    * @param {string} key - The API key to save
-   * @param {string} provider - The API provider (e.g., 'openai')
+   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   async saveApiKey(key, provider = 'openai') {
@@ -31,17 +30,17 @@ class ApiKeyService {
       this.store.set(`${provider}-api-key`, key);
       return { success: true };
     } catch (error) {
-      console.error('Error saving API key:', error);
+      console.error(`Error saving ${provider} API key:`, error);
       return { 
         success: false, 
-        error: error.message || 'Failed to save API key' 
+        error: error.message || `Failed to save ${provider} API key` 
       };
     }
   }
 
   /**
    * Get an API key
-   * @param {string} provider - The API provider (e.g., 'openai')
+   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
    * @returns {string|null} The API key or null if not found
    */
   getApiKey(provider = 'openai') {
@@ -50,7 +49,7 @@ class ApiKeyService {
 
   /**
    * Check if an API key exists
-   * @param {string} provider - The API provider (e.g., 'openai')
+   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
    * @returns {boolean} True if the API key exists
    */
   hasApiKey(provider = 'openai') {
@@ -59,7 +58,7 @@ class ApiKeyService {
 
   /**
    * Delete an API key
-   * @param {string} provider - The API provider (e.g., 'openai')
+   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
    * @returns {{success: boolean, error?: string}}
    */
   deleteApiKey(provider = 'openai') {
@@ -67,34 +66,12 @@ class ApiKeyService {
       this.store.delete(`${provider}-api-key`);
       return { success: true };
     } catch (error) {
-      console.error('Error deleting API key:', error);
+      console.error(`Error deleting ${provider} API key:`, error);
       return { 
         success: false, 
-        error: error.message || 'Failed to delete API key' 
+        error: error.message || `Failed to delete ${provider} API key` 
       };
     }
-  }
-
-  /**
-   * Validate an API key format - always returns true to bypass validation
-   * @param {string} key - The API key to validate
-   * @param {string} provider - The API provider (e.g., 'openai')
-   * @returns {boolean} Always true to bypass validation
-   */
-  isValidApiKeyFormat(key, provider = 'openai') {
-    // Skip validation and always return true
-    return true;
-  }
-
-  /**
-   * Validate an API key with the provider's API - bypassed to always return valid
-   * @param {string} key - The API key to validate
-   * @param {string} provider - The API provider (e.g., 'openai')
-   * @returns {Promise<{valid: boolean, error?: string}>}
-   */
-  async validateApiKey(key, provider = 'openai') {
-    // Skip actual validation and always return valid
-    return { valid: true };
   }
 }
 

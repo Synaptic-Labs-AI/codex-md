@@ -16,6 +16,7 @@ const { registerFileWatcherHandlers, cleanupFileWatchers } = require('./handlers
 const { registerOfflineHandlers, cleanupOfflineHandlers } = require('./handlers/offline');
 const { registerApiKeyHandlers, cleanupApiKeyHandlers } = require('./handlers/apikey');
 const { registerTranscriptionHandlers, cleanupTranscriptionHandlers } = require('./handlers/transcription');
+const { registerHandlers: registerSettingsHandlers } = require('./handlers/settings');
 
 // Initialize encrypted store with error handling
 const store = createStore('ipc-handlers', {
@@ -35,6 +36,7 @@ function setupIPCHandlers(app, mainWindow) {
   registerOfflineHandlers();
   registerApiKeyHandlers();
   registerTranscriptionHandlers();
+  registerSettingsHandlers();
   
   // Clean up resources on app quit
   app.on('will-quit', async () => {
@@ -44,14 +46,7 @@ function setupIPCHandlers(app, mainWindow) {
     await cleanupTranscriptionHandlers();
   });
 
-  // Settings Management
-  ipcMain.handle('mdcode:get-setting', (event, key) => {
-    return store.get(key);
-  });
-
-  ipcMain.handle('mdcode:set-setting', (event, key, value) => {
-    store.set(key, value);
-  });
+  // Settings Management is now handled in handlers/settings.js
 
   // Application
   ipcMain.handle('mdcode:get-version', () => {
