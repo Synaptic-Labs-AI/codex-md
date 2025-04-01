@@ -8,17 +8,12 @@
   import { startConversion, triggerDownload } from '$lib/utils/conversionManager.js';
   import { conversionResult } from '$lib/stores/conversionResult.js';
   import { conversionStatus } from '$lib/stores/conversionStatus.js';
-  import welcomeState from '$lib/stores/welcomeState.js';
+  import welcomeState, { MESSAGE_TYPES } from '$lib/stores/welcomeState.js';
   import ResultDisplay from './ResultDisplay.svelte';
 
-  let mode = 'upload';
-  let hasSeenWelcome = false;
+  let mode = 'welcome'; // Start with welcome mode
+  let showWelcome = false;
   
-  // Subscribe to the welcome state store
-  const unsubscribe = welcomeState.subscribe(value => {
-    hasSeenWelcome = value;
-  });
-
   // Function to smoothly scroll to top of page
   function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -44,19 +39,38 @@
     conversionResult.clearResult();
     mode = 'upload';
   }
+  
+  // Handle welcome chat closed event
+  function handleWelcomeClosed() {
+    mode = 'upload';
+  }
+  
+  // Handle welcome chat continue event
+  function handleWelcomeContinue() {
+    mode = 'upload';
+  }
 
-  // Setup on mount and cleanup
+  // Setup on mount
   onMount(() => {
-    // Cleanup subscriptions
-    return () => {
-      unsubscribe();
-    };
+    // Check if we should show welcome messages
+    showWelcome = welcomeState.shouldShowWelcome();
+    
+    // If we shouldn't show welcome, go straight to upload mode
+    if (!showWelcome) {
+      mode = 'upload';
+    }
   });
 </script>
 
 <div class="app-container">
   <div class="converter-app">
-    {#if mode === 'upload'}
+    {#if mode === 'welcome'}
+      <WelcomeChat 
+        messageType={MESSAGE_TYPES.WELCOME}
+        on:closed={handleWelcomeClosed}
+        on:continue={handleWelcomeContinue}
+      />
+    {:else if mode === 'upload'}
       <div class="main-content">
         <FileUploader />
         {#if $files.length > 0}
@@ -72,7 +86,6 @@
           </div>
         {/if}
       </div>
-      <WelcomeChat />
     {:else if mode === 'converting'}
       <ResultDisplay 
         on:startConversion={handleStartConversion}

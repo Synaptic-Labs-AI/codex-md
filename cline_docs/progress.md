@@ -4,6 +4,17 @@ This document tracks what has been completed and what remains to be built in the
 
 ## Completed Features
 
+- Fixed Batch Conversion Named Export Error:
+  - Fixed "Named export 'ConversionService' not configured" error in batch conversion
+  - Updated ConversionServiceAdapter to properly handle named exports
+  - Modified constructor to use the correct pattern for ES module imports
+  - Changed from using default export to named export configuration
+  - Aligned with the pattern used in other adapters like MetadataExtractorAdapter
+  - Ensured proper initialization of the ConversionService class
+  - Fixed the root cause of batch conversion failures
+  - Improved module loading and error handling for ES modules
+
+
 - Improved Large File Transfer Performance:
   - Increased chunk size from 5MB to 24MB for faster file transfers
   - Updated client to pass chunk size to server during initialization
