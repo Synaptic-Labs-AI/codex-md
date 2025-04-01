@@ -111,13 +111,16 @@ Transitioning to Phase 4: Desktop Features - Implementing system tray integratio
   - Ensured PPTX files can be properly converted to Markdown
   - Leveraged existing PPTX converter implementation in backend
 
-- Fixed PDF Conversion Error with determineCategory:
+- Fixed PDF Conversion Errors:
+  - Fixed "formatMetadata is not a function" error in PDF conversion
   - Fixed "determineCategory is not a function" error in PDF conversion
-  - Updated fileTypeUtilsAdapter.js to properly handle asynchronous module loading
-  - Added robust fallback functions for when the module hasn't loaded yet
-  - Implemented more comprehensive file type detection in the fallback
-  - Ensured PDF files can be properly converted even during module loading
+  - Enhanced metadataExtractorAdapter.js to use BaseModuleAdapter pattern
+  - Implemented robust fallback functions for when modules haven't loaded yet
+  - Added synchronous fallback methods with identical behavior to real functions
   - Improved error handling for ES module imports in CommonJS environment
+  - Ensured PDF files can be properly converted even during module loading
+  - Added comprehensive logging for module loading and function execution
+  - Implemented proper error recovery for metadata formatting
 
 - Fixed Binary Data Transmission Error:
   - Fixed "Failed to write temporary file: The first argument must be of type string or an instance of Buffer, ArrayBuffer, or Array or an Array-like Object. Received type number (37)" error

@@ -1,40 +1,32 @@
 /**
  * ElectronConversionService.js
  * Handles document conversion using native file system operations in Electron.
+ * Coordinates conversion processes and delegates to backend services via adapters.
+ * 
+ * This service has been refactored to better leverage existing backend functionality
+ * while maintaining the same interface for Electron-specific concerns.
+ * 
+ * Related files:
+ * - src/electron/services/ConversionResultManager.js: Handles saving conversion results
+ * - src/electron/services/FileSystemService.js: Handles file system operations
+ * - src/electron/utils/progressTracker.js: Handles progress tracking
+ * - src/electron/adapters/conversionServiceAdapter.js: Adapter for backend ConversionService
+ * - backend/src/services/ConversionService.js: Backend conversion implementation
  */
 
 const path = require('path');
 const { app } = require('electron');
-const { convertUrl } = require('../adapters/urlConverterAdapter');
-const { convertParentUrl } = require('../adapters/parentUrlConverterAdapter');
 const FileSystemService = require('./FileSystemService');
+const ConversionResultManager = require('./ConversionResultManager');
 const { textConverterFactory } = require('../adapters/textConverterFactoryAdapter');
 const { getFileCategory } = require('../adapters/fileTypeUtilsAdapter');
-const { extractMetadata } = require('../adapters/metadataExtractorAdapter');
-
-/**
- * Helper function to escape special characters in strings for use in regular expressions
- * @param {string} string - The string to escape
- * @returns {string} The escaped string
- */
-function escapeRegExp(string) {
-  // Handle null, undefined, or non-string inputs
-  if (string === null || string === undefined || typeof string !== 'string') {
-    console.warn(`⚠️ Invalid input to escapeRegExp: ${string}`);
-    return '';
-  }
-  
-  try {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  } catch (error) {
-    console.error(`❌ Error in escapeRegExp:`, error);
-    return '';
-  }
-}
+const ProgressTracker = require('../utils/progressTracker');
+const conversionServiceAdapter = require('../adapters/conversionServiceAdapter');
 
 class ElectronConversionService {
   constructor() {
     this.fileSystem = FileSystemService;
+    this.resultManager = ConversionResultManager;
     this.converter = textConverterFactory;
     this.progressUpdateInterval = 250; // Update progress every 250ms
     this.defaultOutputDir = path.join(app.getPath('userData'), 'conversions');
@@ -43,181 +35,22 @@ class ElectronConversionService {
   }
 
   /**
-   * Formats metadata as YAML frontmatter
-   * @private
-   */
-  formatMetadata(metadata) {
-    const lines = ['---'];
-
-    // Ensure metadata is an object
-    if (!metadata || typeof metadata !== 'object') {
-      console.warn('⚠️ Invalid metadata provided to formatMetadata, using empty object');
-      metadata = {};
-    }
-
-    try {
-      // Filter out any image-related metadata
-      const cleanedMetadata = Object.fromEntries(
-        Object.entries(metadata).filter(([key]) => 
-          key && typeof key === 'string' && !key.toLowerCase().includes('image')
-        )
-      );
-
-      for (const [key, value] of Object.entries(cleanedMetadata)) {
-        if (Array.isArray(value)) {
-          if (value.length > 0) {
-            lines.push(`${key}:`);
-            value.forEach(item => {
-              if (item !== null && item !== undefined) {
-                lines.push(`  - ${item}`);
-              }
-            });
-          }
-        } else if (value !== null && value !== undefined && value !== '') {
-          try {
-            // Safely convert to string and escape special characters
-            const valueStr = String(value);
-            const needsQuotes = /[:#\[\]{}",\n]/g.test(valueStr);
-            const escapedValue = valueStr.replace(/"/g, '\\"');
-            lines.push(`${key}: ${needsQuotes ? `"${escapedValue}"` : value}`);
-          } catch (error) {
-            console.warn(`⚠️ Error formatting metadata value for key "${key}":`, error);
-            // Skip this problematic entry
-          }
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error in formatMetadata:', error);
-      // Add a minimal set of metadata to avoid breaking the format
-      lines.push(`type: "unknown"`);
-      lines.push(`converted: "${new Date().toISOString()}"`);
-    }
-
-    lines.push('---\n');
-    return lines.join('\n');
-  }
-
-  /**
-   * Update image references to use Obsidian format
-   * @private
-   */
-  updateImageReferences(content, images) {
-    // Validate inputs
-    if (!content || typeof content !== 'string') {
-      console.warn('⚠️ Invalid content provided to updateImageReferences');
-      return content || '';
-    }
-    
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      return content;
-    }
-    
-    let updatedContent = content;
-    
-    try {
-      // Replace standard markdown image syntax with Obsidian link syntax
-      images.forEach(image => {
-        // Skip invalid image objects
-        if (!image || typeof image !== 'object' || !image.src) {
-          console.warn('⚠️ Invalid image object in updateImageReferences:', image);
-          return;
-        }
-        
-        try {
-          // First replace standard markdown image syntax
-          const markdownPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(image.src)}[^)]*\\)`, 'g');
-          updatedContent = updatedContent.replace(markdownPattern, `![[${image.src}]]`);
-          
-          // Then replace any Obsidian syntax that might use relative paths
-          if (image.path && typeof image.path === 'string') {
-            const obsidianPattern = new RegExp(`!\\[\\[${escapeRegExp(image.path)}\\]\\]`, 'g');
-            updatedContent = updatedContent.replace(obsidianPattern, `![[${image.src}]]`);
-          }
-          if (image.name && typeof image.name === 'string') {
-            const obsidianPattern = new RegExp(`!\\[\\[${escapeRegExp(image.name)}\\]\\]`, 'g');
-            updatedContent = updatedContent.replace(obsidianPattern, `![[${image.src}]]`);
-          }
-        } catch (imageError) {
-          console.warn(`⚠️ Error processing image reference for ${image.src}:`, imageError);
-          // Continue with next image
-        }
-      });
-    } catch (error) {
-      console.error('❌ Error in updateImageReferences:', error);
-      // Return original content on error
-      return content;
-    }
-
-    return updatedContent;
-  }
-
-  /**
-   * Saves conversion result to disk with consistent file handling
-   * @private
-   */
-  async saveConversionResult({ content, metadata = {}, images = [], name, type, outputDir, options = {} }) {
-    // Use provided output directory or fall back to default
-    const baseOutputDir = outputDir || this.defaultOutputDir;
-    
-    // Determine if we should create a subdirectory
-    const userProvidedOutputDir = !!outputDir;
-    const createSubdirectory = userProvidedOutputDir ? false : 
-                             (options.createSubdirectory !== undefined ? options.createSubdirectory : true);
-    
-    // Generate base name and output path
-    const baseName = name.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
-    const outputBasePath = createSubdirectory ? 
-      path.join(baseOutputDir, `${baseName}_${Date.now()}`) : 
-      baseOutputDir;
-
-    // Create output directory
-    await this.fileSystem.createDirectory(outputBasePath);
-
-    // Determine main file path
-    const mainFilePath = createSubdirectory ? 
-      path.join(outputBasePath, 'document.md') : 
-      path.join(outputBasePath, `${baseName}.md`);
-
-    // Update image references to use Obsidian format
-    const updatedContent = this.updateImageReferences(content, images);
-
-    // Generate YAML frontmatter
-    const fullMetadata = {
-      type,
-      converted: new Date().toISOString(),
-      ...metadata
-    };
-
-    // Combine frontmatter and content
-    const fullContent = this.formatMetadata(fullMetadata) + updatedContent;
-
-    // Save the markdown content
-    await this.fileSystem.writeFile(mainFilePath, fullContent);
-
-    // Return standardized result
-    return {
-      success: true,
-      outputPath: outputBasePath,
-      mainFile: mainFilePath,
-      metadata: fullMetadata
-    };
-  }
-
-  /**
    * Converts a file to markdown format
    */
   async convert(filePath, options = {}) {
     const startTime = Date.now();
-    const initialMemory = process.memoryUsage();
-    let lastProgressUpdate = 0;
-
+    
     try {
+      // Create a progress tracker
+      const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
+      progressTracker.update(5);
+      
       // Validate file exists
       const fileStats = await this.fileSystem.getStats(filePath);
       if (!fileStats.success) {
         throw new Error(`File not found or inaccessible: ${filePath}`);
       }
-
+      
       // Get file details
       const fileName = path.basename(filePath);
       const fileType = path.extname(fileName).slice(1).toLowerCase();
@@ -228,20 +61,11 @@ class ElectronConversionService {
       if (baseName.startsWith('temp_')) {
         finalBaseName = baseName.replace(/^temp_\d+_/, '');
       }
-
-      const updateProgress = (progress) => {
-        const now = Date.now();
-        if (options.onProgress && now - lastProgressUpdate >= this.progressUpdateInterval) {
-          options.onProgress(Math.min(Math.round(progress), 100));
-          lastProgressUpdate = now;
-        }
-      };
-
+      
+      progressTracker.update(10);
+      
       // Determine if this is a video file
       const isVideoFile = ['mp4', 'webm', 'avi'].includes(fileType.toLowerCase());
-      
-      // Determine if this is likely an academic paper or complex document
-      const isLikelyAcademic = /arxiv|paper|journal|conference|proceedings|thesis|dissertation/i.test(fileName);
       
       let conversionResult;
       
@@ -259,32 +83,34 @@ class ElectronConversionService {
         if (!fileContent.success) {
           throw new Error(`Failed to read file: ${fileContent.error}`);
         }
-
-        updateProgress(20);
-
-        // Add enhanced options for PDF files
-        const enhancedOptions = {
-          ...options,
+        
+        progressTracker.update(20);
+        
+        // Prepare data for backend conversion service
+        const conversionData = {
+          type: fileType,
+          content: fileContent.data,
           name: fileName,
-          onProgress: (progress) => updateProgress(20 + (progress * 0.7))
+          apiKey: options.apiKey,
+          options: {
+            ...options,
+            onProgress: (progress) => progressTracker.updateScaled(progress, 20, 90)
+          }
         };
         
-        // Add specific options for PDF files
-        if (fileType.toLowerCase() === 'pdf') {
-          enhancedOptions.enhancedLayout = options.enhancedLayout !== false; // Enable by default
-          enhancedOptions.isAcademic = isLikelyAcademic || options.isAcademic;
-        }
-
-        // Convert content
-        conversionResult = await this.converter.convertToMarkdown(fileType, fileContent.data, enhancedOptions);
+        // Use the backend conversion service via adapter
+        conversionResult = await conversionServiceAdapter.convert(conversionData);
       }
-
-      if (!conversionResult || !conversionResult.content) {
+      
+      progressTracker.update(90);
+      
+      // Extract content from result
+      const content = conversionResult.content || (conversionResult.buffer ? conversionResult.buffer.toString() : '');
+      
+      if (!content) {
         throw new Error('Conversion produced empty content');
       }
-
-      updateProgress(90);
-
+      
       // Determine file category with error handling
       let fileCategory;
       try {
@@ -298,10 +124,10 @@ class ElectronConversionService {
         console.error(`❌ Error determining file category:`, error);
         fileCategory = 'text'; // Default to text on error
       }
-
-      // Save the conversion result
-      const result = await this.saveConversionResult({
-        content: conversionResult.content,
+      
+      // Save the conversion result using the ConversionResultManager
+      const result = await this.resultManager.saveConversionResult({
+        content: content,
         metadata: {
           originalFile: baseName.startsWith('temp_') ? `${finalBaseName}.${fileType}` : fileName,
           type: fileType,
@@ -316,16 +142,23 @@ class ElectronConversionService {
         outputDir: options.outputDir,
         options
       });
-
-      updateProgress(100);
+      
+      progressTracker.update(100);
+      
+      console.log(`✅ File conversion completed in ${Date.now() - startTime}ms:`, {
+        file: filePath,
+        outputPath: result.outputPath
+      });
+      
       return result;
-
+      
     } catch (error) {
       console.error('❌ Conversion failed:', {
         file: filePath,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
-
+      
       return {
         success: false,
         error: error.message
@@ -338,42 +171,47 @@ class ElectronConversionService {
    */
   async convertUrl(url, options = {}) {
     const startTime = Date.now();
-    let lastProgressUpdate = 0;
-
+    
     try {
-      const updateProgress = (progress) => {
-        const now = Date.now();
-        if (options.onProgress && now - lastProgressUpdate >= this.progressUpdateInterval) {
-          options.onProgress(Math.min(Math.round(progress), 100));
-          lastProgressUpdate = now;
+      // Create a progress tracker
+      const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
+      progressTracker.update(10);
+      
+      // Prepare data for backend conversion service
+      const conversionData = {
+        type: 'url',
+        content: url,
+        name: new URL(url).hostname,
+        options: {
+          ...options,
+          includeImages: true,
+          includeMeta: true,
+          outputDir: options.outputDir || this.defaultOutputDir,
+          onProgress: (progress) => progressTracker.updateScaled(progress, 10, 90)
         }
       };
-
-      updateProgress(10);
-
-      // Convert URL
-      const result = await convertUrl(url, {
-        ...options,
-        includeImages: true,
-        includeMeta: true,
-        outputDir: options.outputDir || this.defaultOutputDir
-      });
-
-      if (!result || !result.content) {
-        throw new Error('URL conversion failed: Invalid result from adapter');
-      }
-
-      updateProgress(90);
+      
+      // Use the backend conversion service via adapter
+      const result = await conversionServiceAdapter.convert(conversionData);
+      
+      progressTracker.update(90);
       
       // Generate a name from the URL
       const urlObj = new URL(url);
       const baseName = urlObj.hostname + (urlObj.pathname !== '/' ? urlObj.pathname.replace(/\//g, '_') : '');
       
+      // Extract content from result
+      const content = result.content || (result.buffer ? result.buffer.toString() : '');
+      
+      if (!content) {
+        throw new Error('URL conversion failed: Empty content returned');
+      }
+      
       // Save the conversion result with consolidated metadata
-      const savedResult = await this.saveConversionResult({
-        content: result.content,
+      const savedResult = await this.resultManager.saveConversionResult({
+        content: content,
         metadata: {
-          ...result.metadata,
+          ...(result.metadata || {}),
           url: url,
           date_scraped: new Date().toISOString(),
           pageCount: 1
@@ -384,16 +222,22 @@ class ElectronConversionService {
         outputDir: options.outputDir,
         options
       });
-
-      updateProgress(100);
+      
+      progressTracker.update(100);
+      
+      console.log(`✅ URL conversion completed in ${Date.now() - startTime}ms:`, {
+        url,
+        outputPath: savedResult.outputPath
+      });
+      
       return savedResult;
-
     } catch (error) {
       console.error('❌ URL conversion failed:', {
         url,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
-
+      
       return {
         success: false,
         error: error.message
@@ -406,32 +250,31 @@ class ElectronConversionService {
    */
   async convertParentUrl(url, options = {}) {
     const startTime = Date.now();
-    let lastProgressUpdate = 0;
-
+    
     try {
-      const updateProgress = (progress) => {
-        const now = Date.now();
-        if (options.onProgress && now - lastProgressUpdate >= this.progressUpdateInterval) {
-          options.onProgress(Math.min(Math.round(progress), 100));
-          lastProgressUpdate = now;
+      // Create a progress tracker
+      const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
+      progressTracker.update(10);
+      
+      // Prepare data for backend conversion service
+      const conversionData = {
+        type: 'parenturl',
+        content: url,
+        name: new URL(url).hostname,
+        options: {
+          ...options,
+          includeImages: true,
+          includeMeta: true,
+          outputDir: options.outputDir || this.defaultOutputDir,
+          onProgress: (progress) => progressTracker.updateScaled(progress, 10, 50)
         }
       };
-
-      updateProgress(10);
-
-      const result = await convertParentUrl(url, {
-        ...options,
-        includeImages: true,
-        includeMeta: true,
-        outputDir: options.outputDir || this.defaultOutputDir
-      });
-
-      if (!result || !result.content) {
-        throw new Error('Parent URL conversion failed: Invalid result from adapter');
-      }
-
-      updateProgress(50);
-
+      
+      // Use the backend conversion service via adapter
+      const result = await conversionServiceAdapter.convert(conversionData);
+      
+      progressTracker.update(50);
+      
       // Generate a name from the URL
       const urlObj = new URL(url);
       const baseName = `${urlObj.hostname}_site`;
@@ -448,65 +291,98 @@ class ElectronConversionService {
       
       await this.fileSystem.createDirectory(outputBasePath);
       
-      // Save the main index file with frontmatter
-      const mainFilePath = createSubdirectory ? 
-        path.join(outputBasePath, 'index.md') : 
-        path.join(outputBasePath, `${baseName}.md`);
+      // Extract content from result
+      const content = result.content || (result.buffer ? result.buffer.toString() : '');
+      
+      if (!content) {
+        throw new Error('Parent URL conversion failed: Empty content returned');
+      }
       
       // Generate YAML frontmatter
       const fullMetadata = {
         type: 'parent',
         converted: new Date().toISOString(),
-        ...result.metadata,
+        ...(result.metadata || {}),
         url: url,
         date_scraped: new Date().toISOString(),
         pageCount: result.stats?.totalPages || 1
       };
       
-      // Combine frontmatter and content
-      const fullContent = this.formatMetadata(fullMetadata) + result.content;
+      // Save the main index file using ConversionResultManager
+      const savedResult = await this.resultManager.saveConversionResult({
+        content: content,
+        metadata: fullMetadata,
+        images: result.images || [],
+        name: baseName,
+        type: 'parent',
+        outputDir: outputBasePath,
+        options: {
+          createSubdirectory: false // Already created the directory
+        }
+      });
       
-      // Save the main index file
-      await this.fileSystem.writeFile(mainFilePath, fullContent);
+      progressTracker.update(70);
       
-      updateProgress(70);
-      
-      // Save all child page files
+      // Save all child page files if they exist
       if (result.files && result.files.length > 0) {
         // Skip the first file which is the index
         const childFiles = result.files.filter(f => f.name !== 'index.md');
         
         for (let i = 0; i < childFiles.length; i++) {
           const file = childFiles[i];
-          const filePath = path.join(outputBasePath, file.name);
+          const childBaseName = path.basename(file.name, '.md');
+          const childDirPath = path.dirname(file.name);
           
           // Create directory for the file if needed
-          await this.fileSystem.createDirectory(path.dirname(filePath));
+          if (childDirPath !== '.') {
+            await this.fileSystem.createDirectory(path.join(outputBasePath, childDirPath));
+          }
           
-          // Save the file
-          await this.fileSystem.writeFile(filePath, file.content);
+          // Save the file using ConversionResultManager for consistent formatting
+          await this.resultManager.saveConversionResult({
+            content: file.content,
+            metadata: {
+              type: 'child-page',
+              parent: url,
+              converted: new Date().toISOString()
+            },
+            images: [], // Child page images should already be in the parent's images
+            name: childBaseName,
+            type: 'markdown',
+            outputDir: path.join(outputBasePath, childDirPath),
+            options: {
+              createSubdirectory: false // Don't create another subdirectory
+            }
+          });
           
           // Update progress
-          updateProgress(70 + (i / childFiles.length) * 30);
+          progressTracker.updateScaled(i, 70, 100, childFiles.length);
         }
       }
-
-      updateProgress(100);
+      
+      progressTracker.update(100);
+      
+      console.log(`✅ Parent URL conversion completed in ${Date.now() - startTime}ms:`, {
+        url,
+        outputPath: outputBasePath,
+        childPages: result.files?.length || 0
+      });
       
       return {
         success: true,
         outputPath: outputBasePath,
-        mainFile: mainFilePath,
+        mainFile: savedResult.mainFile,
         metadata: fullMetadata,
         stats: result.stats
       };
-
+      
     } catch (error) {
       console.error('❌ Parent URL conversion failed:', {
         url,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
-
+      
       return {
         success: false,
         error: error.message
@@ -515,122 +391,161 @@ class ElectronConversionService {
   }
 
   /**
-   * Converts a YouTube URL to markdown format (temporarily disabled)
-   */
-  async convertYoutube(url, options = {}) {
-    return {
-      success: false,
-      error: 'YouTube conversion temporarily disabled'
-    };
-  }
-
-  /**
    * Converts multiple files, URLs, and parent URLs in batch
    */
   async convertBatch(items, options = {}) {
     const startTime = Date.now();
-    const initialMemory = process.memoryUsage();
-    const results = [];
-    const CHUNK_SIZE = 5;
-
+    const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
+    progressTracker.update(5);
+    
     try {
       const outputDir = options.outputDir || this.defaultOutputDir;
       const batchName = options.batchName || `Batch_${new Date().toISOString().replace(/:/g, '-')}`;
       const batchOutputPath = path.join(outputDir, batchName);
       
       await this.fileSystem.createDirectory(batchOutputPath);
-
-      // Process in chunks
-      for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-        const chunk = items.slice(i, i + CHUNK_SIZE);
-        
-        const chunkResults = await Promise.all(
-          chunk.map(async (item) => {
-            try {
-              let result;
-              
-              switch(item.type) {
-                case 'url':
-                  result = await this.convertUrl(item.url, {
-                    ...options,
-                    ...item.options,
-                    onProgress: (progress) => {
-                      if (options.onProgress) {
-                        options.onProgress({
-                          id: item.id,
-                          type: 'url',
-                          url: item.url,
-                          progress
-                        });
-                      }
-                    }
-                  });
-                  break;
-
-                case 'parent':
-                  result = await this.convertParentUrl(item.url, {
-                    ...options,
-                    ...item.options,
-                    onProgress: (progress) => {
-                      if (options.onProgress) {
-                        options.onProgress({
-                          id: item.id,
-                          type: 'parent',
-                          url: item.url,
-                          progress
-                        });
-                      }
-                    }
-                  });
-                  break;
-
-                case 'file':
-                  result = await this.convert(item.path, {
-                    ...options,
-                    ...item.options,
-                    onProgress: (progress) => {
-                      if (options.onProgress) {
-                        options.onProgress({
-                          id: item.id,
-                          type: 'file',
-                          file: path.basename(item.path),
-                          progress,
-                          isTemporary: item.isTemporary
-                        });
-                      }
-                    }
-                  });
-                  break;
-
-                default:
-                  throw new Error(`Unsupported item type: ${item.type}`);
-              }
-
-              result.itemId = item.id;
-              result.itemType = item.type;
-              result.originalItem = item;
-
-              return result;
-            } catch (error) {
+      progressTracker.update(10);
+      
+      // Prepare items for backend conversion service
+      const preparedItems = await Promise.all(items.map(async (item) => {
+        try {
+          switch(item.type) {
+            case 'url':
+            case 'parent':
               return {
-                success: false,
-                itemId: item.id,
-                itemType: item.type,
-                error: error.message,
-                originalItem: item
+                id: item.id,
+                type: item.type === 'parent' ? 'parenturl' : 'url',
+                content: item.url,
+                name: new URL(item.url).hostname,
+                options: {
+                  ...options,
+                  ...item.options,
+                  includeImages: true,
+                  includeMeta: true,
+                  outputDir: batchOutputPath
+                }
               };
-            }
-          })
-        );
-
-        results.push(...chunkResults);
-
-        if (global.gc && process.memoryUsage().heapUsed > 512 * 1024 * 1024) {
-          global.gc();
+              
+            case 'file':
+              // Validate file exists
+              const fileStats = await this.fileSystem.getStats(item.path);
+              if (!fileStats.success) {
+                throw new Error(`File not found or inaccessible: ${item.path}`);
+              }
+              
+              // Get file details
+              const fileName = path.basename(item.path);
+              const fileType = path.extname(fileName).slice(1).toLowerCase();
+              
+              // Read file content
+              const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'wav']
+                .includes(fileType.toLowerCase());
+              
+              const fileContent = await this.fileSystem.readFile(item.path, isBinaryFile ? null : undefined);
+              
+              if (!fileContent.success) {
+                throw new Error(`Failed to read file: ${fileContent.error}`);
+              }
+              
+              return {
+                id: item.id,
+                type: fileType,
+                content: fileContent.data,
+                name: fileName,
+                options: {
+                  ...options,
+                  ...item.options,
+                  outputDir: batchOutputPath
+                }
+              };
+              
+            default:
+              throw new Error(`Unsupported item type: ${item.type}`);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to prepare item for batch conversion:`, {
+            item,
+            error: error.message
+          });
+          
+          return {
+            id: item.id,
+            error: error.message,
+            originalItem: item
+          };
         }
+      }));
+      
+      progressTracker.update(20);
+      
+      // Filter out items that failed preparation
+      const validItems = preparedItems.filter(item => !item.error);
+      const failedItems = preparedItems.filter(item => item.error);
+      
+      console.log(`🔄 Batch conversion: ${validItems.length} valid items, ${failedItems.length} failed preparation`);
+      
+      // Use the backend conversion service for batch conversion
+      let batchResult;
+      if (validItems.length > 0) {
+        try {
+          // Create progress tracking function for batch conversion
+          const batchProgressCallback = (progress) => {
+            progressTracker.updateScaled(progress, 20, 90);
+          };
+          
+          // Add progress tracking to each item
+          const itemsWithProgress = validItems.map(item => ({
+            ...item,
+            options: {
+              ...item.options,
+              onProgress: (itemProgress) => {
+                if (options.onProgress) {
+                  options.onProgress({
+                    id: item.id,
+                    type: item.type,
+                    progress: itemProgress
+                  });
+                }
+              }
+            }
+          }));
+          
+          // Convert batch using backend service
+          batchResult = await conversionServiceAdapter.convertBatch(itemsWithProgress);
+        } catch (error) {
+          console.error(`❌ Batch conversion error:`, error);
+          batchResult = {
+            success: false,
+            error: error.message
+          };
+        }
+      } else {
+        batchResult = {
+          success: true,
+          results: []
+        };
       }
       
-      // Create summary
+      progressTracker.update(90);
+      
+      // Combine results from backend with failed preparation items
+      const results = [
+        ...(batchResult.results || []).map(result => ({
+          ...result,
+          itemId: result.id,
+          itemType: result.type,
+          originalItem: items.find(item => item.id === result.id)
+        })),
+        ...failedItems.map(item => ({
+          success: false,
+          itemId: item.id,
+          itemType: item.originalItem?.type,
+          error: item.error,
+          originalItem: item.originalItem
+        }))
+      ];
+      
+      // Create summary content
       const summaryContent = [
         '# Batch Conversion Summary',
         '',
@@ -647,7 +562,7 @@ class ElectronConversionService {
           const status = result.success ? '✅ Success' : `❌ Failed: ${result.error || 'Unknown error'}`;
           let itemDescription;
           
-          switch(item.type) {
+          switch(item?.type) {
             case 'url':
               itemDescription = `URL: ${item.url}`;
               break;
@@ -658,21 +573,46 @@ class ElectronConversionService {
               itemDescription = `File: ${item.isTemporary ? '(temp) ' : ''}${path.basename(item.path)}`;
               break;
             default:
-              itemDescription = `Unknown type: ${item.type}`;
+              itemDescription = `Unknown type: ${item?.type || 'unknown'}`;
           }
           
           return `- **${itemDescription}**: ${status}`;
         })
       ].join('\n');
       
-      await this.fileSystem.writeFile(
-        path.join(batchOutputPath, 'batch-summary.md'),
-        summaryContent
-      );
-
+      // Save the summary using ConversionResultManager
+      const summaryResult = await this.resultManager.saveConversionResult({
+        content: summaryContent,
+        metadata: {
+          type: 'batch-summary',
+          converted: new Date().toISOString(),
+          totalItems: results.length,
+          successfulItems: results.filter(r => r.success).length,
+          failedItems: results.filter(r => !r.success).length,
+          duration: Date.now() - startTime
+        },
+        images: [],
+        name: 'batch-summary',
+        type: 'markdown',
+        outputDir: batchOutputPath,
+        options: {
+          createSubdirectory: false // Don't create another subdirectory
+        }
+      });
+      
+      progressTracker.update(100);
+      
+      console.log(`✅ Batch conversion completed in ${Date.now() - startTime}ms:`, {
+        totalItems: results.length,
+        successfulItems: results.filter(r => r.success).length,
+        failedItems: results.filter(r => !r.success).length,
+        outputPath: batchOutputPath
+      });
+      
       return {
         success: true,
         outputPath: batchOutputPath,
+        summaryFile: summaryResult.mainFile,
         results,
         stats: {
           total: results.length,
@@ -681,13 +621,17 @@ class ElectronConversionService {
           duration: Date.now() - startTime
         }
       };
-
+      
     } catch (error) {
-      console.error('❌ Batch conversion failed:', error);
+      console.error('❌ Batch conversion failed:', {
+        error: error.message,
+        stack: error.stack
+      });
+      
       return {
         success: false,
         error: error.message,
-        results
+        results: []
       };
     }
   }

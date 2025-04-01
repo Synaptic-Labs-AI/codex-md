@@ -1,5 +1,7 @@
 // services/converter/pdf/BasePdfConverter.js
 
+import crypto from 'crypto';
+
 /**
  * Abstract base class for PDF converters
  * Defines common functionality and interface for PDF conversion implementations
@@ -16,6 +18,69 @@ export class BasePdfConverter {
   }
 
   /**
+   * Validates and formats the image extension
+   * @protected
+   * @param {string} ext - File extension to validate
+   * @returns {string} Cleaned extension
+   */
+  validateImageExtension(ext) {
+    if (!ext) return '';
+    // Remove leading dots and convert to lowercase
+    ext = ext.toLowerCase().replace(/^\.+/, '');
+    // Return valid image extensions only
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? ext : '';
+  }
+
+  /**
+   * Generates unique image name using UUID
+   * @protected
+   * @param {string} baseName - Base name of the document
+   * @param {number} pageIndex - Page number where image appears
+   * @param {string} ext - Image file extension
+   * @returns {string} Generated unique image path
+   */
+  generateUniqueImageName(baseName, pageIndex, ext) {
+    const uuid = crypto.randomBytes(4).toString('hex');
+    return this.generateImagePath(baseName, pageIndex, uuid, ext);
+  }
+
+  /**
+   * Generates standardized image path for Obsidian
+   * @protected
+   * @param {string} baseName - Base name of the document
+   * @param {number} pageIndex - Page number where image appears
+   * @param {string} uuid - Unique identifier for the image
+   * @param {string} ext - Image file extension
+   * @returns {string} Standardized image path
+   */
+  generateImagePath(baseName, pageIndex, uuid, ext) {
+    // Remove any temp_ prefix from basename
+    baseName = baseName.replace(/^temp_\d+_/, '');
+    
+    // Clean the extension
+    const cleanExt = this.validateImageExtension(ext);
+    if (!cleanExt) {
+      throw new Error('Invalid image extension');
+    }
+
+    // Generate standard image name with UUID
+    const imageName = `${baseName}-p${pageIndex + 1}-${uuid}.${cleanExt}`;
+    
+    // Use images/ folder for Obsidian compatibility
+    return `images/${imageName}`;
+  }
+
+  /**
+   * Generates Obsidian-style image markdown
+   * @protected
+   * @param {string} imagePath - Path to the image
+   * @returns {string} Obsidian markdown for image
+   */
+  generateImageMarkdown(imagePath) {
+    return `![[${imagePath}]]`;
+  }
+
+  /**
    * Validates image object structure
    * @protected
    * @param {Object} img - Image object to validate
@@ -25,8 +90,7 @@ export class BasePdfConverter {
     return img && 
            typeof img.name === 'string' &&
            (typeof img.data === 'string' || Buffer.isBuffer(img.data)) &&
-           typeof img.type === 'string' &&
-           typeof img.path === 'string';
+           typeof img.type === 'string';
   }
 
   /**
