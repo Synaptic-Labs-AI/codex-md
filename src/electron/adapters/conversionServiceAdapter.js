@@ -62,7 +62,12 @@ class ConversionServiceAdapter extends BaseModuleAdapter {
   constructor() {
     super(
       'src/services/ConversionService.js',
-      'ConversionService'
+      null, // No default export
+      {
+        // Named exports configuration
+        ConversionService: true
+      },
+      false // Don't validate default export
     );
     
     // Initialize specialized converters map

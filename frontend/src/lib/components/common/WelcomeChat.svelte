@@ -1,23 +1,24 @@
 <script>
   import { fade, fly } from 'svelte/transition';
   import { elasticOut, backOut } from 'svelte/easing';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { goto } from '$app/navigation';
   import ChatBubble from './ChatBubble.svelte';
   import Button from './Button.svelte';
-  import welcomeState from '$lib/stores/welcomeState';
+  import welcomeState, { MESSAGE_TYPES } from '$lib/stores/welcomeState';
   import { apiKey } from '$lib/stores/apiKey';
   
-  let hasSeenWelcome = false;
+  const dispatch = createEventDispatcher();
+  
+  // Props
+  export let messageType = MESSAGE_TYPES.WELCOME;
+  export let showOnMount = true;
+  
   let isOpen = true; // Always start open
   let visibleMessages = [];
   let apiKeyValue;
+  let shouldShow = false;
   
-  // Subscribe to welcome state
-  const unsubWelcome = welcomeState.subscribe(value => {
-    hasSeenWelcome = value;
-  });
-
   // Subscribe to API key store
   const unsubApiKey = apiKey.subscribe(value => {
     apiKeyValue = value;
@@ -26,42 +27,90 @@
   // Clean up subscriptions
   onDestroy(() => {
     unsubApiKey();
-    unsubWelcome();
   });
   
-  // Show modal for first-time visitors
+  // Initialize on mount
   onMount(() => {
-    if (!hasSeenWelcome) {
+    // Check if we should show this message type
+    if (messageType === MESSAGE_TYPES.WELCOME) {
+      shouldShow = welcomeState.shouldShowWelcome();
+    } else {
+      shouldShow = welcomeState.shouldShowMessageType(messageType);
+    }
+    
+    // If we should show and showOnMount is true, animate messages
+    if (shouldShow && showOnMount) {
       animateMessages();
     }
   });
 
-  // Define welcome messages directly in this component
-  const allMessages = [
-    {
-      type: 'received',
-      name: 'Professor Synapse',
-      avatar: '🧙🏾‍♂️',
-      text: 'Let me introduce you to <span class="codex-md-brand">codex.md</span>, a powerful tool that transforms your digital content into Markdown format. It\'s perfect for building your personal knowledge base!'
-    },
-    {
-      type: 'received',
-      name: '<span class="codex-md-brand">codex.md</span>',
-      avatar: '📖',
-      text: `
-        <p>Hi there! I can help you convert your content in several ways:</p>
-        <ul class="feature-list">
-          <li><strong>Drag and drop</strong> your files below or <strong>click</strong> to browse</li>
-          <li><strong>Convert web content</strong> by adding a URL (single page or entire website)</li>
-        </ul>
-        <p>Let's get started with your conversion!</p>
-      `
-    }
-  ];
+  // Message templates for different message types
+  const messageTemplates = {
+    [MESSAGE_TYPES.WELCOME]: [
+      {
+        type: 'received',
+        name: 'Professor Synapse',
+        avatar: '🧙🏾‍♂️',
+        text: 'Let me introduce you to <span class="codex-md-brand">codex.md</span>, a powerful tool that transforms your digital content into Markdown format. It\'s perfect for building your personal knowledge base!'
+      },
+      {
+        type: 'received',
+        name: '<span class="codex-md-brand">codex.md</span>',
+        avatar: '📖',
+        text: `
+          <p>Hi there! I can help you convert your content in several ways:</p>
+          <ul class="feature-list">
+            <li><strong>Drag and drop</strong> your files below or <strong>click</strong> to browse</li>
+            <li><strong>Convert web content</strong> by adding a URL (single page or entire website)</li>
+          </ul>
+          <p>Let's get started with your conversion!</p>
+        `
+      }
+    ],
+    [MESSAGE_TYPES.UPDATE]: [
+      {
+        type: 'received',
+        name: '<span class="codex-md-brand">codex.md</span>',
+        avatar: '📖',
+        text: `
+          <p>We've updated codex.md with new features!</p>
+          <ul class="feature-list">
+            <li><strong>Enhanced PDF conversion</strong> with better image extraction</li>
+            <li><strong>Improved web scraping</strong> for more accurate content extraction</li>
+            <li><strong>Better performance</strong> for large file conversions</li>
+          </ul>
+          <p>Enjoy the improvements!</p>
+        `
+      }
+    ],
+    [MESSAGE_TYPES.ANNOUNCEMENT]: [
+      {
+        type: 'received',
+        name: '<span class="codex-md-brand">codex.md</span>',
+        avatar: '📖',
+        text: `
+          <p>Important announcement from the codex.md team:</p>
+          <p>We're constantly working to improve your experience. If you have feedback or suggestions, please let us know!</p>
+        `
+      }
+    ]
+  };
+
+  // Get the appropriate messages for the current message type
+  $: allMessages = messageTemplates[messageType] || messageTemplates[MESSAGE_TYPES.WELCOME];
 
   function handleMinimize() {
     isOpen = false;
-    welcomeState.markAsSeen();
+    
+    // Mark the appropriate message type as seen
+    if (messageType === MESSAGE_TYPES.WELCOME) {
+      welcomeState.markAsSeen();
+    } else {
+      welcomeState.markMessageTypeSeen(messageType);
+    }
+    
+    // Dispatch event to parent component
+    dispatch('closed');
   }
 
   function goToHelp() {
@@ -72,6 +121,11 @@
   function goToSettings() {
     handleMinimize(); // Close modal first
     goto('/settings');
+  }
+
+  function handleContinue() {
+    handleMinimize();
+    dispatch('continue');
   }
 
   // Animate messages appearing one by one
@@ -87,11 +141,21 @@
 </script>
 
 <div class="welcome-chat">
-  {#if isOpen && !hasSeenWelcome}
+  {#if isOpen && shouldShow}
     <div class="modal-overlay" transition:fade={{ duration: 300 }} on:click|self={handleMinimize}>
       <div class="chat-modal" transition:fly={{ y: 50, duration: 400, easing: elasticOut }}>
         <div class="modal-header">
-          <h3>Welcome to codex.md!</h3>
+          <h3>
+            {#if messageType === MESSAGE_TYPES.WELCOME}
+              Welcome to codex.md!
+            {:else if messageType === MESSAGE_TYPES.UPDATE}
+              codex.md Update
+            {:else if messageType === MESSAGE_TYPES.ANNOUNCEMENT}
+              Announcement
+            {:else}
+              codex.md
+            {/if}
+          </h3>
           <button class="close-button" on:click={handleMinimize}>×</button>
         </div>
         <div class="modal-content">
@@ -123,25 +187,35 @@
           <!-- Direct buttons at the bottom of the modal -->
           {#if visibleMessages.length === allMessages.length}
             <div class="action-buttons" in:fly={{ y: 20, duration: 400, delay: 300 }}>
-              <Button 
-                variant="secondary" 
-                size="medium"
-                on:click={goToHelp}
-              >
-                Help Guide
-              </Button>
-              <Button 
-                variant="primary" 
-                size="medium"
-                on:click={handleMinimize}
-              >
-                I'm Ready
-              </Button>
-              
-              {#if !apiKeyValue}
-                <div class="api-key-notice" in:fade={{ duration: 300, delay: 500 }}>
-                  Don't forget to <button class="link-button" on:click={goToSettings}>set up your API key</button> for advanced features!
-                </div>
+              {#if messageType === MESSAGE_TYPES.WELCOME}
+                <Button 
+                  variant="secondary" 
+                  size="medium"
+                  on:click={goToHelp}
+                >
+                  Help Guide
+                </Button>
+                <Button 
+                  variant="primary" 
+                  size="medium"
+                  on:click={handleContinue}
+                >
+                  I'm Ready
+                </Button>
+                
+                {#if !apiKeyValue}
+                  <div class="api-key-notice" in:fade={{ duration: 300, delay: 500 }}>
+                    Don't forget to <button class="link-button" on:click={goToSettings}>set up your API key</button> for advanced features!
+                  </div>
+                {/if}
+              {:else}
+                <Button 
+                  variant="primary" 
+                  size="medium"
+                  on:click={handleContinue}
+                >
+                  Continue
+                </Button>
               {/if}
             </div>
           {/if}
