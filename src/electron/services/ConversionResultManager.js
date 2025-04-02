@@ -35,6 +35,37 @@ function escapeRegExp(string) {
   }
 }
 
+/**
+ * Helper function to clean temporary filenames
+ * Removes 'temp_' prefix and any numeric identifiers
+ * @param {string} filename - The filename to clean
+ * @returns {string} The cleaned filename
+ */
+function cleanTemporaryFilename(filename) {
+  if (!filename || typeof filename !== 'string') {
+    console.warn(`⚠️ Invalid input to cleanTemporaryFilename: ${filename}`);
+    return filename || '';
+  }
+  
+  try {
+    // Extract the base name without extension
+    const extension = filename.includes('.') ? filename.substring(filename.lastIndexOf('.')) : '';
+    const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+    
+    // Clean the base name - remove temp_ prefix and any numeric identifiers
+    let cleanedName = baseName;
+    if (baseName.startsWith('temp_')) {
+      cleanedName = baseName.replace(/^temp_\d*_?/, '');
+    }
+    
+    // Return the cleaned name with extension if it had one
+    return cleanedName + extension;
+  } catch (error) {
+    console.error(`❌ Error in cleanTemporaryFilename:`, error);
+    return filename;
+  }
+}
+
 class ConversionResultManager {
   constructor() {
     this.fileSystem = FileSystemService;
@@ -192,8 +223,11 @@ class ConversionResultManager {
     const createSubdirectory = userProvidedOutputDir ? false : 
                              (options.createSubdirectory !== undefined ? options.createSubdirectory : true);
     
+    // Clean the name to remove any temporary filename patterns
+    const cleanedName = cleanTemporaryFilename(name);
+    
     // Generate base name and output path
-    const baseName = name.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
+    const baseName = cleanedName.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
     const outputBasePath = createSubdirectory ? 
       path.join(baseOutputDir, `${baseName}_${Date.now()}`) : 
       baseOutputDir;
@@ -261,11 +295,17 @@ class ConversionResultManager {
     // Update image references to use Obsidian format
     const updatedContent = this.updateImageReferences(content, images);
 
+    // Clean any metadata fields that might contain temporary filenames
+    const cleanedMetadata = { ...metadata };
+    if (cleanedMetadata.originalFile && typeof cleanedMetadata.originalFile === 'string') {
+      cleanedMetadata.originalFile = cleanTemporaryFilename(cleanedMetadata.originalFile);
+    }
+    
     // Create metadata object
     const fullMetadata = {
       type,
       converted: new Date().toISOString(),
-      ...metadata
+      ...cleanedMetadata
     };
 
     // Check if content already has frontmatter

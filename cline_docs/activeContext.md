@@ -7,6 +7,35 @@ Transitioning to Phase 4: Desktop Features - Implementing system tray integratio
 - Enhancing URL and Parent URL conversion with Puppeteer for better content extraction
 
 ## Recent Changes
+- Removed Batch Summary from Batch Conversions:
+  - Removed batch summary file generation from batch conversions
+  - Removed summary file reference from conversion results
+  - Simplified batch conversion output structure
+  - Maintained core batch conversion functionality while reducing clutter
+
+- Fixed Temporary Filename Issues in Batch Conversion:
+  - Fixed issue where files in batch conversion were saving with "temp_" prefix
+  - Fixed metadata inconsistencies where originalFile field retained temporary filenames
+  - Created a consistent cleanTemporaryFilename utility function in ConversionResultManager
+  - Added the same utility function to ElectronConversionService for consistency
+  - Implemented proper cleaning of temporary filenames in both single and batch conversions
+  - Enhanced metadata handling to clean temporary filenames from all relevant fields
+  - Improved filename handling in _writeBatchResults to ensure consistent output
+  - Ensured consistent behavior between single file and batch conversions
+  - Fixed root cause of temporary filenames appearing in final output
+
+- Implemented Worker-Based Batch Conversion System:
+  - Fixed "An object could not be cloned" error in batch conversion
+  - Created SerializationHelper utility to ensure objects can be safely serialized
+  - Implemented worker script that runs in separate processes for isolation
+  - Created WorkerManager service to manage worker processes and distribute tasks
+  - Updated conversionServiceAdapter to use SerializationHelper
+  - Updated ElectronConversionService to use WorkerManager
+  - Added robust error handling at multiple levels
+  - Improved memory management by isolating conversions in separate processes
+  - Added fallback to original conversion method if worker-based conversion fails
+  - Created comprehensive documentation of the worker-based system
+
 - Fixed Batch Conversion Named Export Error:
   - Fixed "Named export 'ConversionService' not configured" error in batch conversion
   - Updated ConversionServiceAdapter to properly handle named exports
@@ -218,12 +247,6 @@ Transitioning to Phase 4: Desktop Features - Implementing system tray integratio
   - Updated handleElectronConversion to handle File objects properly
   - Added proper progress tracking for temporary file operations
   - Ensured cleanup happens even if conversion fails
-
-- Fixed PDF Conversion Error:
-  - Fixed "Unsupported type: pdf" error in file conversion
-  - Updated validateAndNormalizeItem function in utils.js to properly handle specific file types
-  - Added getFileCategory helper function to map file extensions to categories
-  - Improved validation logic to check both category names and specific file types
   - Ensured PDF files can be properly converted to Markdown
 
 - Fixed Chat Bubble Persistence Issue:

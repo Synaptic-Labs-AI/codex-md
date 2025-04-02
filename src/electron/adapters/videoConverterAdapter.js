@@ -45,7 +45,7 @@ class VideoConverterAdapter extends BaseModuleAdapter {
    * @param {string} originalName - Original filename
    * @returns {Promise<{content: string, images: Array, pageCount: number}>}
    */
-  async convertVideoToMarkdown(filePath, originalName) {
+  async convertVideoToMarkdown(filePath, originalName, options = {}) {
     try {
       // Initialize converter if not already done
       if (!this.converterInstance) {
@@ -60,11 +60,24 @@ class VideoConverterAdapter extends BaseModuleAdapter {
       
       console.log(`🎬 [VideoConverter] Processing video file: ${originalName}`);
       
-      // Stream and process the video file
-      const { buffer, type } = await StreamingFileService.processVideoFile(filePath, {
-        onProgress: (progress) => {
-          console.log(`📊 [VideoConverter] Reading video: ${Math.round(progress)}%`);
+      // Create a progress callback that handles both phases
+      const progressCallback = (progress) => {
+        console.log(`📊 [VideoConverter] Processing video: ${Math.round(progress)}%`);
+        
+        // Pass progress to the caller if provided
+        if (options && options.onProgress) {
+          options.onProgress(progress);
         }
+      };
+      
+      // Add a method to report the current phase
+      progressCallback.reportPhase = (phase) => {
+        console.log(`📊 [VideoConverter] Current phase: ${phase}`);
+      };
+      
+      // Stream and process the video file (0-50% progress)
+      const { buffer, type } = await StreamingFileService.processVideoFile(filePath, {
+        onProgress: progressCallback
       });
       
       console.log('🚀 [VideoConverterAdapter] Executing backend conversion method');
@@ -73,7 +86,8 @@ class VideoConverterAdapter extends BaseModuleAdapter {
       const result = await this.converterInstance.convertToMarkdown(buffer, {
         name: originalName,
         apiKey,
-        mimeType: `video/${type}`
+        mimeType: `video/${type}`,
+        onProgress: progressCallback
       });
       
       // Include metadata from the converter in the result

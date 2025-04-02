@@ -103,18 +103,34 @@ class StreamingFileService {
   async processVideoFile(filePath, options = {}) {
     const chunks = [];
     let totalSize = 0;
-
+    const originalOnProgress = options.onProgress;
+    
+    // First phase: Reading file (0-50% of progress)
     await this.streamFile(filePath, {
       onChunk: (chunk) => {
         chunks.push(chunk);
         totalSize += chunk.length;
       },
-      onProgress: options.onProgress
+      onProgress: (progress) => {
+        // Scale progress to 0-50% range
+        if (originalOnProgress) {
+          originalOnProgress(progress * 0.5);
+          
+          // Add phase information to the progress event
+          if (originalOnProgress.reportPhase) {
+            originalOnProgress.reportPhase('reading');
+          }
+        }
+      }
     });
-
+    
+    // Create buffer from chunks
+    const buffer = Buffer.concat(chunks, totalSize);
+    const fileType = path.extname(filePath).slice(1).toLowerCase();
+    
     return {
-      buffer: Buffer.concat(chunks, totalSize),
-      type: path.extname(filePath).slice(1).toLowerCase()
+      buffer,
+      type: fileType
     };
   }
 }

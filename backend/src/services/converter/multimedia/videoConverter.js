@@ -29,7 +29,7 @@ class VideoConverter {
    * @param {string} options.mimeType - MIME type of video file
    * @returns {Promise<Object>} Conversion result
    */
-  async convertToMarkdown(input, options) {
+  async convertToMarkdown(input, options = {}) {
     const { name, apiKey, mimeType } = options || {};
 
     try {
@@ -85,23 +85,51 @@ class VideoConverter {
         
         // Always split audio to ensure consistent processing
         console.log("Splitting audio into manageable chunks...");
-        const chunks = await chunker.splitAudio(audioBuffer);
+        
+        // Create a progress tracking callback for chunking phase (50-75% of total progress)
+        const onChunkingProgress = options.onProgress ? (progress) => {
+          // Scale progress to 50-75% range (chunking phase)
+          const scaledProgress = 50 + (progress * 0.25);
+          options.onProgress(scaledProgress);
+          
+          // Report phase if the method exists
+          if (options.onProgress.reportPhase) {
+            options.onProgress.reportPhase('chunking');
+          }
+        } : null;
+        
+        // Split audio with progress tracking
+        const chunks = await chunker.splitAudio(audioBuffer, { onProgress: onChunkingProgress });
         console.log(`Created ${chunks.length} chunks for processing`);
 
-        // Process chunks in parallel with progress tracking
+        // Process chunks sequentially with progress tracking
         console.log(`Transcribing ${chunks.length} chunks`);
-        const transcriptions = await Promise.all(
-          chunks.map(async (chunk, index) => {
-            try {
-              console.log(`Transcribing chunk ${index + 1}/${chunks.length}`);
-              return await transcriber.transcribe(chunk, apiKey);
-            } catch (error) {
-              console.error(`Error transcribing chunk ${index + 1}:`, error);
-              // Return placeholder for failed chunk to maintain sequence
-              return `[Transcription failed for segment ${index + 1}]`;
+        const transcriptions = [];
+        
+        for (let i = 0; i < chunks.length; i++) {
+          try {
+            console.log(`Transcribing chunk ${i + 1}/${chunks.length}`);
+            
+            // Update progress for transcription phase (75-100%)
+            if (options.onProgress) {
+              const transcriptionProgress = (i / chunks.length) * 100;
+              const scaledProgress = 75 + (transcriptionProgress * 0.25);
+              options.onProgress(scaledProgress);
+              
+              // Report phase if the method exists
+              if (options.onProgress.reportPhase) {
+                options.onProgress.reportPhase('transcribing');
+              }
             }
-          })
-        );
+            
+            const result = await transcriber.transcribe(chunks[i], apiKey);
+            transcriptions.push(result);
+          } catch (error) {
+            console.error(`Error transcribing chunk ${i + 1}:`, error);
+            // Return placeholder for failed chunk to maintain sequence
+            transcriptions.push(`[Transcription failed for segment ${i + 1}]`);
+          }
+        }
 
         // Smart merge transcriptions with overlap handling
         console.log("Merging transcribed chunks...");

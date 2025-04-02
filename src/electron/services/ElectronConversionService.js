@@ -16,12 +16,45 @@
 
 const path = require('path');
 const { app } = require('electron');
+const { v4: uuidv4 } = require('uuid');
 const FileSystemService = require('./FileSystemService');
 const ConversionResultManager = require('./ConversionResultManager');
 const { textConverterFactory } = require('../adapters/textConverterFactoryAdapter');
 const { getFileCategory } = require('../adapters/fileTypeUtilsAdapter');
 const ProgressTracker = require('../utils/progressTracker');
 const conversionServiceAdapter = require('../adapters/conversionServiceAdapter');
+const WorkerManager = require('./WorkerManager');
+
+/**
+ * Helper function to clean temporary filenames
+ * Removes 'temp_' prefix and any numeric identifiers
+ * @param {string} filename - The filename to clean
+ * @returns {string} The cleaned filename
+ */
+function cleanTemporaryFilename(filename) {
+  if (!filename || typeof filename !== 'string') {
+    console.warn(`⚠️ Invalid input to cleanTemporaryFilename: ${filename}`);
+    return filename || '';
+  }
+  
+  try {
+    // Extract the base name without extension
+    const extension = filename.includes('.') ? filename.substring(filename.lastIndexOf('.')) : '';
+    const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+    
+    // Clean the base name - remove temp_ prefix and any numeric identifiers
+    let cleanedName = baseName;
+    if (baseName.startsWith('temp_')) {
+      cleanedName = baseName.replace(/^temp_\d*_?/, '');
+    }
+    
+    // Return the cleaned name with extension if it had one
+    return cleanedName + extension;
+  } catch (error) {
+    console.error(`❌ Error in cleanTemporaryFilename:`, error);
+    return filename;
+  }
+}
 
 class ElectronConversionService {
   constructor() {
@@ -56,11 +89,9 @@ class ElectronConversionService {
       const fileType = path.extname(fileName).slice(1).toLowerCase();
       const baseName = path.basename(fileName, path.extname(fileName));
       
-      // Extract original name if it's a temporary file
-      let finalBaseName = baseName;
-      if (baseName.startsWith('temp_')) {
-        finalBaseName = baseName.replace(/^temp_\d+_/, '');
-      }
+      // Clean the filename if it's a temporary file
+      const cleanedFileName = cleanTemporaryFilename(fileName);
+      const finalBaseName = path.basename(cleanedFileName, path.extname(cleanedFileName));
       
       progressTracker.update(10);
       
@@ -72,7 +103,11 @@ class ElectronConversionService {
       if (isVideoFile) {
         // Use video converter adapter directly for streaming support
         const { convertVideoToMarkdown } = require('../adapters/videoConverterAdapter');
-        conversionResult = await convertVideoToMarkdown(filePath, fileName);
+        
+        // Pass the progress tracker to the video converter
+        conversionResult = await convertVideoToMarkdown(filePath, fileName, {
+          onProgress: (progress) => progressTracker.update(progress)
+        });
       } else {
         // Handle other file types normally
         const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'wav']
@@ -129,7 +164,7 @@ class ElectronConversionService {
       const result = await this.resultManager.saveConversionResult({
         content: content,
         metadata: {
-          originalFile: baseName.startsWith('temp_') ? `${finalBaseName}.${fileType}` : fileName,
+          originalFile: cleanedFileName,
           type: fileType,
           category: fileCategory,
           ...(conversionResult.pageCount ? { pageCount: conversionResult.pageCount } : {}),
@@ -391,7 +426,10 @@ class ElectronConversionService {
   }
 
   /**
-   * Converts multiple files, URLs, and parent URLs in batch
+   * Converts multiple files, URLs, and parent URLs in batch using worker processes
+   * @param {Array<Object>} items - Array of items to convert
+   * @param {Object} options - Conversion options
+   * @returns {Promise<Object>} - Batch conversion result
    */
   async convertBatch(items, options = {}) {
     const startTime = Date.now();
@@ -399,6 +437,7 @@ class ElectronConversionService {
     progressTracker.update(5);
     
     try {
+      // Set up output directory
       const outputDir = options.outputDir || this.defaultOutputDir;
       const batchName = options.batchName || `Batch_${new Date().toISOString().replace(/:/g, '-')}`;
       const batchOutputPath = path.join(outputDir, batchName);
@@ -406,75 +445,11 @@ class ElectronConversionService {
       await this.fileSystem.createDirectory(batchOutputPath);
       progressTracker.update(10);
       
-      // Prepare items for backend conversion service
-      const preparedItems = await Promise.all(items.map(async (item) => {
-        try {
-          switch(item.type) {
-            case 'url':
-            case 'parent':
-              return {
-                id: item.id,
-                type: item.type === 'parent' ? 'parenturl' : 'url',
-                content: item.url,
-                name: new URL(item.url).hostname,
-                options: {
-                  ...options,
-                  ...item.options,
-                  includeImages: true,
-                  includeMeta: true,
-                  outputDir: batchOutputPath
-                }
-              };
-              
-            case 'file':
-              // Validate file exists
-              const fileStats = await this.fileSystem.getStats(item.path);
-              if (!fileStats.success) {
-                throw new Error(`File not found or inaccessible: ${item.path}`);
-              }
-              
-              // Get file details
-              const fileName = path.basename(item.path);
-              const fileType = path.extname(fileName).slice(1).toLowerCase();
-              
-              // Read file content
-              const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'wav']
-                .includes(fileType.toLowerCase());
-              
-              const fileContent = await this.fileSystem.readFile(item.path, isBinaryFile ? null : undefined);
-              
-              if (!fileContent.success) {
-                throw new Error(`Failed to read file: ${fileContent.error}`);
-              }
-              
-              return {
-                id: item.id,
-                type: fileType,
-                content: fileContent.data,
-                name: fileName,
-                options: {
-                  ...options,
-                  ...item.options,
-                  outputDir: batchOutputPath
-                }
-              };
-              
-            default:
-              throw new Error(`Unsupported item type: ${item.type}`);
-          }
-        } catch (error) {
-          console.error(`❌ Failed to prepare item for batch conversion:`, {
-            item,
-            error: error.message
-          });
-          
-          return {
-            id: item.id,
-            error: error.message,
-            originalItem: item
-          };
-        }
-      }));
+      // Prepare items for conversion
+      const preparedItems = await this._prepareBatchItems(items, {
+        ...options,
+        outputDir: batchOutputPath
+      });
       
       progressTracker.update(20);
       
@@ -484,40 +459,61 @@ class ElectronConversionService {
       
       console.log(`🔄 Batch conversion: ${validItems.length} valid items, ${failedItems.length} failed preparation`);
       
-      // Use the backend conversion service for batch conversion
+      // Process batch using worker manager
       let batchResult;
       if (validItems.length > 0) {
         try {
-          // Create progress tracking function for batch conversion
-          const batchProgressCallback = (progress) => {
-            progressTracker.updateScaled(progress, 20, 90);
-          };
+          // Create worker manager with maximum 4 workers
+          const workerManager = new WorkerManager({
+            maxWorkers: 4
+          });
           
-          // Add progress tracking to each item
-          const itemsWithProgress = validItems.map(item => ({
-            ...item,
-            options: {
-              ...item.options,
-              onProgress: (itemProgress) => {
-                if (options.onProgress) {
-                  options.onProgress({
-                    id: item.id,
-                    type: item.type,
-                    progress: itemProgress
-                  });
-                }
+          // Add progress tracking to options
+          const workerOptions = {
+            ...options,
+            onProgress: (progress) => {
+              // Update overall progress
+              progressTracker.updateScaled(progress.progress || 0, 20, 90);
+              
+              // Forward individual file progress if callback exists
+              if (options.onProgress && progress.id) {
+                options.onProgress({
+                  id: progress.id,
+                  file: progress.file,
+                  progress: progress.progress || 0
+                });
               }
             }
-          }));
-          
-          // Convert batch using backend service
-          batchResult = await conversionServiceAdapter.convertBatch(itemsWithProgress);
-        } catch (error) {
-          console.error(`❌ Batch conversion error:`, error);
-          batchResult = {
-            success: false,
-            error: error.message
           };
+          
+          // Process batch using worker manager
+          batchResult = await workerManager.processBatch(validItems, workerOptions);
+          
+          // Process the results and write files to the batch output directory
+          if (batchResult.results && batchResult.results.length > 0) {
+            await this._writeBatchResults(batchResult.results, batchOutputPath);
+          }
+        } catch (error) {
+          console.error(`❌ Worker-based batch conversion error:`, error);
+          
+          // Fallback to adapter-based conversion as a last resort
+          console.log(`⚠️ Falling back to adapter-based batch conversion`);
+          
+          try {
+            batchResult = await conversionServiceAdapter.convertBatch(validItems);
+            
+            // Process the results
+            if (batchResult.results && batchResult.results.length > 0) {
+              await this._writeBatchResults(batchResult.results, batchOutputPath);
+            }
+          } catch (fallbackError) {
+            console.error(`❌ Fallback batch conversion also failed:`, fallbackError);
+            batchResult = {
+              success: false,
+              error: `Worker-based conversion failed: ${error.message}. Fallback also failed: ${fallbackError.message}`,
+              results: []
+            };
+          }
         }
       } else {
         batchResult = {
@@ -528,77 +524,8 @@ class ElectronConversionService {
       
       progressTracker.update(90);
       
-      // Combine results from backend with failed preparation items
-      const results = [
-        ...(batchResult.results || []).map(result => ({
-          ...result,
-          itemId: result.id,
-          itemType: result.type,
-          originalItem: items.find(item => item.id === result.id)
-        })),
-        ...failedItems.map(item => ({
-          success: false,
-          itemId: item.id,
-          itemType: item.originalItem?.type,
-          error: item.error,
-          originalItem: item.originalItem
-        }))
-      ];
-      
-      // Create summary content
-      const summaryContent = [
-        '# Batch Conversion Summary',
-        '',
-        `- **Date:** ${new Date().toISOString()}`,
-        `- **Total Items:** ${results.length}`,
-        `- **Successfully Converted:** ${results.filter(r => r.success).length}`,
-        `- **Failed:** ${results.filter(r => !r.success).length}`,
-        `- **Duration:** ${Math.round((Date.now() - startTime)/1000)} seconds`,
-        '',
-        '## Items',
-        '',
-        ...results.map((result) => {
-          const item = result.originalItem;
-          const status = result.success ? '✅ Success' : `❌ Failed: ${result.error || 'Unknown error'}`;
-          let itemDescription;
-          
-          switch(item?.type) {
-            case 'url':
-              itemDescription = `URL: ${item.url}`;
-              break;
-            case 'parent':
-              itemDescription = `Website: ${item.url}`;
-              break;
-            case 'file':
-              itemDescription = `File: ${item.isTemporary ? '(temp) ' : ''}${path.basename(item.path)}`;
-              break;
-            default:
-              itemDescription = `Unknown type: ${item?.type || 'unknown'}`;
-          }
-          
-          return `- **${itemDescription}**: ${status}`;
-        })
-      ].join('\n');
-      
-      // Save the summary using ConversionResultManager
-      const summaryResult = await this.resultManager.saveConversionResult({
-        content: summaryContent,
-        metadata: {
-          type: 'batch-summary',
-          converted: new Date().toISOString(),
-          totalItems: results.length,
-          successfulItems: results.filter(r => r.success).length,
-          failedItems: results.filter(r => !r.success).length,
-          duration: Date.now() - startTime
-        },
-        images: [],
-        name: 'batch-summary',
-        type: 'markdown',
-        outputDir: batchOutputPath,
-        options: {
-          createSubdirectory: false // Don't create another subdirectory
-        }
-      });
+      // Combine results with failed preparation items
+      const results = this._combineBatchResults(batchResult, failedItems, items);
       
       progressTracker.update(100);
       
@@ -612,7 +539,6 @@ class ElectronConversionService {
       return {
         success: true,
         outputPath: batchOutputPath,
-        summaryFile: summaryResult.mainFile,
         results,
         stats: {
           total: results.length,
@@ -634,6 +560,210 @@ class ElectronConversionService {
         results: []
       };
     }
+  }
+  
+  /**
+   * Prepare items for batch conversion
+   * @param {Array<Object>} items - Array of items to prepare
+   * @param {Object} options - Preparation options
+   * @returns {Promise<Array<Object>>} - Array of prepared items
+   * @private
+   */
+  async _prepareBatchItems(items, options = {}) {
+    return await Promise.all(items.map(async (item) => {
+      try {
+        switch(item.type) {
+          case 'url':
+          case 'parent':
+            return {
+              id: item.id || uuidv4(),
+              type: item.type === 'parent' ? 'parenturl' : 'url',
+              content: item.url,
+              name: new URL(item.url).hostname,
+              options: {
+                ...options,
+                ...item.options,
+                includeImages: true,
+                includeMeta: true
+              }
+            };
+            
+          case 'file':
+            // Validate file exists
+            const fileStats = await this.fileSystem.getStats(item.path);
+            if (!fileStats.success) {
+              throw new Error(`File not found or inaccessible: ${item.path}`);
+            }
+            
+            // Get file details
+            const fileName = path.basename(item.path);
+            const fileType = path.extname(fileName).slice(1).toLowerCase();
+            
+            // Read file content
+            const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'wav']
+              .includes(fileType.toLowerCase());
+            
+            const fileContent = await this.fileSystem.readFile(item.path, isBinaryFile ? null : undefined);
+            
+            if (!fileContent.success) {
+              throw new Error(`Failed to read file: ${fileContent.error}`);
+            }
+            
+            return {
+              id: item.id || uuidv4(),
+              type: fileType,
+              content: fileContent.data,
+              name: fileName,
+              options: {
+                ...options,
+                ...item.options
+              }
+            };
+            
+          default:
+            throw new Error(`Unsupported item type: ${item.type}`);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to prepare item for batch conversion:`, {
+          item,
+          error: error.message
+        });
+        
+        return {
+          id: item.id || uuidv4(),
+          error: error.message,
+          originalItem: item
+        };
+      }
+    }));
+  }
+  
+  /**
+   * Write batch results to output directory
+   * @param {Array<Object>} results - Array of conversion results
+   * @param {string} batchOutputPath - Path to batch output directory
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _writeBatchResults(results, batchOutputPath) {
+    console.log(`📁 Writing ${results.length} files to batch output directory`);
+    
+    for (const result of results) {
+      try {
+        if (!result || !result.content) continue;
+        
+        const category = result.category || 'unknown';
+        const categoryDir = path.join(batchOutputPath, category);
+        
+        // Create category directory if it doesn't exist
+        await this.fileSystem.createDirectory(categoryDir);
+        
+        // Generate filename - clean any temporary filename patterns
+        const cleanedName = cleanTemporaryFilename(result.name);
+        const baseName = path.basename(cleanedName, path.extname(cleanedName));
+        const outputFile = path.join(categoryDir, `${baseName}.md`);
+        
+        // Write the file
+        await this.fileSystem.writeFile(outputFile, result.content);
+        console.log(`✅ Wrote file: ${outputFile}`);
+      } catch (fileError) {
+        console.error(`❌ Error writing result file:`, {
+          name: result.name,
+          error: fileError.message
+        });
+      }
+    }
+  }
+  
+  /**
+   * Combine batch results with failed preparation items
+   * @param {Object} batchResult - Batch conversion result
+   * @param {Array<Object>} failedItems - Array of items that failed preparation
+   * @param {Array<Object>} originalItems - Original items array
+   * @returns {Array<Object>} - Combined results array
+   * @private
+   */
+  _combineBatchResults(batchResult, failedItems, originalItems) {
+    return [
+      ...(batchResult.results || []).map(result => ({
+        ...result,
+        itemId: result.id,
+        itemType: result.type,
+        originalItem: originalItems.find(item => item.id === result.id)
+      })),
+      ...failedItems.map(item => ({
+        success: false,
+        itemId: item.id,
+        itemType: item.originalItem?.type,
+        error: item.error,
+        originalItem: item.originalItem
+      }))
+    ];
+  }
+  
+  /**
+   * Create and save batch summary
+   * @param {Array<Object>} results - Array of conversion results
+   * @param {string} batchOutputPath - Path to batch output directory
+   * @param {number} startTime - Batch start time
+   * @returns {Promise<Object>} - Summary result
+   * @private
+   */
+  async _createBatchSummary(results, batchOutputPath, startTime) {
+    // Create summary content
+    const summaryContent = [
+      '# Batch Conversion Summary',
+      '',
+      `- **Date:** ${new Date().toISOString()}`,
+      `- **Total Items:** ${results.length}`,
+      `- **Successfully Converted:** ${results.filter(r => r.success).length}`,
+      `- **Failed:** ${results.filter(r => !r.success).length}`,
+      `- **Duration:** ${Math.round((Date.now() - startTime)/1000)} seconds`,
+      '',
+      '## Items',
+      '',
+      ...results.map((result) => {
+        const item = result.originalItem;
+        const status = result.success ? '✅ Success' : `❌ Failed: ${result.error || 'Unknown error'}`;
+        let itemDescription;
+        
+        switch(item?.type) {
+          case 'url':
+            itemDescription = `URL: ${item.url}`;
+            break;
+          case 'parent':
+            itemDescription = `Website: ${item.url}`;
+            break;
+          case 'file':
+            itemDescription = `File: ${item.isTemporary ? '(temp) ' : ''}${path.basename(item.path)}`;
+            break;
+          default:
+            itemDescription = `Unknown type: ${item?.type || 'unknown'}`;
+        }
+        
+        return `- **${itemDescription}**: ${status}`;
+      })
+    ].join('\n');
+    
+    // Save the summary using ConversionResultManager
+    return await this.resultManager.saveConversionResult({
+      content: summaryContent,
+      metadata: {
+        type: 'batch-summary',
+        converted: new Date().toISOString(),
+        totalItems: results.length,
+        successfulItems: results.filter(r => r.success).length,
+        failedItems: results.filter(r => !r.success).length,
+        duration: Date.now() - startTime
+      },
+      images: [],
+      name: 'batch-summary',
+      type: 'markdown',
+      outputDir: batchOutputPath,
+      options: {
+        createSubdirectory: false // Don't create another subdirectory
+      }
+    });
   }
 
   /**
