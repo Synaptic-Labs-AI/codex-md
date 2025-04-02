@@ -178,11 +178,11 @@ async function convertParentUrl(url, options = {}) {
       }
     };
     
-    // Add enhanced progress tracking for website conversion
+    // Add simplified progress tracking for website conversion
     if (options.onProgress) {
       const originalOnProgress = options.onProgress;
       
-      // Create a wrapper for the onProgress callback that adds website-specific status information
+      // Create a simple wrapper for the onProgress callback
       mergedOptions.onProgress = (progressData) => {
         // If progressData is a simple number, just pass it through
         if (typeof progressData === 'number') {
@@ -191,7 +191,7 @@ async function convertParentUrl(url, options = {}) {
           return;
         }
         
-      // For object-based progress updates, enhance with website-specific status
+        // For object-based progress updates, pass through with minimal transformation
         if (typeof progressData === 'object') {
           console.log('[ParentUrlAdapter] Received progress update:', {
             type: 'incoming',
@@ -200,104 +200,14 @@ async function convertParentUrl(url, options = {}) {
             timestamp: new Date().toISOString()
           });
           
-          // Create base progress object
+          // Pass through the update with minimal changes
           const progressUpdate = {
-            websiteUrl: progressData.websiteUrl || url,
-            progress: progressData.progress || 0
+            ...progressData,
+            websiteUrl: progressData.websiteUrl || url
           };
-
-          // Handle different status types
-          switch (progressData.status) {
-            case 'initializing':
-              const initUpdate = {
-                ...progressUpdate,
-                status: 'initializing',
-                startTime: progressData.startTime
-              };
-              console.log('[ParentUrlAdapter] Sending initializing status:', initUpdate);
-              originalOnProgress(initUpdate);
-              break;
-
-            case 'finding_sitemap':
-              const sitemapUpdate = {
-                ...progressUpdate,
-                status: 'finding_sitemap',
-                pathFilter: progressData.pathFilter || options.pathFilter
-              };
-              console.log('[ParentUrlAdapter] Sending finding_sitemap status:', sitemapUpdate);
-              originalOnProgress(sitemapUpdate);
-              break;
-
-            case 'parsing_sitemap':
-              const parsingUpdate = {
-                ...progressUpdate,
-                status: 'parsing_sitemap',
-                urlCount: progressData.urlCount || 0
-              };
-              console.log('[ParentUrlAdapter] Sending parsing_sitemap status:', parsingUpdate);
-              originalOnProgress(parsingUpdate);
-              break;
-
-            case 'sitemap_found':
-              const foundUpdate = {
-                ...progressUpdate,
-                status: 'parsing_sitemap',
-                pathFilter: progressData.pathFilter || options.pathFilter,
-                sitemapUrls: progressData.urlCount || 0
-              };
-              console.log('[ParentUrlAdapter] Sending sitemap_found status:', foundUpdate);
-              originalOnProgress(foundUpdate);
-              break;
-
-            case 'crawling':
-              const crawlingUpdate = {
-                ...progressUpdate,
-                status: 'crawling_pages',
-                crawledUrls: progressData.urlCount || 0
-              };
-              console.log('[ParentUrlAdapter] Sending crawling status:', crawlingUpdate);
-              originalOnProgress(crawlingUpdate);
-              break;
-
-            case 'processing':
-              const processingUpdate = {
-                ...progressUpdate,
-                status: 'processing_pages',
-                currentFile: progressData.currentUrl,
-                processedCount: progressData.processedCount || 0,
-                totalCount: progressData.totalCount || 0
-              };
-              console.log('[ParentUrlAdapter] Sending processing status:', processingUpdate);
-              originalOnProgress(processingUpdate);
-              break;
-
-            case 'section':
-              // Keep existing status but update section info
-              const sectionUpdate = {
-                ...progressUpdate,
-                currentSection: progressData.section,
-                sectionCounts: { [progressData.section]: progressData.count || 1 },
-                status: 'processing_pages' // Keep processing status while updating sections
-              };
-              console.log('[ParentUrlAdapter] Sending section update:', sectionUpdate);
-              originalOnProgress(sectionUpdate);
-              break;
-
-            case 'generating_index':
-              const indexUpdate = {
-                ...progressUpdate,
-                status: 'generating_index',
-                processedCount: progressData.processedCount || 0,
-                totalCount: progressData.totalCount || 0
-              };
-              console.log('[ParentUrlAdapter] Sending generating_index status:', indexUpdate);
-              originalOnProgress(indexUpdate);
-              break;
-
-            default:
-              console.log('Adapter: Passing through status:', progressData.status);
-              originalOnProgress(progressData);
-          }
+          
+          console.log('[ParentUrlAdapter] Sending progress update:', progressUpdate);
+          originalOnProgress(progressUpdate);
         }
         else {
           // For any other type of progress data, just pass it through

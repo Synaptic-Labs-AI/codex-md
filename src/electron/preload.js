@@ -11,18 +11,65 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Add error handling for IPC events to prevent undefined message errors
+// Add enhanced error handling and logging for IPC events
 const safeIpcHandler = (channel, callback) => {
+  console.log('[IPC Preload] Creating handler for channel:', channel);
+  
   return (event, ...args) => {
     try {
+      // Log all incoming IPC events
+      console.log('[IPC Preload] Event received:', {
+        channel,
+        args,
+        hasData: args && args.length > 0,
+        dataType: args && args.length > 0 ? typeof args[0] : 'undefined',
+        timestamp: new Date().toISOString()
+      });
+
+      // For conversion events, log detailed data structure
+      if (channel === 'mdcode:convert:progress' || channel === 'mdcode:convert:status') {
+        const data = args[0];
+        console.log('[IPC Preload] Conversion event details:', {
+          channel,
+          eventType: channel.split(':')[2],
+          status: data?.status,
+          hasWebsiteData: !!(data?.websiteUrl || data?.currentUrl),
+          progress: data?.progress,
+          processedCount: data?.processedCount,
+          totalCount: data?.totalCount,
+          currentUrl: data?.currentUrl,
+          timestamp: new Date().toISOString()
+        });
+
+        // Special handling for website conversion events
+        if (data?.websiteUrl) {
+          console.log('[IPC Preload] Website conversion status:', {
+            status: data.status,
+            websiteUrl: data.websiteUrl,
+            currentUrl: data.currentUrl,
+            processedCount: data.processedCount,
+            totalCount: data.totalCount,
+            progress: data.progress,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+
       // Check if data is defined before processing
       if (args && args.length > 0) {
         callback(event, ...args);
       } else {
-        console.warn(`Received undefined data on channel: ${channel}`);
+        console.warn(`[IPC Preload] Received undefined data on channel: ${channel}`, {
+          timestamp: new Date().toISOString()
+        });
       }
     } catch (error) {
-      console.error(`Error handling IPC event on channel ${channel}:`, error);
+      console.error(`[IPC Preload] Error handling event on channel ${channel}:`, {
+        error: error.message,
+        stack: error.stack,
+        args: args,
+        timestamp: new Date().toISOString()
+      });
     }
   };
 };

@@ -4,6 +4,60 @@ This document tracks what has been completed and what remains to be built in the
 
 ## Completed Features
 
+- Cleaned up legacy code after simplifying website conversion progress tracking:
+  - Deleted statusTransitions.js file (complex state machine logic)
+  - Simplified conversionStatus.js by removing website-specific status handling methods
+  - Simplified ConversionProgress.svelte by removing website-specific status handling code
+  - Simplified parentUrlConverterAdapter.js status update logic
+  - Kept minimal backward compatibility for legacy code paths
+  - Removed complex status validation and transition logic
+  - Removed setTimeout-based workarounds
+  - Improved code maintainability and readability
+  - Reduced complexity and potential for bugs
+  - Maintained full functionality with the new simplified approach
+
+- Simplified website conversion progress tracking system:
+  - Replaced complex state machine with a simpler, more direct approach
+  - Created new websiteProgressStore.js with a simplified phase-based model
+  - Implemented WebsiteProgressDisplay.svelte component with improved user feedback
+  - Added estimated time remaining calculation based on page processing speed
+  - Simplified event handling in eventHandlers.js
+  - Removed complex status validation and transition logic
+  - Added direct mapping from backend status to frontend UI state
+  - Enhanced user experience with clearer progress indicators
+  - Improved error handling and recovery
+  - Maintained backward compatibility with existing conversion status system
+  - Eliminated race conditions in status transitions
+  - Removed complex setTimeout-based workarounds
+
+- Implemented robust state machine for website conversion status transitions:
+  - Created new statusTransitions.js utility to manage conversion status transitions
+  - Implemented state machine pattern with defined valid transitions between states
+  - Added forced transition mechanism to handle edge cases (e.g., stuck in finding_sitemap)
+  - Enhanced conversionStatus store with improved status validation and transition logging
+  - Simplified parentUrlConverterAdapter status update logic with more reliable approach
+  - Removed setTimeout-based workarounds in favor of direct state updates
+  - Added timestamp-based uniqueness to ensure status updates are processed
+  - Enhanced ConversionProgress component with better status transition handling
+  - Added recovery hints in UI for long-running operations
+  - Added comprehensive logging throughout the status update pipeline
+  - Fixed race condition in status transitions that was causing UI to get stuck
+  - Implemented proper validation of status values to prevent invalid state transitions
+
+- Fixed chat bubble progress tracker getting stuck on "finding_sitemap":
+  - Added timeout mechanism to SitemapParser.js to prevent getting stuck in sitemap discovery
+  - Enhanced progress tracking in SitemapParser.js with more detailed status updates
+  - Added explicit status transition from "finding_sitemap" to "processing_pages" when no sitemap is found
+  - Improved URL handling in parentUrlConverter.js for both string URLs and URL objects
+  - Added forced status updates in parentUrlConverterAdapter.js to ensure UI transitions properly
+  - Enhanced eventHandlers.js to send follow-up progress updates to ensure UI state changes
+  - Added more detailed logging throughout the status update pipeline
+  - Implemented proper error handling for sitemap discovery failures
+  - Added status mapping in conversionStatus.js to handle legacy status names
+  - Added multiple follow-up status updates to ensure UI transitions correctly
+  - Added timeout message in ConversionProgress.svelte for long-running sitemap searches
+  - Enhanced debug logging to include elapsed time information
+
 - Fixed "Invalid URL format" errors in parent URL converter:
   - Enhanced URL validation in parentUrlConverter.js to properly handle different URL formats and types
   - Added comprehensive type checking for URL objects before processing

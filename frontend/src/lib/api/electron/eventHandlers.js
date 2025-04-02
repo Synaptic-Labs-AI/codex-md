@@ -10,6 +10,7 @@
  */
 
 import { conversionStatus } from '../../stores/conversionStatus.js';
+import { websiteProgress, Phase } from '../../stores/websiteProgressStore.js';
 
 /**
  * Maps conversion events to conversionStatus store methods
@@ -39,38 +40,62 @@ const statusActions = {
     conversionStatus.setStatus('cancelled');
     conversionStatus.setProgress(0);
     conversionStatus.setCurrentFile(null);
-  },
-  
-  // Website-specific status handlers
-  finding_sitemap: (state) => {
-    conversionStatus.setWebsiteStatus('finding_sitemap', {
-      websiteUrl: state?.websiteUrl,
-      pathFilter: state?.pathFilter
-    });
-  },
-  parsing_sitemap: (state) => {
-    conversionStatus.setWebsiteStatus('parsing_sitemap', {
-      sitemapUrls: state?.sitemapUrls || 0
-    });
-  },
-  crawling_pages: (state) => {
-    conversionStatus.setWebsiteStatus('crawling_pages', {
-      crawledUrls: state?.crawledUrls || 0
-    });
-  },
-  processing_pages: (state) => {
-    conversionStatus.setWebsiteStatus('processing_pages', {
-      currentFile: state?.currentUrl,
-      processedCount: state?.processedCount || 0,
-      totalCount: state?.totalCount || 0
-    });
-  },
-  generating_index: (state) => {
-    conversionStatus.setWebsiteStatus('generating_index', {
-      processedCount: state?.processedCount || 0,
-      totalCount: state?.totalCount || 0
-    });
   }
+};
+
+/**
+ * Simplified website progress handler
+ * @private
+ */
+const websiteProgressHandler = (data, fileIdentifier) => {
+  // Skip if no data
+  if (!data) return;
+  
+  console.log('[EventHandler] Website progress update:', data);
+  
+  // Map backend status to frontend phase
+  const phaseMap = {
+    'initializing': Phase.INITIALIZING,
+    'finding_sitemap': Phase.DISCOVERING,
+    'parsing_sitemap': Phase.DISCOVERING,
+    'crawling_pages': Phase.DISCOVERING,
+    'processing_pages': Phase.PROCESSING,
+    'processing': Phase.PROCESSING,
+    'generating_index': Phase.FINALIZING,
+    'completed': Phase.COMPLETED,
+    'error': Phase.ERROR
+  };
+  
+  // Create update object
+  const update = {};
+  
+  // Set phase if status is provided
+  if (data.status && phaseMap[data.status]) {
+    update.phase = phaseMap[data.status];
+  }
+  
+  // Set activity based on status and other data
+  if (data.status === 'finding_sitemap') {
+    update.currentActivity = `Searching for sitemap at ${data.websiteUrl || fileIdentifier}...`;
+  } else if (data.status === 'parsing_sitemap') {
+    update.currentActivity = `Found sitemap with ${data.urlCount || 'multiple'} URLs`;
+  } else if (data.status === 'processing_pages' || data.status === 'processing') {
+    if (data.currentUrl) {
+      update.currentActivity = `Processing page: ${data.currentUrl}`;
+    }
+    update.pagesProcessed = data.processedCount || 0;
+    update.pagesFound = data.totalCount || 0;
+  } else if (data.status === 'generating_index') {
+    update.currentActivity = `Generating index for ${data.processedCount || 0} pages`;
+  }
+  
+  // Update progress
+  if (data.progress !== undefined) {
+    update.overallProgress = data.progress;
+  }
+  
+  // Update the store
+  websiteProgress.updateProgress(update);
 };
 
 /**
@@ -115,113 +140,43 @@ class EventHandlerManager {
           return;
         }
         
+        // Enhanced logging for progress events
         console.log('[EventHandler] Progress event received:', {
-          data,
+          rawData: data,
           fileIdentifier,
-          isMatch: data.file === fileIdentifier || (data.id && this.activeRequests.has(data.id)),
-          hasStatus: !!data.status
+          jobId: data.id,
+          matchType: data.file === fileIdentifier ? 'file match' : 
+                    data.id && this.activeRequests.has(data.id) ? 'job id match' : 'no match',
+          hasStatus: !!data.status,
+          timestamp: new Date().toISOString(),
+          activeRequests: Array.from(this.activeRequests.keys())
         });
         
         if (data.file === fileIdentifier || (data.id && this.activeRequests.has(data.id))) {
-          // Update progress
-          conversionStatus.setProgress(data.progress || 0);
+          // Prepare batch update for regular conversion status
+          const updates = {
+            progress: data.progress || 0,
+            currentFile: data.file || null
+          };
           
-          // Handle standard file progress
-          if (data.file) {
-            conversionStatus.setCurrentFile(data.file);
-          }
+          // Apply updates to the regular conversion status
+          conversionStatus.batchUpdate(updates);
           
-          // Handle direct website-specific status updates
-          if (data.status) {
-            // Check if this is a website-specific status
-            const websiteStatuses = [
-              'initializing',
-              'finding_sitemap',
-              'parsing_sitemap',
-              'crawling_pages',
-              'processing_pages',
-              'generating_index'
-            ];
-            
-            if (websiteStatuses.includes(data.status)) {
-              console.log(`[EventHandler] Received direct website status update: ${data.status}`, data);
-              // Directly update the website status
-              conversionStatus.setWebsiteStatus(data.status, {
-                ...data,
-                // Ensure these fields are always included for UI updates
-                progress: data.progress || 0,
-                websiteUrl: data.websiteUrl || fileIdentifier,
-                currentFile: data.currentUrl || data.file
-              });
-              
-              // For processing_pages status, also update the website progress
-              if (data.status === 'processing_pages') {
-                console.log('[EventHandler] Updating website progress for processing_pages');
-                conversionStatus.updateWebsiteProgress({
-                  processedCount: data.processedCount || 0,
-                  totalCount: data.totalCount || 0,
-                  progress: data.progress || 0,
-                  currentFile: data.currentUrl || data.file
-                });
-              }
-              
-              // For section updates, also update section counts
-              if (data.section) {
-                console.log('[EventHandler] Updating section counts:', data.section);
-                conversionStatus.updateSectionCounts(
-                  data.section || 'unknown',
-                  data.count || 1
-                );
-              }
-            }
-            // Handle legacy website_* prefixed status updates for backward compatibility
-            else if (data.status.startsWith('website_')) {
-              // Extract the actual status by removing the 'website_' prefix
-              const websiteStatus = data.status.substring(8);
-              console.log(`[EventHandler] Received legacy website progress update: ${websiteStatus}`, data);
-              
-              // Map website-specific progress status to main status
-              const statusMap = {
-                'progress': 'processing_pages',
-                'section': 'processing_pages',
-                'sitemap': 'parsing_sitemap',
-                'crawling': 'crawling_pages'
-              };
-              
-              // Update the main status if we have a mapping
-              if (statusMap[websiteStatus]) {
-                console.log(`[EventHandler] Updating main status to: ${statusMap[websiteStatus]}`);
-                conversionStatus.setWebsiteStatus(statusMap[websiteStatus], {
-                  ...data,
-                  // Ensure these fields are always included for UI updates
-                  progress: data.progress || 0,
-                  websiteUrl: data.websiteUrl || fileIdentifier
-                });
-              }
-              
-              // Update website-specific progress data
-              if (websiteStatus === 'progress') {
-                console.log('[EventHandler] Updating website progress data');
-                conversionStatus.updateWebsiteProgress({
-                  processedCount: data.processedCount || 0,
-                  totalCount: data.totalCount || 0,
-                  progress: data.progress || 0,
-                  currentFile: data.currentUrl || data.file
-                });
-              } else if (websiteStatus === 'section') {
-                console.log('[EventHandler] Updating section counts:', data.section);
-                conversionStatus.updateSectionCounts(
-                  data.section || 'unknown',
-                  data.count || 1
-                );
-              } else if (websiteStatus === 'sitemap') {
-                console.log('[EventHandler] Updating sitemap stats:', data.urlCount);
-                conversionStatus.setSitemapStats(data.urlCount || 0);
-              } else if (websiteStatus === 'crawling') {
-                console.log('[EventHandler] Updating crawled stats:', data.urlCount);
-                conversionStatus.setCrawledStats(data.urlCount || 0);
-              }
-            }
+          // Check if this is a website-specific status update
+          const websiteStatuses = [
+            'initializing',
+            'finding_sitemap',
+            'parsing_sitemap',
+            'crawling_pages',
+            'processing_pages',
+            'processing',
+            'generating_index'
+          ];
+          
+          // If this is a website status update, use our simplified handler
+          if (data.status && (websiteStatuses.includes(data.status) || data.status.startsWith('website_'))) {
+            // Process with our simplified handler
+            websiteProgressHandler(data, fileIdentifier);
           }
           
           if (onProgress) {
