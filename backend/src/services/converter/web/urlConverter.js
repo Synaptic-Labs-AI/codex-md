@@ -93,13 +93,13 @@ export class UrlConverter {
         await this.pageCleaner.cleanupPage(page);
         
         // Additional wait for any cleanup-triggered changes
-        await page.waitForTimeout(1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Check for SPA and wait for dynamic content to load
         const isDynamic = await this.contentExtractor.waitForDynamicContent(page);
         if (isDynamic) {
           // Final wait after dynamic content changes
-          await page.waitForTimeout(2000);
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       } catch (error) {
         console.error('Error during page preparation:', error);

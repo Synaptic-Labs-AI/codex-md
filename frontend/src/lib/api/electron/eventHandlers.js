@@ -39,6 +39,37 @@ const statusActions = {
     conversionStatus.setStatus('cancelled');
     conversionStatus.setProgress(0);
     conversionStatus.setCurrentFile(null);
+  },
+  
+  // Website-specific status handlers
+  finding_sitemap: (state) => {
+    conversionStatus.setWebsiteStatus('finding_sitemap', {
+      websiteUrl: state?.websiteUrl,
+      pathFilter: state?.pathFilter
+    });
+  },
+  parsing_sitemap: (state) => {
+    conversionStatus.setWebsiteStatus('parsing_sitemap', {
+      sitemapUrls: state?.sitemapUrls || 0
+    });
+  },
+  crawling_pages: (state) => {
+    conversionStatus.setWebsiteStatus('crawling_pages', {
+      crawledUrls: state?.crawledUrls || 0
+    });
+  },
+  processing_pages: (state) => {
+    conversionStatus.setWebsiteStatus('processing_pages', {
+      currentFile: state?.currentUrl,
+      processedCount: state?.processedCount || 0,
+      totalCount: state?.totalCount || 0
+    });
+  },
+  generating_index: (state) => {
+    conversionStatus.setWebsiteStatus('generating_index', {
+      processedCount: state?.processedCount || 0,
+      totalCount: state?.totalCount || 0
+    });
   }
 };
 
@@ -87,8 +118,67 @@ class EventHandlerManager {
         if (data.file === fileIdentifier || (data.id && this.activeRequests.has(data.id))) {
           // Update progress
           conversionStatus.setProgress(data.progress || 0);
+          
+          // Handle standard file progress
           if (data.file) {
             conversionStatus.setCurrentFile(data.file);
+          }
+          
+          // Handle direct website-specific status updates
+          if (data.status) {
+            // Check if this is a website-specific status
+            const websiteStatuses = [
+              'finding_sitemap',
+              'parsing_sitemap',
+              'crawling_pages',
+              'processing_pages',
+              'generating_index'
+            ];
+            
+            if (websiteStatuses.includes(data.status)) {
+              console.log(`Received direct website status update: ${data.status}`, data);
+              // Directly update the website status
+              conversionStatus.setWebsiteStatus(data.status, data);
+            }
+            // Handle legacy website_* prefixed status updates for backward compatibility
+            else if (data.status.startsWith('website_')) {
+              // Extract the actual status by removing the 'website_' prefix
+              const websiteStatus = data.status.substring(8);
+              console.log(`Received legacy website progress update: ${websiteStatus}`, data);
+              
+              // Map website-specific progress status to main status
+              const statusMap = {
+                'progress': 'processing_pages',
+                'section': 'processing_pages',
+                'sitemap': 'parsing_sitemap',
+                'crawling': 'crawling_pages'
+              };
+              
+              // Update the main status if we have a mapping
+              if (statusMap[websiteStatus]) {
+                console.log(`Updating main status to: ${statusMap[websiteStatus]}`);
+                conversionStatus.setWebsiteStatus(statusMap[websiteStatus], data);
+              }
+              
+              // Update website-specific progress data
+              if (websiteStatus === 'progress') {
+                conversionStatus.updateWebsiteProgress({
+                  processedCount: data.processedCount || 0,
+                  totalCount: data.totalCount || 0,
+                  progress: data.progress || 0,
+                  currentFile: data.currentUrl
+                });
+              } else if (websiteStatus === 'section') {
+                conversionStatus.updateSectionCounts(
+                  data.section || 'unknown',
+                  data.count || 1
+                );
+              } else if (websiteStatus === 'sitemap') {
+                conversionStatus.setSitemapStats(data.urlCount || 0);
+              } else if (websiteStatus === 'crawling') {
+                conversionStatus.setCrawledStats(data.urlCount || 0);
+              }
+            }
           }
           
           if (onProgress) {

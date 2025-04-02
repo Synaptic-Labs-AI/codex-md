@@ -88,14 +88,21 @@ function createConversionResultStore() {
      * Sets a native file path result (for Electron)
      * @param {string} outputPath The output file path
      * @param {Array} items The converted items
-     * @param {string} message Optional success message
+     * @param {Object} options Additional options
+     * @param {string} options.message Optional success message
+     * @param {boolean} options.isBatch Whether this is a batch conversion
+     * @param {number} options.totalCount Total number of files in the batch
      */
-    setNativeResult: (outputPath, items = [], message = null) => {
+    setNativeResult: (outputPath, items = [], options = {}) => {
+      const { message = null, isBatch = false, totalCount = items.length } = options;
+      
       set({
         success: true,
         outputPath,
         items,
         isNative: true,
+        isBatch,
+        totalCount,
         message: message || 'Conversion completed successfully',
         error: null
       });

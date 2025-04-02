@@ -44,7 +44,7 @@ function readFileAsBase64(file) {
  * @param {File} file - The File object to save
  * @returns {Promise<string>} - Path to the temporary file
  */
-async function saveTempFile(file) {
+async function saveTempFile(file, onProgress) {
   if (!isElectron || !window.electronAPI) {
     throw new Error('Cannot save temporary file: Not running in Electron environment');
   }
@@ -105,6 +105,9 @@ async function saveTempFile(file) {
       // Use the specialized video file transfer method from electronClient
       const transferResult = await electronClient.transferLargeFile(file, tempFilePath, (progress) => {
         console.log(`📊 [saveTempFile] Transfer progress: ${Math.round(progress)}%`);
+        if (onProgress) {
+          onProgress(progress);
+        }
       });
       
       if (!transferResult.success) {
@@ -425,12 +428,18 @@ export async function startConversion() {
 
   conversionStatus.setStatus('initializing');
   conversionStatus.setProgress(0);
+  
+  // Add a small delay to show the initializing message
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
   try {
     // Prepare items for conversion
     const items = await prepareBatchItems(currentFiles);
     const itemCount = items.length;
 
+    // Start conversion and set total count
+    conversionStatus.startConversion(itemCount);
+    
     // Handle conversion based on environment
     if (isElectron) {
       // First prompt for output directory
@@ -450,9 +459,20 @@ export async function startConversion() {
       await handleWebConversion(items, currentApiKey);
     }
 
-    // Update status
-    conversionStatus.setStatus('processing');
-    showFeedback('✨ Processing started! You will be notified when the conversion is complete.', 'success');
+      // Update status
+      conversionStatus.setStatus('processing');
+      showFeedback('✨ Processing started! You will be notified when the conversion is complete.', 'success');
+      
+      // Add error handling for worker communication errors
+      window.addEventListener('error', (event) => {
+        // Check if this is the worker communication error
+        if (event.message && event.message.includes('Cannot destructure property')) {
+          console.warn('Caught worker communication error:', event.message);
+          // Don't let this error affect the UI state
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
 
   } catch (error) {
     console.error('Conversion error:', error);
@@ -545,8 +565,11 @@ async function handleElectronConversion(items, apiKey, outputDir) {
         conversionStatus.setStatus('preparing');
         conversionStatus.setProgress(10);
         
-        // Save the file to a temporary location
-        const tempFilePath = await saveTempFile(item.file);
+      // Save the file to a temporary location
+      conversionStatus.setStatus('preparing');
+      const tempFilePath = await saveTempFile(item.file, (progress) => {
+        conversionStatus.setChunkProgress(progress);
+      });
         
         try {
           // Convert the temporary file
@@ -592,16 +615,19 @@ async function handleElectronConversion(items, apiKey, outputDir) {
     } 
     // For batch conversion
     else {
-      // First, handle any File objects by saving them to temporary files
-      conversionStatus.setStatus('preparing');
-      conversionStatus.setProgress(5);
-      
-      // Track temporary files for cleanup
-      const tempFilePaths = [];
-      
-      // Process each item to handle File objects and URLs
-      const processedItems = await Promise.all(
-        items.map(async (item, index) => {
+  // First, handle any File objects by saving them to temporary files
+  conversionStatus.setStatus('preparing');
+  conversionStatus.setProgress(5);
+  
+  // Track temporary files for cleanup
+  const tempFilePaths = [];
+  
+  // Process each item to handle File objects and URLs
+  const processedItems = await Promise.all(
+    items.map(async (item, index) => {
+      // Update current file
+      conversionStatus.setCurrentFile(item.file?.name || item.url || `Item ${index + 1}`);
+
           if (item.isUrl) {
             // For URLs, return an object with URL info
             return {
@@ -623,7 +649,9 @@ async function handleElectronConversion(items, apiKey, outputDir) {
           // For File objects, save to temporary file first
           else if (item.file instanceof File) {
             conversionStatus.setCurrentFile(`Preparing ${item.file.name}...`);
-            const tempFilePath = await saveTempFile(item.file);
+            const tempFilePath = await saveTempFile(item.file, (progress) => {
+              conversionStatus.setChunkProgress(progress);
+            });
             tempFilePaths.push({ path: tempFilePath, originalName: item.file.name });
             return {
               type: 'file',
@@ -640,8 +668,15 @@ async function handleElectronConversion(items, apiKey, outputDir) {
         })
       );
 
-      conversionStatus.setStatus('converting');
+      // Show worker initialization phase
+      conversionStatus.setStatus('initializing_workers');
       conversionStatus.setProgress(10);
+      
+      // Add a delay to show the worker initialization messages
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      conversionStatus.setStatus('converting');
+      conversionStatus.setProgress(15);
 
       try {
         // Convert batch with mixed content types
@@ -689,16 +724,21 @@ async function handleElectronConversion(items, apiKey, outputDir) {
             })
           );
           
+          // Ensure we set the status to completed and update the progress
           conversionStatus.setStatus('completed');
           conversionStatus.setProgress(100);
           
-          // Store the result
-          conversionResult.setNativeResult(result.outputPath, items);
+          // Store the result with batch information
+          conversionResult.setNativeResult(result.outputPath, items, {
+            isBatch: true,
+            totalCount: items.length
+          });
           
           // Update all file statuses
           items.forEach(item => {
             files.updateFile(item.id, {
-              status: 'completed'
+              status: 'completed',
+              outputPath: result.outputPath
             });
           });
         } else {

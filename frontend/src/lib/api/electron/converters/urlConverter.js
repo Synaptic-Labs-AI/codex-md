@@ -117,11 +117,20 @@ export async function convertParentUrl(url, options = {}, onProgress = null) {
     // Normalize URL
     const normalizedUrl = normalizeUrl(url);
 
-    // Set initial status
-    conversionStatus.setStatus('initializing');
+    // Set initial website status
+    conversionStatus.startWebsiteConversion(normalizedUrl);
     conversionStatus.setProgress(0);
-    conversionStatus.setCurrentFile(`Website: ${normalizedUrl}`);
     conversionStatus.setError(null);
+    
+    // Explicitly set the status to finding_sitemap after initialization
+    // This ensures we transition from initializing to finding_sitemap
+    setTimeout(() => {
+      console.log('Explicitly setting status to finding_sitemap');
+      conversionStatus.setWebsiteStatus('finding_sitemap', {
+        websiteUrl: normalizedUrl,
+        pathFilter: options.pathFilter
+      });
+    }, 1000); // Small delay to ensure the UI shows the initializing state first
 
     // Generate a job ID
     const jobId = generateId();

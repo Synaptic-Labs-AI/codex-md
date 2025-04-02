@@ -13,16 +13,27 @@
 
   let mode = 'welcome'; // Start with welcome mode
   let showWelcome = false;
+  let hasCompletedConversion = false; // Track if a conversion has completed
   
   // Function to smoothly scroll to top of page
   function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Subscribe to conversion status changes
-  $: if ($conversionStatus.status === 'completed') {
+  // Subscribe to conversion status and result changes
+  $: if ($conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp) {
     mode = 'converted';
+    hasCompletedConversion = true;
     scrollToTop();
+  }
+  
+  // If we have a result, ensure we're in converted mode
+  $: if ($conversionResult && $conversionResult.success) {
+    if (!hasCompletedConversion) {
+      mode = 'converted';
+      hasCompletedConversion = true;
+      scrollToTop();
+    }
   }
 
   function handleStartConversion() {
@@ -37,6 +48,7 @@
     files.clearFiles();
     conversionStatus.reset();
     conversionResult.clearResult();
+    hasCompletedConversion = false; // Reset the completion flag
     mode = 'upload';
   }
   

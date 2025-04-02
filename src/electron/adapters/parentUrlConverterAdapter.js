@@ -98,6 +98,14 @@ async function convertParentUrl(url, options = {}) {
       includeImages: true,
       includeMeta: true,
       handleDynamicContent: true,
+      useSitemap: true, // Enable sitemap parsing by default
+      sitemapUrl: null, // Optional explicit sitemap URL
+      pathFilter: null, // Optional path filter to restrict crawling to specific paths
+      sitemap: {
+        maxEntries: 1000, // Maximum number of URLs to process from sitemap
+        timeout: 30000, // Timeout for sitemap requests
+        maxDepth: 3 // Maximum depth for nested sitemaps
+      },
       got: {
         headers: defaultHeaders,
         timeout: {
@@ -169,6 +177,85 @@ async function convertParentUrl(url, options = {}) {
         }
       }
     };
+    
+    // Add enhanced progress tracking for website conversion
+    if (options.onProgress) {
+      const originalOnProgress = options.onProgress;
+      
+      // Create a wrapper for the onProgress callback that adds website-specific status information
+      mergedOptions.onProgress = (progressData) => {
+        // If progressData is a simple number, just pass it through
+        if (typeof progressData === 'number') {
+          originalOnProgress(progressData);
+          return;
+        }
+        
+        // For object-based progress updates, enhance with website-specific status
+        if (typeof progressData === 'object') {
+          console.log('Adapter: Received progress update', progressData);
+          
+          // Handle sitemap discovery
+          if (progressData.status === 'sitemap_found') {
+            console.log('Adapter: Processing sitemap_found status');
+            originalOnProgress({
+              status: 'parsing_sitemap',
+              websiteUrl: progressData.websiteUrl || url,
+              pathFilter: progressData.pathFilter || options.pathFilter,
+              sitemapUrls: progressData.urlCount || 0,
+              progress: progressData.progress || 0
+            });
+          }
+          // Handle crawling progress
+          else if (progressData.status === 'crawling') {
+            console.log('Adapter: Processing crawling status');
+            originalOnProgress({
+              status: 'crawling_pages',
+              crawledUrls: progressData.urlCount || 0,
+              progress: progressData.progress || 0
+            });
+          }
+          // Handle page processing
+          else if (progressData.status === 'processing') {
+            console.log('Adapter: Processing processing status');
+            originalOnProgress({
+              status: 'processing_pages',
+              currentFile: progressData.currentUrl,
+              processedCount: progressData.processedCount || 0,
+              totalCount: progressData.totalCount || 0,
+              progress: progressData.progress || 0
+            });
+          }
+          // Handle section updates
+          else if (progressData.status === 'section') {
+            console.log('Adapter: Processing section status');
+            // Update section information without changing the main status
+            originalOnProgress({
+              currentSection: progressData.section,
+              sectionCounts: { [progressData.section]: progressData.count || 1 }
+            });
+          }
+          // Handle generating index
+          else if (progressData.status === 'generating_index') {
+            console.log('Adapter: Processing generating_index status');
+            originalOnProgress({
+              status: 'generating_index',
+              processedCount: progressData.processedCount || 0,
+              totalCount: progressData.totalCount || 0,
+              progress: progressData.progress || 0
+            });
+          }
+          // Pass through any other progress updates
+          else {
+            console.log('Adapter: Passing through status:', progressData.status);
+            originalOnProgress(progressData);
+          }
+        }
+        else {
+          // For any other type of progress data, just pass it through
+          originalOnProgress(progressData);
+        }
+      };
+    }
     
     const { convertParentUrlToMarkdown } = await modulePromise;
     

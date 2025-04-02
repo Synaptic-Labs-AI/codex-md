@@ -287,9 +287,50 @@ class ElectronConversionService {
     const startTime = Date.now();
     
     try {
-      // Create a progress tracker
+      // Create a progress tracker with website-specific status updates
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
-      progressTracker.update(10);
+      
+      // Initialize website conversion status with clear starting state
+      if (options.onProgress) {
+        // First set the initial status
+        options.onProgress({
+          status: 'initializing',
+          websiteUrl: url,
+          startTime: Date.now()
+        });
+      }
+      
+      progressTracker.update(5);
+      
+      // Extract path filter from URL if it contains a specific path
+      // For example, if URL is "example.com/blogs", set pathFilter to "/blogs"
+      let pathFilter = null;
+      try {
+        const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+        if (urlObj.pathname && urlObj.pathname !== '/') {
+          pathFilter = urlObj.pathname;
+          console.log(`Detected path filter from URL: ${pathFilter}`);
+          
+          // Update status with path filter but maintain current status
+          if (options.onProgress) {
+            options.onProgress({
+              pathFilter: pathFilter
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to extract path filter from URL:', error.message);
+      }
+      
+      // Update status to finding sitemap - this is the first real step in website conversion
+      if (options.onProgress) {
+        console.log('ElectronConversionService: Setting status to finding_sitemap');
+        options.onProgress({
+          status: 'finding_sitemap',
+          websiteUrl: url,
+          pathFilter: pathFilter
+        });
+      }
       
       // Prepare data for backend conversion service
       const conversionData = {
@@ -300,15 +341,78 @@ class ElectronConversionService {
           ...options,
           includeImages: true,
           includeMeta: true,
+          pathFilter: pathFilter || options.pathFilter, // Use detected path filter or provided one
           outputDir: options.outputDir || this.defaultOutputDir,
-          onProgress: (progress) => progressTracker.updateScaled(progress, 10, 50)
+          onProgress: (progressData) => {
+            // Handle different progress events from the parentUrlConverter
+            if (typeof progressData === 'number') {
+              // Simple progress percentage
+              progressTracker.updateScaled(progressData, 10, 50);
+            } else if (typeof progressData === 'object') {
+              // Enhanced progress data
+              if (progressData.status === 'sitemap_found') {
+                // Update status when sitemap is found
+                if (options.onProgress) {
+                  options.onProgress({
+                    status: 'parsing_sitemap',
+                    sitemapUrls: progressData.urlCount || 0
+                  });
+                }
+              } else if (progressData.status === 'crawling') {
+                // Update status when crawling pages
+                if (options.onProgress) {
+                  options.onProgress({
+                    status: 'crawling_pages',
+                    crawledUrls: progressData.urlCount || 0
+                  });
+                }
+              } else if (progressData.status === 'processing') {
+                // Update status when processing pages
+                if (options.onProgress) {
+                  options.onProgress({
+                    status: 'processing_pages',
+                    currentFile: progressData.currentUrl,
+                    processedCount: progressData.processedCount || 0,
+                    totalCount: progressData.totalCount || 0
+                  });
+                }
+              } else if (progressData.status === 'section') {
+                // Update section information
+                if (options.onProgress) {
+                  options.onProgress({
+                    currentSection: progressData.section,
+                    sectionCounts: { [progressData.section]: progressData.count }
+                  });
+                }
+              }
+              
+              // Always update the scaled progress
+              progressTracker.updateScaled(progressData.progress || 0, 10, 50);
+            }
+          }
         }
       };
       
       // Use the backend conversion service via adapter
+      if (options.onProgress) {
+        options.onProgress({
+          status: 'converting',
+          currentFile: url
+        });
+      }
+      
       const result = await conversionServiceAdapter.convert(conversionData);
       
       progressTracker.update(50);
+      
+      // Update status to generating index
+      if (options.onProgress) {
+        options.onProgress({
+          status: 'generating_index',
+          processedCount: result.stats?.successfulPages || 0,
+          totalCount: result.stats?.totalPages || 0
+        });
+      }
       
       // Generate a name from the URL
       const urlObj = new URL(url);
@@ -575,6 +679,20 @@ class ElectronConversionService {
         switch(item.type) {
           case 'url':
           case 'parent':
+            // Extract path filter from URL if it's a parent URL
+            let pathFilter = null;
+            if (item.type === 'parent') {
+              try {
+                const urlObj = new URL(item.url.startsWith('http') ? item.url : `https://${item.url}`);
+                if (urlObj.pathname && urlObj.pathname !== '/') {
+                  pathFilter = urlObj.pathname;
+                  console.log(`Detected path filter from batch URL: ${pathFilter}`);
+                }
+              } catch (error) {
+                console.warn('Failed to extract path filter from batch URL:', error.message);
+              }
+            }
+            
             return {
               id: item.id || uuidv4(),
               type: item.type === 'parent' ? 'parenturl' : 'url',
@@ -583,6 +701,7 @@ class ElectronConversionService {
               options: {
                 ...options,
                 ...item.options,
+                pathFilter: pathFilter || item.options?.pathFilter, // Use detected path filter or provided one
                 includeImages: true,
                 includeMeta: true
               }

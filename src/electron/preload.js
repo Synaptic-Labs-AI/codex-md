@@ -11,6 +11,22 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Add error handling for IPC events to prevent undefined message errors
+const safeIpcHandler = (channel, callback) => {
+  return (event, ...args) => {
+    try {
+      // Check if data is defined before processing
+      if (args && args.length > 0) {
+        callback(event, ...args);
+      } else {
+        console.warn(`Received undefined data on channel: ${channel}`);
+      }
+    } catch (error) {
+      console.error(`Error handling IPC event on channel ${channel}:`, error);
+    }
+  };
+};
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld(
@@ -85,31 +101,63 @@ contextBridge.exposeInMainWorld(
     getTranscriptionModel: () => ipcRenderer.invoke('mdcode:transcription:get-model'),
     setTranscriptionModel: (model) => ipcRenderer.invoke('mdcode:transcription:set-model', { model }),
     
-    // Events with on/off functionality
-    onFileDropped: (callback) => ipcRenderer.on('mdcode:file-dropped', callback),
+    // Events with on/off functionality - using safeIpcHandler to prevent errors
+    onFileDropped: (callback) => {
+      const safeCallback = safeIpcHandler('mdcode:file-dropped', callback);
+      ipcRenderer.on('mdcode:file-dropped', safeCallback);
+      return safeCallback; // Return for removal reference
+    },
     offFileDropped: (callback) => ipcRenderer.removeListener('mdcode:file-dropped', callback),
     
-    onUpdateAvailable: (callback) => ipcRenderer.on('mdcode:update-available', callback),
+    onUpdateAvailable: (callback) => {
+      const safeCallback = safeIpcHandler('mdcode:update-available', callback);
+      ipcRenderer.on('mdcode:update-available', safeCallback);
+      return safeCallback;
+    },
     offUpdateAvailable: (callback) => ipcRenderer.removeListener('mdcode:update-available', callback),
     
-    onConversionProgress: (callback) => ipcRenderer.on('mdcode:convert:progress', callback),
+    onConversionProgress: (callback) => {
+      const safeCallback = safeIpcHandler('mdcode:convert:progress', callback);
+      ipcRenderer.on('mdcode:convert:progress', safeCallback);
+      return safeCallback;
+    },
     offConversionProgress: (callback) => ipcRenderer.removeListener('mdcode:convert:progress', callback),
     
-    onConversionStatus: (callback) => ipcRenderer.on('mdcode:convert:status', callback),
+    onConversionStatus: (callback) => {
+      const safeCallback = safeIpcHandler('mdcode:convert:status', callback);
+      ipcRenderer.on('mdcode:convert:status', safeCallback);
+      return safeCallback;
+    },
     offConversionStatus: (callback) => ipcRenderer.removeListener('mdcode:convert:status', callback),
     
-    onConversionComplete: (callback) => ipcRenderer.on('mdcode:convert:complete', callback),
+    onConversionComplete: (callback) => {
+      const safeCallback = safeIpcHandler('mdcode:convert:complete', callback);
+      ipcRenderer.on('mdcode:convert:complete', safeCallback);
+      return safeCallback;
+    },
     offConversionComplete: (callback) => ipcRenderer.removeListener('mdcode:convert:complete', callback),
     
-    onConversionError: (callback) => ipcRenderer.on('mdcode:convert:error', callback),
+    onConversionError: (callback) => {
+      const safeCallback = safeIpcHandler('mdcode:convert:error', callback);
+      ipcRenderer.on('mdcode:convert:error', safeCallback);
+      return safeCallback;
+    },
     offConversionError: (callback) => ipcRenderer.removeListener('mdcode:convert:error', callback),
     
     cancelConversion: (id) => ipcRenderer.invoke('mdcode:convert:cancel', { id }),
     
-    onFileEvent: (callback) => ipcRenderer.on('mdcode:watch:event', callback),
+    onFileEvent: (callback) => {
+      const safeCallback = safeIpcHandler('mdcode:watch:event', callback);
+      ipcRenderer.on('mdcode:watch:event', safeCallback);
+      return safeCallback;
+    },
     offFileEvent: (callback) => ipcRenderer.removeListener('mdcode:watch:event', callback),
     
-    onOfflineEvent: (callback) => ipcRenderer.on('mdcode:offline:event', callback),
+    onOfflineEvent: (callback) => {
+      const safeCallback = safeIpcHandler('mdcode:offline:event', callback);
+      ipcRenderer.on('mdcode:offline:event', safeCallback);
+      return safeCallback;
+    },
     offOfflineEvent: (callback) => ipcRenderer.removeListener('mdcode:offline:event', callback)
   }
 );

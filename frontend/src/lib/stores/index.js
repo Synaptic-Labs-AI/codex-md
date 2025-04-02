@@ -15,3 +15,5 @@ export {
   setTranscriptionModel,
   getTranscriptionModel
 } from './settings.js';
+
+export { conversionTimer } from './conversionTimer.js';

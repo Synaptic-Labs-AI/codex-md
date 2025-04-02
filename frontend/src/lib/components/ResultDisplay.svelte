@@ -1,9 +1,9 @@
 <script>
-  import { createEventDispatcher } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
+  import { createEventDispatcher, onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
   import Button from './common/Button.svelte';
   import Container from './common/Container.svelte';
-  import ProgressBar from './common/ProgressBar.svelte';
+  import ConversionProgress from './ConversionProgress.svelte';
   import { conversionStatus, currentFile } from '$lib/stores/conversionStatus.js';
   import { conversionResult } from '$lib/stores/conversionResult.js';
   import { triggerDownload } from '$lib/utils/conversionManager.js';
@@ -12,6 +12,9 @@
   import { files } from '$lib/stores/files.js';
 
   const dispatch = createEventDispatcher();
+  
+  // Reference to ConversionProgress component
+  let conversionProgressComponent;
 
   // Check if we're running in Electron
   let isElectron = false;
@@ -19,48 +22,30 @@
     isElectron = electronClient.isRunningInElectron();
   }
 
+  // Local state for persistent completion
+  let persistentCompletion = false;
+  let hasCompletedOnce = false;
+
   // Reactive declarations for status
-  $: isConverting = ['converting', 'selecting_output', 'initializing'].includes($conversionStatus.status);
-  $: isCompleted = $conversionStatus.status === 'completed';
-  
-  // Force the completed state to be shown when we have a result path
-  $: if (isElectron && $conversionResult?.outputPath && !isCompleted) {
-    isCompleted = true;
-  }
-  $: hasError = $conversionStatus.error !== null;
-  
-  // Format current file name for display
-  $: currentFileName = $currentFile ? 
-    ($currentFile.length > 30 ? 
-      $currentFile.substring(0, 27) + '...' : 
-      $currentFile) : 
-    '';
-
-  // Get status message
-  $: statusMessage = getStatusMessage(isCompleted ? 'completed' : $conversionStatus.status, $conversionStatus.error);
-
-  // Check if we have a native file path result
-  $: hasNativeResult = $conversionResult && $conversionResult.isNative && $conversionResult.outputPath;
-
-  // Get file count from conversion result
-  $: fileCount = $conversionResult?.items?.length || 0;
-
-  function getStatusMessage(status, error) {
-    switch(status) {
-      case 'converting':
-        return '🔄 Converting your files...';
-      case 'selecting_output':
-        return '📂 Select output directory...';
-      case 'completed':
-        return '✅ Conversion completed successfully!';
-      case 'error':
-        return `❌ ${error || 'An error occurred during conversion'}`;
-      case 'cancelled':
-        return '⚠️ Conversion cancelled';
-      default:
-        return '⏳ Preparing conversion...';
+  $: isConverting = !persistentCompletion && ['preparing', 'converting', 'selecting_output', 'initializing', 'initializing_workers', 'cleaning_up'].includes($conversionStatus.status);
+  $: {
+    // Track completion state in a way that persists
+    const statusCompleted = $conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp !== null;
+    const resultCompleted = $conversionResult && $conversionResult.success;
+    const hasValidResult = isElectron && $conversionResult?.outputPath;
+    
+    if (statusCompleted || resultCompleted || hasValidResult) {
+      persistentCompletion = true;
+      hasCompletedOnce = true;
     }
   }
+  
+  // Use the persistent completion flag for completed state
+  $: isCompleted = persistentCompletion;
+  $: hasError = $conversionStatus.error !== null;
+  
+  // Check if we have a native file path result
+  $: hasNativeResult = $conversionResult && $conversionResult.isNative && $conversionResult.outputPath;
   
   /**
    * Opens the output folder directly in the file explorer
@@ -85,6 +70,15 @@
     conversionStatus.reset();
     conversionResult.clearResult();
     
+    // Reset local state
+    persistentCompletion = false;
+    hasCompletedOnce = false;
+    
+    // Reset ConversionProgress component state
+    if (conversionProgressComponent) {
+      conversionProgressComponent.resetState();
+    }
+    
     // Dispatch event to parent component to switch mode
     dispatch('convertMore');
   }
@@ -93,36 +87,9 @@
 <Container>
   <div class="conversion-status" transition:fade>
     {#if isConverting || isCompleted || hasError}
-      <!-- Conversion in progress or completed -->
-      <div class="status-card {isCompleted ? 'success' : hasError ? 'error' : ''}">
-        <div class="status-content">
-          <h3 class="status-title">{statusMessage}</h3>
-          
-          {#if currentFileName && isConverting}
-            <p class="current-file">Processing: {currentFileName}</p>
-          {/if}
-          
-          {#if isCompleted && fileCount > 0}
-            <p class="summary">
-              Successfully converted {fileCount} {fileCount === 1 ? 'file' : 'files'} to Markdown format for <span class="codex-md-brand">codex.md</span>.
-            </p>
-          {/if}
-          
-        </div>
-      </div>
-
-      <!-- Progress bar section -->
+      <!-- Progress section -->
       <div class="progress-section">
-        <div class="progress-container">
-          <ProgressBar 
-            value={$conversionStatus.progress} 
-            color={hasError ? 'var(--color-error)' : isCompleted ? 'var(--color-success)' : 'var(--color-prime)'}
-            height="8px"
-          />
-          <span class="progress-text">
-            {$conversionStatus.progress.toFixed(0)}%
-          </span>
-        </div>
+        <ConversionProgress bind:this={conversionProgressComponent} />
       </div>
 
       <!-- Action buttons - only show when completed -->
@@ -168,93 +135,12 @@
 </Container>
 
 <style>
-  /* Ensure the codex-md-brand class is properly styled */
-  :global(.conversion-status .codex-md-brand) {
-    font-weight: var(--font-weight-bold);
-    background: linear-gradient(180deg,
-      var(--color-prime) 0%,
-      var(--color-prime) 60%,
-      var(--color-fourth) 100%
-    );
-    background-size: 100% 300%;
-    animation: gradientFlow 5s ease infinite;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    display: inline-block;
-  }
-
   .conversion-status {
     width: 100%;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
     padding: var(--spacing-md) 0;
-  }
-
-  .status-card {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--spacing-md);
-    padding: var(--spacing-lg);
-    border-radius: var(--rounded-lg);
-    background-color: var(--color-background);
-    box-shadow: var(--shadow-sm);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .status-card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: var(--rounded-lg);
-    padding: 2px;
-    background: linear-gradient(135deg, var(--color-prime), var(--color-second));
-    -webkit-mask: 
-        linear-gradient(#fff 0 0) content-box, 
-        linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .status-card.success::before {
-    background: linear-gradient(135deg, var(--color-success), var(--color-prime));
-  }
-
-  .status-card.error::before {
-    background: linear-gradient(135deg, var(--color-error), #ff7b7b);
-  }
-
-
-  .status-content {
-    flex-grow: 1;
-  }
-
-  .status-title {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    margin-bottom: var(--spacing-xs);
-    color: var(--color-text);
-  }
-
-  .current-file {
-    font-size: var(--font-size-base);
-    color: var(--color-text-light);
-    margin: var(--spacing-xs) 0;
-    padding: var(--spacing-xs);
-    background-color: rgba(var(--color-prime-rgb), 0.05);
-    border-radius: var(--rounded-sm);
-  }
-
-  .summary {
-    font-size: var(--font-size-base);
-    color: var(--color-text);
-    margin: var(--spacing-sm) 0;
   }
 
   .progress-section {
@@ -264,19 +150,6 @@
     border-radius: var(--rounded-lg);
     background-color: var(--color-background);
     box-shadow: var(--shadow-sm);
-  }
-
-  .progress-container {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-    align-items: center;
-  }
-
-  .progress-text {
-    font-size: var(--font-size-base);
-    color: var(--color-text-light);
-    font-weight: var(--font-weight-medium);
   }
 
   .action-section {
@@ -295,7 +168,6 @@
     margin-right: var(--spacing-xs);
   }
 
-
   /* Mobile Adjustments */
   @media (max-width: 640px) {
     .conversion-status {
@@ -303,24 +175,8 @@
       padding: var(--spacing-sm) 0;
     }
 
-    .status-card {
-      padding: var(--spacing-md);
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
-
-    .status-title {
-      font-size: var(--font-size-base);
-    }
-
-    .current-file {
-      font-size: var(--font-size-sm);
-    }
-
     .button-container {
       flex-direction: column;
     }
-
   }
 </style>
