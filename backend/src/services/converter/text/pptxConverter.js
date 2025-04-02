@@ -3,6 +3,7 @@
 import JSZip from 'jszip';
 import TurndownService from 'turndown';
 import path from 'path';
+import crypto from 'crypto';
 
 /**
  * PPTX Converter configuration
@@ -83,7 +84,9 @@ export async function convertPptxToMarkdown(input, originalName, apiKey) {
     console.log(`📊 [pptxConverter] ZIP contains ${zipFiles.length} files`);
     console.log(`📊 [pptxConverter] First 5 files: ${zipFiles.slice(0, 5).join(', ')}`);
     
-    const presentationName = path.basename(originalName, path.extname(originalName));
+    // Clean the filename and extract presentation name
+    const baseName = originalName.replace(/^temp_\d*_?/, '');
+    const presentationName = path.basename(baseName, path.extname(baseName));
     
     // Extract slides content
     const slideFiles = Object.keys(zip.files)
@@ -140,14 +143,27 @@ export async function convertPptxToMarkdown(input, originalName, apiKey) {
         name: img.filename,
         data: img.data,
         type: img.type,
-        // Ensure path follows Obsidian attachment structure
-        path: `images/${presentationName}/${img.filename}`
+        // Use standardized image path matching PDF converter pattern
+        path: `${presentationName} - images/${img.filename}`
       }))
     };
   } catch (error) {
     console.error('PPTX conversion error:', error);
     throw error;
   }
+}
+
+/**
+ * Generates a unique image name using UUID
+ * @param {string} presentationName - Base name of the presentation
+ * @param {number} slideNumber - Slide number where image appears
+ * @param {string} originalName - Original image filename
+ * @param {string} extension - Image file extension
+ * @returns {string} Generated unique image name
+ */
+function generateUniqueImageName(presentationName, slideNumber, originalName, extension) {
+  const uuid = crypto.randomBytes(4).toString('hex');
+  return `${presentationName}-s${slideNumber}-${uuid}${extension}`;
 }
 
 async function extractImagesForSlide(zip, slideNumber, presentationName) {
@@ -170,7 +186,13 @@ async function extractImagesForSlide(zip, slideNumber, presentationName) {
         if (file && /\.(png|jpg|jpeg|gif|svg)$/i.test(imageFile)) {
           const imageData = await file.async('base64');
           const extension = path.extname(imageFile);
-          const filename = `${presentationName}_slide${slideNumber}_${path.basename(imageFile)}`;
+          // Generate unique filename using UUID
+          const filename = generateUniqueImageName(
+            presentationName,
+            slideNumber,
+            path.basename(imageFile, extension),
+            extension
+          );
           
           images.push({
             filename,
