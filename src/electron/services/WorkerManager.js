@@ -14,6 +14,7 @@ const { fork } = require('child_process');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const SerializationHelper = require('../utils/serializationHelper');
+const workerImageTransfer = require('../utils/workerImageTransfer');
 
 class WorkerManager {
   constructor(options = {}) {
@@ -101,22 +102,53 @@ class WorkerManager {
           const worker = this._createWorker();
           
           // Set up message handler
-          worker.on('message', (message) => {
+          worker.on('message', async (message) => {
             if (message.type === 'result') {
-              // Store the result
-              results[taskIndex] = message.data;
-              completedTasks++;
-              
-              // Terminate the worker
-              worker.kill();
-              
-              // Check if all tasks are complete
-              checkCompletion();
-              
-              // Process next task if available
-              const nextTaskIndex = tasks.findIndex((_, i) => !results[i] && !this.activeWorkers.has(i));
-              if (nextTaskIndex !== -1 && !this.activeWorkers.has(nextTaskIndex)) {
-                processTask(nextTaskIndex);
+              try {
+                // Check for file-based images that need to be converted back to buffers
+                if (message.data.images && Array.isArray(message.data.images) && 
+                    message.data.images.some(img => img._isWorkerTransfer)) {
+                  try {
+                    console.log(`🖼️ [WorkerManager] Converting ${message.data.images.length} images from file paths to buffers`);
+                    message.data.images = await workerImageTransfer.convertFilePathsToImages(message.data.images);
+                    
+                    // Clean up temp files after successful conversion
+                    await workerImageTransfer.cleanupTempFiles(message.data.images);
+                  } catch (error) {
+                    console.error(`❌ [WorkerManager] Error converting images from file paths:`, error);
+                    // If image conversion fails, remove images array to prevent issues
+                    message.data.images = [];
+                  }
+                }
+                
+                // Store the result
+                results[taskIndex] = message.data;
+                completedTasks++;
+                
+                // Terminate the worker
+                worker.kill();
+                
+                // Check if all tasks are complete
+                checkCompletion();
+                
+                // Process next task if available
+                const nextTaskIndex = tasks.findIndex((_, i) => !results[i] && !this.activeWorkers.has(i));
+                if (nextTaskIndex !== -1 && !this.activeWorkers.has(nextTaskIndex)) {
+                  processTask(nextTaskIndex);
+                }
+              } catch (error) {
+                console.error(`❌ [WorkerManager] Error processing result:`, error);
+                // Store error result
+                results[taskIndex] = {
+                  success: false,
+                  error: error.message || 'Error processing result',
+                  name: task.item.name,
+                  type: task.item.type,
+                  content: `# Conversion Error\n\nFailed to process result for ${task.item.name}\nError: ${error.message || 'Error processing result'}`
+                };
+                completedTasks++;
+                worker.kill();
+                checkCompletion();
               }
             } else if (message.type === 'progress') {
               // Forward progress updates

@@ -19,8 +19,36 @@ async function loadParentUrlConverter() {
     const fileUrl = pathToFileURL(parentUrlConverterPath).href;
     console.log('Loading parent URL converter from:', fileUrl);
     
-    const { convertParentUrlToMarkdown } = await import(fileUrl);
-    return { convertParentUrlToMarkdown };
+    // Import the entire module to access all exports
+    const parentUrlConverterModule = await import(fileUrl);
+    console.log('Parent URL converter module loaded, available exports:', Object.keys(parentUrlConverterModule));
+    
+    // Try to get the convertParentUrlToMarkdown function first
+    if (typeof parentUrlConverterModule.convertParentUrlToMarkdown === 'function') {
+      console.log('Found convertParentUrlToMarkdown function');
+      return { convertParentUrlToMarkdown: parentUrlConverterModule.convertParentUrlToMarkdown };
+    }
+    
+    // If not found, try to get other exports
+    if (parentUrlConverterModule.parentUrlConverter && typeof parentUrlConverterModule.parentUrlConverter.convertToMarkdown === 'function') {
+      console.log('Found parentUrlConverter.convertToMarkdown method');
+      return { 
+        convertParentUrlToMarkdown: (url, options) => parentUrlConverterModule.parentUrlConverter.convertToMarkdown(url, options) 
+      };
+    }
+    
+    // If still not found, try to use a class if available
+    if (parentUrlConverterModule.ParentUrlConverter) {
+      console.log('Found ParentUrlConverter class');
+      return {
+        convertParentUrlToMarkdown: (url, options) => {
+          const converter = new parentUrlConverterModule.ParentUrlConverter();
+          return converter.convertToMarkdown(url, options);
+        }
+      };
+    }
+    
+    throw new Error('Could not find any Parent URL converter implementation in the module');
   } catch (error) {
     console.error('Failed to load parent URL converter module:', error);
     throw error;
@@ -144,9 +172,9 @@ async function convertParentUrl(url, options = {}) {
     
     const { convertParentUrlToMarkdown } = await modulePromise;
     
-    console.log(`🔄 Converting parent URL with enhanced options: ${url}`);
-    console.log(`📊 Using concurrent limit: ${mergedOptions.concurrentLimit}`);
-    console.log(`⏱️ Using wait between requests: ${mergedOptions.waitBetweenRequests}ms`);
+    console.log(`🔄 [parentUrlConverterAdapter] Converting parent URL: ${url}`);
+    console.log(`📊 [parentUrlConverterAdapter] Using concurrent limit: ${mergedOptions.concurrentLimit}`);
+    console.log(`⏱️ [parentUrlConverterAdapter] Using wait between requests: ${mergedOptions.waitBetweenRequests}ms`);
     
     // Get the browser instance from BrowserService
     try {
@@ -161,19 +189,39 @@ async function convertParentUrl(url, options = {}) {
       // Continue without shared browser - the converter will create its own
     }
     
-    const result = await convertParentUrlToMarkdown(url, mergedOptions);
-    
-    // Return the result with metadata properly structured
-    return {
-      content: result.content,
-      success: true,
-      name: result.name,
-      files: result.files,
-      stats: result.stats,
-      url: result.url,
-      type: 'parenturl',
-      metadata: result.metadata || {}
-    };
+    try {
+      const result = await convertParentUrlToMarkdown(url, mergedOptions);
+      
+      console.log(`✅ [parentUrlConverterAdapter] Parent URL conversion successful`);
+      
+      if (!result) {
+        throw new Error('Parent URL converter returned null or undefined result');
+      }
+      
+      if (!result.content) {
+        console.warn(`⚠️ [parentUrlConverterAdapter] Parent URL converter returned empty content`);
+      }
+      
+      // Return the result with metadata properly structured
+      return {
+        content: result.content || `# Conversion Error\n\nFailed to extract content from ${url}`,
+        success: !!result.content,
+        name: result.name || url.replace(/^https?:\/\//, '').replace(/[^\w\d]/g, '-'),
+        files: result.files || [],
+        stats: result.stats || {
+          totalPages: 0,
+          successfulPages: 0,
+          failedPages: 0,
+          totalImages: 0
+        },
+        url: result.url || url,
+        type: 'parenturl',
+        metadata: result.metadata || { source: url }
+      };
+    } catch (conversionError) {
+      console.error(`❌ [parentUrlConverterAdapter] Error during parent URL conversion:`, conversionError);
+      throw conversionError;
+    }
   } catch (error) {
     console.error('Parent URL conversion failed in adapter:', error);
     return {

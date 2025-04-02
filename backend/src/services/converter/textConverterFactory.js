@@ -13,8 +13,31 @@ import pdfConverter from './pdf/PdfConverterFactory.js';
 import docxConverter from './text/docxConverter.js';
 import * as xlsxConverter from './data/xlsxConverter.js';
 import * as csvConverter from './data/csvConverter.js';
+import * as urlConverter from './web/urlConverter.js';
+import * as parentUrlConverter from './web/parentUrlConverter.js';
 
 const converters = {
+  // Web Content
+  url: {
+    convert: urlConverter.convertToMarkdown,
+    validate: (input) => typeof input === 'string' && input.length > 0,
+    config: {
+      name: 'Web Page',
+      extensions: ['.url', '.html', '.htm'],
+      mimeTypes: ['text/html', 'application/x-url']
+    }
+  },
+
+  parenturl: {
+    convert: parentUrlConverter.convertToMarkdown,
+    validate: (input) => typeof input === 'string' && input.length > 0,
+    config: {
+      name: 'Website',
+      extensions: ['.url', '.html', '.htm'],
+      mimeTypes: ['text/html', 'application/x-url']
+    }
+  },
+
   // PDF Converter
   pdf: {
     convert: pdfConverter.convertPdfToMarkdown,
@@ -80,22 +103,39 @@ const converters = {
  * @returns {Object|null} Converter object or null if not found
  */
 function getConverterByExtension(extension) {
-  // Normalize extension (ensure it has a dot)
-  const ext = extension.startsWith('.') ? extension : `.${extension}`;
-  
-  // Find first converter that supports this extension
-  const [type, converter] = Object.entries(converters).find(
-    ([_, c]) => c.config.extensions.includes(ext.toLowerCase())
-  ) || [];
-  
-  if (converter) {
-    return {
-      type,
-      ...converter
-    };
+  try {
+    // Handle URL and parent URL types directly
+    if (['url', 'parenturl'].includes(extension.toLowerCase())) {
+      const converter = converters[extension.toLowerCase()];
+      if (converter) {
+        return {
+          type: extension.toLowerCase(),
+          ...converter
+        };
+      }
+    }
+
+    // Normalize extension (ensure it has a dot)
+    const ext = extension.startsWith('.') ? extension : `.${extension}`;
+    
+    // Find first converter that supports this extension
+    const [type, converter] = Object.entries(converters).find(
+      ([_, c]) => c?.config?.extensions?.includes(ext.toLowerCase())
+    ) || [];
+    
+    if (converter) {
+      return {
+        type,
+        ...converter
+      };
+    }
+
+    console.warn(`No converter found for extension: ${extension}`);
+    return null;
+  } catch (error) {
+    console.error(`Error in getConverterByExtension for ${extension}:`, error);
+    return null;
   }
-  
-  return null;
 }
 
 /**
