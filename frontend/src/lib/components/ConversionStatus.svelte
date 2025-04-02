@@ -10,38 +10,14 @@
   import { conversionStatus } from '$lib/stores/conversionStatus.js';
 
   import ApiKeyInput from './ApiKeyInput.svelte';
-  import ProgressBar from './common/ProgressBar.svelte';
-
-  /**
-   * Store shape example:
-   * conversionStatus = {
-   *   status: 'idle' | 'converting' | 'completed' | 'error' | 'stopped',
-   *   progress: number,       // 0..100
-   *   error: string|null,
-   *   currentFile: string|null,
-   *   processedCount: number, // how many files done
-   *   totalCount: number      // total files
-   * }
-   */
+  import ConversionProgress from './ConversionProgress.svelte';
 
   const dispatch = createEventDispatcher();
 
-  // Reactive local variables
+  // Subscribe to conversionStatus store for basic state
   let status = 'idle';
-  let progress = 0;
-  let error = null;
-  let currentFile = null;
-  let processedCount = 0;
-  let totalCount = 0;
-
-  // Subscribe to your conversionStatus store
   const unsub = conversionStatus.subscribe(value => {
     status = value.status;
-    progress = value.progress || 0;
-    error = value.error;
-    currentFile = value.currentFile;
-    processedCount = value.processedCount || 0;
-    totalCount = value.totalCount || 0;
   });
 
   onDestroy(() => unsub());
@@ -79,48 +55,28 @@
 
 <!-- Minimal container; remove anything not needed. -->
 <div class="conversion-container" transition:fade>
-  <!-- 1) Show API Key Input if needed & missing -->
   {#if showApiKeyInput}
+    <!-- 1) Show API Key Input if needed & missing -->
     <div in:fly={{ y: 20, duration: 300 }}>
       <ApiKeyInput
         on:apiKeySet={handleApiKeySet}
       />
     </div>
-  
-  <!-- 2) If converting, show progress bar & cancel button -->
-  {:else if isConverting}
+  {:else if status !== 'idle' && status !== 'cancelled'}
+    <!-- 2) Show conversion progress -->
     <div class="progress-section" in:fly={{ y: 20, duration: 300 }}>
-      <ProgressBar
-        value={progress}
-        color="#3B82F6"
-        height="8px"
-        showGlow={true}
-      />
-      <p class="progress-info">
-        Processing {processedCount} / {totalCount}
-        {#if currentFile}
-          <small>({currentFile})</small>
-        {/if}
-      </p>
-      <button
-        class="cancel-button"
-        on:click={handleCancelConversion}
-      >
-        Cancel
-      </button>
+      <ConversionProgress />
+      {#if ['converting', 'preparing'].includes(status)}
+        <button
+          class="cancel-button"
+          on:click={handleCancelConversion}
+        >
+          Cancel
+        </button>
+      {/if}
     </div>
-  
-  <!-- 3) If finished or not started => Show a single "Start Conversion" button -->
   {:else}
-    <!-- If there's an error or completed status, show minimal messages (optional) -->
-    {#if status === 'completed'}
-      <p class="status-message success" in:fade>All {totalCount} files converted!</p>
-    {:else if status === 'error'}
-      <p class="status-message error" in:fade>{error}</p>
-    {:else if status === 'stopped'}
-      <p class="status-message stopped" in:fade>Conversion stopped at {processedCount}/{totalCount} files</p>
-    {/if}
-
+    <!-- 3) Show start button -->
     <button
       class="start-button breathing-gradient"
       disabled={!canConvert}
@@ -144,39 +100,12 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   }
 
-  /* Minimal text styling */
-  .status-message {
-    margin: 0 0 1rem 0;
-    font-size: 0.95rem;
-    line-height: 1.4;
-  }
-  .status-message.success {
-    color: #16a34a;
-  }
-  .status-message.error {
-    color: #dc2626;
-  }
-  .status-message.stopped {
-    color: #f97316;
-  }
-
-  /* The progress + cancel layout */
+  /* The progress layout */
   .progress-section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
-  }
-
-  .progress-info {
-    font-size: 0.9rem;
-    color: #555;
-    margin: 0;
-  }
-  .progress-info small {
-    margin-left: 0.25rem;
-    color: #777;
-    font-size: 0.8rem;
+    gap: 1.5rem;
   }
 
   .cancel-button {

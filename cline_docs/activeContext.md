@@ -1,6 +1,40 @@
 # Active Context
 
 ## Current Focus
+Fixed website conversion progress updates:
+- Fixed issue where website conversion would get stuck on "Initializing conversion process..." and then show a blank screen
+- Added explicit status transition from 'initializing' to 'finding_sitemap' in urlConverter.js
+- Fixed critical bug in conversionStatus.js where setWebsiteStatus was incorrectly handling status updates
+- Added website-specific states to the activeStates array in ConversionProgress.svelte to ensure timer starts properly
+- Eliminated double status transformations in parentUrlConverterAdapter.js that were causing confusion
+- Improved status handling in conversionStatus.js store with proper validation of website-specific statuses
+- Enhanced event handlers to properly detect and process website-specific status updates
+- Added consistent status transition flow from backend through adapter to frontend
+- Improved logging throughout the status update pipeline for better diagnostics
+- Ensured proper handling of both direct status updates and legacy website_* prefixed updates
+- Fixed the root cause by ensuring status updates flow correctly from backend to frontend
+- Added proper validation of website status values to prevent invalid state transitions
+
+Previous Focus:
+Enhanced website scraper with detailed progress tracking:
+- Added website-specific status states (finding_sitemap, parsing_sitemap, crawling_pages, processing_pages, generating_index)
+- Implemented detailed progress tracking for website conversion
+- Added section-based tracking to show progress by website section
+- Enhanced UI with website-specific chat bubbles and progress indicators
+- Added estimated time remaining calculation based on average page processing time
+- Improved user feedback during sitemap discovery and parsing
+- Integrated path filtering with progress tracking
+
+Previous Focus:
+Enhanced parent URL converter with path filtering and sitemap improvements:
+- Added path filtering to restrict crawling to specific paths (e.g., /blogs)
+- Automatic path detection from URL (e.g., example.com/blogs will only crawl /blogs)
+- Fixed timeout configuration in SitemapParser to prevent type errors
+- Enhanced sitemap URL filtering to respect path filters
+- Added path filter support to batch conversion
+- Improved error handling in URL conversion
+
+Previous Focus:
 Fixed batch conversion image handling:
 - Fixed issue where images weren't included in batch conversion downloads
 - Modified _writeBatchResults to use ConversionResultManager for saving files with images

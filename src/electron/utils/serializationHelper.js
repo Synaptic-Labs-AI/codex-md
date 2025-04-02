@@ -24,6 +24,11 @@ class SerializationHelper {
     
     // Handle primitives
     if (typeof obj !== 'object' && typeof obj !== 'function') {
+      // Handle large strings by truncating if needed
+      if (typeof obj === 'string' && obj.length > 1000000) {
+        console.warn(`⚠️ [SerializationHelper] Truncating large string (${obj.length} chars)`);
+        return obj.substring(0, 1000000) + '... [truncated]';
+      }
       return obj;
     }
     
@@ -77,6 +82,13 @@ class SerializationHelper {
         continue;
       }
       
+      // Skip very large string properties that might cause serialization issues
+      if (typeof value === 'string' && value.length > 1000000) {
+        console.warn(`⚠️ [SerializationHelper] Skipping large string property ${key} (${value.length} chars)`);
+        sanitized[key] = '[Large string truncated]';
+        continue;
+      }
+      
       // Sanitize the value
       sanitized[key] = this.sanitizeForSerialization(value, seen);
     }
@@ -92,10 +104,27 @@ class SerializationHelper {
   canBeCloned(obj) {
     try {
       // Try to stringify the object
-      JSON.stringify(obj);
-      return true;
+      return this.safeStringify(obj) !== null;
     } catch (error) {
       return false;
+    }
+  }
+  
+  /**
+   * Safely stringify an object with size limits
+   * @param {*} obj - Object to stringify
+   * @returns {string|null} - JSON string or null if failed
+   */
+  safeStringify(obj) {
+    try {
+      // First sanitize the object
+      const sanitized = this.sanitizeForSerialization(obj);
+      
+      // Then try to stringify
+      return JSON.stringify(sanitized);
+    } catch (error) {
+      console.error(`❌ [SerializationHelper] Stringify error:`, error);
+      return null;
     }
   }
 
