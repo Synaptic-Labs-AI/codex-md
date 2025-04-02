@@ -96,9 +96,54 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
       }
 
       try {
-        const result = await convertUrlToMarkdown(url, options);
+        // Validate and normalize URL before conversion
+        let urlToConvert;
+        try {
+          // Handle different URL formats and types
+          if (typeof url === 'string') {
+            urlToConvert = url;
+          } else if (url && typeof url === 'object') {
+            // If it's a URL object from sitemap parser
+            if (url.url && typeof url.url === 'string') {
+              urlToConvert = url.url;
+            } else if (typeof url.toString === 'function') {
+              const urlString = url.toString();
+              // Verify toString() didn't just return [object Object]
+              if (urlString === '[object Object]') {
+                console.warn(`Skipping invalid URL object: ${JSON.stringify(url)}`);
+                continue; // Skip this URL
+              }
+              urlToConvert = urlString;
+            } else {
+              console.warn(`Skipping URL with invalid format: ${JSON.stringify(url)}`);
+              continue; // Skip this URL
+            }
+          } else {
+            console.warn(`Skipping URL with invalid type: ${typeof url}`);
+            continue; // Skip this URL
+          }
+          
+          // Ensure URL has proper protocol
+          if (!urlToConvert.startsWith('http://') && !urlToConvert.startsWith('https://')) {
+            urlToConvert = `https://${urlToConvert}`;
+          }
+          
+          // Validate URL by attempting to create a URL object
+          new URL(urlToConvert); // This will throw if invalid
+        } catch (urlError) {
+          console.warn(`Skipping invalid URL: ${urlError.message}`, url);
+          processedPages.push({
+            url: typeof url === 'string' ? url : JSON.stringify(url),
+            error: `Invalid URL format: ${urlError.message}`,
+            success: false
+          });
+          continue; // Skip this URL
+        }
+        
+        // Now process the validated URL
+        const result = await convertUrlToMarkdown(urlToConvert, options);
         processedPages.push({
-          url,
+          url: urlToConvert,
           content: result.content,
           metadata: result.metadata,
           success: true
@@ -106,7 +151,37 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
 
         // Track section progress
         try {
-          const urlObj = new URL(url);
+          // Extract URL string from url (which might be an object from sitemap)
+          let urlString;
+          if (typeof url === 'string') {
+            urlString = url;
+          } else if (url && typeof url === 'object') {
+            // If it's a URL object from sitemap parser
+            if (url.url && typeof url.url === 'string') {
+              urlString = url.url;
+            } else if (typeof url.toString === 'function') {
+              const tempString = url.toString();
+              // Verify toString() didn't just return [object Object]
+              if (tempString === '[object Object]') {
+                console.warn(`Skipping section extraction for invalid URL object: ${JSON.stringify(url)}`);
+                continue; // Skip section extraction
+              }
+              urlString = tempString;
+            } else {
+              console.warn(`Skipping section extraction for URL with invalid format: ${JSON.stringify(url)}`);
+              continue; // Skip section extraction
+            }
+          } else {
+            console.warn(`Skipping section extraction for URL with invalid type: ${typeof url}`);
+            continue; // Skip section extraction
+          }
+          
+          // Ensure URL has proper protocol
+          if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
+            urlString = `https://${urlString}`;
+          }
+          
+          const urlObj = new URL(urlString);
           const pathParts = urlObj.pathname.split('/').filter(Boolean);
           const section = pathParts[0] || 'main';
           
@@ -115,16 +190,19 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
               status: 'section',
               websiteUrl: parentUrl,
               section: section.charAt(0).toUpperCase() + section.slice(1),
-              count: 1
+              count: 1,
+              progress: 20 + Math.floor((i / totalUrls) * 70), // Include current progress
+              processedCount: i,
+              totalCount: totalUrls
             });
           }
         } catch (error) {
-          console.error('Error extracting section:', error);
+          console.error('Error extracting section:', error, typeof url === 'object' ? JSON.stringify(url) : url);
         }
       } catch (error) {
-        console.error(`Failed to convert ${url}:`, error);
+        console.error(`Failed to convert ${typeof url === 'string' ? url : JSON.stringify(url)}:`, error);
         processedPages.push({
-          url,
+          url: typeof url === 'string' ? url : JSON.stringify(url),
           error: error.message,
           success: false
         });
@@ -213,8 +291,34 @@ function generateOutputFiles(parentUrl, pages, hostname) {
     ...Array.from(sections.entries()).map(([section, sectionPages]) => [
       `### ${section.charAt(0).toUpperCase() + section.slice(1)}\n`,
       ...sectionPages.map(page => {
-        const name = page.url.split('/').pop().replace(/\.[^/.]+$/, '');
-        return `- [[${name}|${name}]] - [Original](${page.url})`;
+        // Generate a safe filename from the URL - same logic as in files array
+        let filename;
+        try {
+          const urlObj = new URL(page.url);
+          // Use pathname or hostname if pathname is just '/'
+          const pathSegment = urlObj.pathname === '/' ? 
+            urlObj.hostname : 
+            urlObj.pathname.split('/').pop() || urlObj.hostname;
+          
+          // Clean the filename and ensure it's valid
+          filename = pathSegment
+            .replace(/\.[^/.]+$/, '') // Remove file extension if present
+            .replace(/[^a-zA-Z0-9_-]/g, '_') // Replace invalid chars with underscore
+            .replace(/_+/g, '_') // Replace multiple underscores with single one
+            .toLowerCase();
+          
+          // Ensure we have a valid filename
+          if (!filename || filename === '' || filename === '_') {
+            filename = 'page_' + Math.floor(Math.random() * 10000);
+          }
+        } catch (error) {
+          console.warn(`Error generating filename from URL ${page.url}:`, error);
+          filename = 'page_' + Math.floor(Math.random() * 10000);
+        }
+        
+        // Use the page title from metadata if available, otherwise use the filename
+        const displayName = page.metadata?.title || filename;
+        return `- [[${filename}|${displayName}]] - [Original](${page.url})`;
       }),
       ''
     ]).flat(),
@@ -232,11 +336,38 @@ function generateOutputFiles(parentUrl, pages, hostname) {
       content: indexContent,
       type: 'text'
     },
-    ...successfulPages.map(page => ({
-      name: `${page.url.split('/').pop().replace(/\.[^/.]+$/, '')}.md`,
-      content: page.content,
-      type: 'text'
-    }))
+    ...successfulPages.map(page => {
+      // Generate a safe filename from the URL
+      let filename;
+      try {
+        const urlObj = new URL(page.url);
+        // Use pathname or hostname if pathname is just '/'
+        const pathSegment = urlObj.pathname === '/' ? 
+          urlObj.hostname : 
+          urlObj.pathname.split('/').pop() || urlObj.hostname;
+        
+        // Clean the filename and ensure it's valid
+        filename = pathSegment
+          .replace(/\.[^/.]+$/, '') // Remove file extension if present
+          .replace(/[^a-zA-Z0-9_-]/g, '_') // Replace invalid chars with underscore
+          .replace(/_+/g, '_') // Replace multiple underscores with single one
+          .toLowerCase();
+        
+        // Ensure we have a valid filename
+        if (!filename || filename === '' || filename === '_') {
+          filename = 'page_' + Math.floor(Math.random() * 10000);
+        }
+      } catch (error) {
+        console.warn(`Error generating filename from URL ${page.url}:`, error);
+        filename = 'page_' + Math.floor(Math.random() * 10000);
+      }
+      
+      return {
+        name: `${filename}.md`,
+        content: page.content,
+        type: 'text'
+      };
+    })
   ];
 
   return { files, indexContent };

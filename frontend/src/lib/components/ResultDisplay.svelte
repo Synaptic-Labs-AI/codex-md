@@ -27,7 +27,20 @@
   let hasCompletedOnce = false;
 
   // Reactive declarations for status
-  $: isConverting = !persistentCompletion && ['preparing', 'converting', 'selecting_output', 'initializing', 'initializing_workers', 'cleaning_up'].includes($conversionStatus.status);
+  $: isConverting = !persistentCompletion && [
+    'preparing', 
+    'converting', 
+    'selecting_output', 
+    'initializing', 
+    'initializing_workers', 
+    'cleaning_up',
+    // Website-specific states
+    'finding_sitemap',
+    'parsing_sitemap',
+    'crawling_pages',
+    'processing_pages',
+    'generating_index'
+  ].includes($conversionStatus.status);
   $: {
     // Track completion state in a way that persists
     const statusCompleted = $conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp !== null;

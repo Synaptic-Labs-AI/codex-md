@@ -1,10 +1,13 @@
 <!-- src/lib/components/ConversionProgress.svelte -->
 <script>
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import ChatBubble from './common/ChatBubble.svelte';
   import { conversionTimer } from '$lib/stores/conversionTimer';
   import { conversionStatus } from '$lib/stores/conversionStatus';
+  
+  // Debug mode flag
+  let debugMode = false;
   
   // Track bubble position to alternate
   let bubblePosition = 'left';
@@ -56,8 +59,19 @@
   }
 
   const unsubStatus = conversionStatus.subscribe(value => {
+    console.log('[ConversionProgress] Received store update:', {
+      newStatus: value.status,
+      currentStatus: status,
+      progress: value.progress,
+      currentFile: value.currentFile,
+      processedCount: value.processedCount,
+      totalCount: value.totalCount,
+      isPersistentlyCompleted
+    });
+
     // Don't update status if we're persistently completed unless it's explicitly reset
     if (!isPersistentlyCompleted || value.status === 'ready') {
+      const previousStatus = status;
       status = value.status;
       progress = value.progress || 0;
       currentFile = value.currentFile;
@@ -65,6 +79,15 @@
       totalCount = value.totalCount || 0;
       chunkProgress = value.chunkProgress || 0;
       completionTimestamp = value.completionTimestamp;
+
+      console.log('[ConversionProgress] State updated:', {
+        statusChanged: previousStatus !== status,
+        newStatus: status,
+        progress,
+        currentFile,
+        processedCount,
+        totalCount
+      });
 
       // Manage timer based on status
       const activeStates = [
@@ -84,8 +107,10 @@
       const completedStates = ['completed', 'error', 'stopped', 'cancelled'];
       
       if (activeStates.includes(status) && !$conversionTimer.isRunning) {
+        console.log('[ConversionProgress] Starting timer for status:', status);
         conversionTimer.start();
       } else if (completedStates.includes(status)) {
+        console.log('[ConversionProgress] Stopping timer for status:', status);
         conversionTimer.stop();
         
         // Clear worker message interval if it's running
@@ -103,17 +128,51 @@
     
     // Start worker message rotation if we're initializing workers
     if (status === 'initializing_workers' && !workerMessageInterval) {
+      console.log('[ConversionProgress] Starting worker message rotation');
       currentWorkerMessageIndex = 0;
       workerMessageInterval = setInterval(() => {
         currentWorkerMessageIndex = (currentWorkerMessageIndex + 1) % workerMessages.length;
+        console.log('[ConversionProgress] Updated worker message:', workerMessages[currentWorkerMessageIndex]);
       }, 2000); // Rotate messages every 2 seconds
     } else if (status !== 'initializing_workers' && workerMessageInterval) {
+      console.log('[ConversionProgress] Stopping worker message rotation');
       clearInterval(workerMessageInterval);
       workerMessageInterval = null;
+    }
+
+    // Debug website-specific states
+    if (value.websiteUrl) {
+      console.log('[ConversionProgress] Website conversion info:', {
+        status,
+        websiteUrl: value.websiteUrl,
+        pathFilter: value.pathFilter,
+        discoveredUrls: value.discoveredUrls,
+        sitemapUrls: value.sitemapUrls,
+        crawledUrls: value.crawledUrls,
+        currentSection: value.currentSection,
+        sectionCounts: value.sectionCounts,
+        estimatedTimeRemaining: value.estimatedTimeRemaining
+      });
     }
   });
 
   $: showChunkingProgress = (status === 'preparing' || status === 'converting') && chunkProgress > 0 && chunkProgress < 100;
+
+  // Enable debug mode with keyboard shortcut (Ctrl+Shift+D)
+  function handleKeyDown(event) {
+    if (event.ctrlKey && event.shiftKey && event.key === 'D') {
+      debugMode = !debugMode;
+      document.body.setAttribute('data-debug', debugMode.toString());
+      console.log(`[ConversionProgress] Debug mode ${debugMode ? 'enabled' : 'disabled'}`);
+    }
+  }
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  });
 
   onDestroy(() => {
     unsubStatus();
@@ -220,6 +279,20 @@
         />
       {/if}
       
+      <div class="debug-info">
+        <pre>Debug Website Status:
+Status: {status}
+Website URL: {$conversionStatus.websiteUrl || 'Not set'}
+Progress: {progress}%
+Path Filter: {$conversionStatus.pathFilter || 'None'}
+Discovered URLs: {$conversionStatus.discoveredUrls || 0}
+Sitemap URLs: {$conversionStatus.sitemapUrls || 0}
+Crawled URLs: {$conversionStatus.crawledUrls || 0}
+Current Section: {$conversionStatus.currentSection || 'None'}
+Section Counts: {JSON.stringify($conversionStatus.sectionCounts || {})}
+</pre>
+      </div>
+      
     {:else if status === 'parsing_sitemap'}
       <ChatBubble
         name="Codex"
@@ -280,6 +353,21 @@
         />
       {/if}
       
+      <div class="debug-info">
+        <pre>Debug Processing Status:
+Status: {status}
+Website URL: {$conversionStatus.websiteUrl || 'Not set'}
+Progress: {progress}%
+Current File: {$conversionStatus.currentFile || 'None'}
+Processed Count: {$conversionStatus.processedCount || 0}
+Total Count: {$conversionStatus.totalCount || 0}
+Current Section: {$conversionStatus.currentSection || 'None'}
+Section Counts: {JSON.stringify($conversionStatus.sectionCounts || {})}
+Discovered URLs: {$conversionStatus.discoveredUrls || 0}
+Estimated Time Remaining: {$conversionStatus.estimatedTimeRemaining ? Math.round($conversionStatus.estimatedTimeRemaining / 1000) + 's' : 'Unknown'}
+</pre>
+      </div>
+      
     {:else if status === 'generating_index'}
       <ChatBubble
         name="Codex"
@@ -296,6 +384,17 @@
           avatarPosition={togglePosition()}
         />
       {/if}
+      
+      <div class="debug-info">
+        <pre>Debug Index Generation Status:
+Status: {status}
+Website URL: {$conversionStatus.websiteUrl || 'Not set'}
+Progress: {progress}%
+Processed Count: {$conversionStatus.processedCount || 0}
+Total Count: {$conversionStatus.totalCount || 0}
+Section Counts: {JSON.stringify($conversionStatus.sectionCounts || {})}
+</pre>
+      </div>
     {:else if status === 'cleaning_up'}
       <ChatBubble
         name="Codex"
@@ -334,6 +433,21 @@
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
+  }
+
+  :global(.debug-info) {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 4px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    display: none;
+  }
+
+  :global([data-debug="true"] .debug-info) {
+    display: block;
   }
 
   .timer {

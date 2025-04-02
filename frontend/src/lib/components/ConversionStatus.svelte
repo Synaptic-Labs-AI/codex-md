@@ -31,6 +31,15 @@
 
   // Are we converting?
   $: isConverting = (status === 'converting');
+  
+  // Is this a website conversion?
+  $: isWebsiteConversion = [
+    'finding_sitemap',
+    'parsing_sitemap',
+    'crawling_pages',
+    'processing_pages',
+    'generating_index'
+  ].includes(status);
 
   // If user can convert
   $: canConvert = !needsApiKey || hasApiKey;
@@ -66,7 +75,7 @@
     <!-- 2) Show conversion progress -->
     <div class="progress-section" in:fly={{ y: 20, duration: 300 }}>
       <ConversionProgress />
-      {#if ['converting', 'preparing'].includes(status)}
+      {#if ['converting', 'preparing'].includes(status) || isWebsiteConversion}
         <button
           class="cancel-button"
           on:click={handleCancelConversion}
