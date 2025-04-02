@@ -1,6 +1,6 @@
 import { textConverterFactory } from './converter/textConverterFactory.js';
-import { createBatchZip } from '../routes/middleware/utils/zipProcessor.js';
 import { determineCategory } from '../utils/fileTypeUtils.js';
+// Using folder-based approach instead of ZIP for file organization
 import path from 'path';
 
 export class ConversionService {
@@ -227,15 +227,15 @@ export class ConversionService {
       }
 
       try {
-        const preZipMemory = process.memoryUsage();
-        if (global.gc && preZipMemory.heapUsed > 0.8 * preZipMemory.heapTotal) {
-          console.log('🧹 Running pre-ZIP garbage collection');
+        const processingMemory = process.memoryUsage();
+        if (global.gc && processingMemory.heapUsed > 0.8 * processingMemory.heapTotal) {
+          console.log('🧹 Running pre-processing garbage collection');
           global.gc();
         }
 
         updateProgress(95);
 
-        console.log('📦 Creating ZIP archive:', {
+        console.log('📦 Processing file output:', {
           type: fileType,
           category,
           name,
@@ -243,41 +243,30 @@ export class ConversionService {
           hasImages: result.images?.length > 0,
           imageCount: result.images?.length || 0,
           memory: {
-            heapUsed: Math.round(preZipMemory.heapUsed / 1024 / 1024) + 'MB',
-            heapTotal: Math.round(preZipMemory.heapTotal / 1024 / 1024) + 'MB'
+            heapUsed: Math.round(processingMemory.heapUsed / 1024 / 1024) + 'MB',
+            heapTotal: Math.round(processingMemory.heapTotal / 1024 / 1024) + 'MB'
           }
         });
 
-        const shouldCreateZip = 
-          type === 'parenturl' || 
-          (result.images && result.images.length > 0 && !['url', 'parenturl'].includes(type));
-
-        let finalResult;
-        if (!shouldCreateZip) {
-          const baseName = path.basename(name, path.extname(name));
-          finalResult = {
-            buffer: Buffer.from(result.content),
-            filename: `${baseName}.md`,
-            type: 'markdown'
-          };
-        } else {
-          const zipBuffer = await createBatchZip([{
-            ...result,
-            type: fileType,
+        // Always use folder-based approach
+        const baseName = path.basename(name, path.extname(name));
+        
+        // Create a result object with the content and metadata
+        let finalResult = {
+          buffer: Buffer.from(result.content),
+          filename: `${baseName}.md`,
+          type: 'markdown',
+          metadata: {
             category,
-            name
-          }]);
-
-          if (global.gc) {
-            console.log('🧹 Running post-ZIP garbage collection');
-            global.gc();
+            type: fileType,
+            hasImages: result.images && result.images.length > 0,
+            imageCount: result.images?.length || 0
           }
-
-          finalResult = {
-            buffer: zipBuffer,
-            filename: this.generateFilename(),
-            type: 'zip'
-          };
+        };
+        
+        // If there are images, include them in the result
+        if (result.images && result.images.length > 0) {
+          finalResult.images = result.images;
         }
 
         updateProgress(100);
@@ -292,15 +281,15 @@ export class ConversionService {
         });
 
         return finalResult;
-      } catch (zipError) {
-        console.error('❌ ZIP creation failed:', {
-          error: zipError.message,
+      } catch (processingError) {
+        console.error('❌ File processing failed:', {
+          error: processingError.message,
           type: fileType,
           name,
           memory: process.memoryUsage(),
           duration: Date.now() - startTime + 'ms'
         });
-        throw new Error(`Failed to create ZIP archive for ${name}: ${zipError.message}`);
+        throw new Error(`Failed to process file ${name}: ${processingError.message}`);
       }
     } catch (error) {
       console.error('❌ Conversion error:', {
@@ -313,10 +302,17 @@ export class ConversionService {
     }
   }
 
+  /**
+   * Converts multiple items in batch and saves them to a folder structure
+   * @param {Array} items - Array of items to convert
+   * @returns {Promise<Object>} - Result object with folder path and statistics
+   */
   async convertBatch(items) {
     const startTime = Date.now();
     const initialMemory = process.memoryUsage();
     const CHUNK_SIZE = 10;
+    // Define memory usage constant
+    const MAX_MEMORY_USAGE = 512 * 1024 * 1024; // 512MB memory threshold
 
     if (!Array.isArray(items) || items.length === 0) {
       throw new Error('No items provided for batch conversion');
@@ -327,6 +323,14 @@ export class ConversionService {
         totalItems: items.length,
         initialMemory: Math.round(initialMemory.heapUsed / 1024 / 1024) + 'MB'
       });
+
+      // Validate API key requirements upfront
+      for (const item of items) {
+        const fileType = path.extname(item.name || '').slice(1).toLowerCase();
+        if (this.requiresApiKey(fileType) && !item.apiKey) {
+          throw new Error(`API key required for ${item.name} (${fileType}) conversion. Please add an API key in Settings.`);
+        }
+      }
 
       const results = [];
       for (let i = 0; i < items.length; i += CHUNK_SIZE) {
@@ -342,10 +346,6 @@ export class ConversionService {
               const category = determineCategory(item.type, fileType);
               
               console.log(`Converting item: ${item.name} (${item.type})`);
-
-              if (this.requiresApiKey(item.type) && !item.apiKey) {
-                throw new Error(`API key required for ${item.type} conversion`);
-              }
 
               const result = await this.processItem(item);
               return {
@@ -370,7 +370,7 @@ export class ConversionService {
           })
         );
 
-        if (global.gc && process.memoryUsage().heapUsed > 512 * 1024 * 1024) {
+        if (global.gc && process.memoryUsage().heapUsed > MAX_MEMORY_USAGE) {
           console.log('🧹 Running garbage collection between chunks');
           global.gc();
         }
@@ -388,9 +388,6 @@ export class ConversionService {
         memoryUsed: Math.round((process.memoryUsage().heapUsed - initialMemory.heapUsed) / 1024 / 1024) + 'MB'
       });
       
-      console.log('📦 Creating batch ZIP archive');
-      const zipBuffer = await createBatchZip(validResults);
-      
       const endMemory = process.memoryUsage();
       console.log('✅ Batch conversion completed:', {
         duration: Math.round((Date.now() - startTime)/1000) + 's',
@@ -398,9 +395,9 @@ export class ConversionService {
         finalMemory: Math.round(endMemory.heapUsed / 1024 / 1024) + 'MB'
       });
 
+      // Return folder path instead of ZIP buffer
       return {
-        buffer: zipBuffer,
-        filename: this.generateFilename(),
+        results: validResults,
         stats: {
           totalItems: items.length,
           successfulItems: validResults.filter(r => r.success).length,
@@ -719,7 +716,7 @@ export class ConversionService {
   }
 
   generateFilename() {
-    return `conversion_${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+    return `conversion_${new Date().toISOString().replace(/[:.]/g, '-')}`;
   }
 
   isAudioExtension(ext) {

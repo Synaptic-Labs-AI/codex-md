@@ -18,7 +18,14 @@ export class AudioChunker {
     this.tempDir = path.join(os.tmpdir(), 'audio-chunks');
   }
 
-  async splitAudio(audioBuffer) {
+  /**
+   * Split audio into chunks with progress tracking
+   * @param {Buffer} audioBuffer - Audio buffer to split
+   * @param {Object} options - Options for splitting
+   * @param {Function} options.onProgress - Progress callback
+   * @returns {Promise<Array<Buffer>>} Array of chunk buffers
+   */
+  async splitAudio(audioBuffer, options = {}) {
     try {
       // Ensure temp directory exists
       await fs.mkdir(this.tempDir, { recursive: true });
@@ -32,13 +39,31 @@ export class AudioChunker {
       
       // Calculate optimal chunk sizes
       const chunks = this.calculateChunks(duration);
-
-      // Split audio into chunks
-      const chunkBuffers = await Promise.all(
-        chunks.map(({ start, duration }) =>
-          this.extractChunk(inputPath, start, duration)
-        )
-      );
+      
+      // Track progress
+      let processedChunks = 0;
+      const totalChunks = chunks.length;
+      
+      // Process chunks sequentially to track progress
+      const chunkBuffers = [];
+      
+      for (const { start, duration } of chunks) {
+        const chunkBuffer = await this.extractChunk(inputPath, start, duration);
+        chunkBuffers.push(chunkBuffer);
+        
+        // Update progress
+        processedChunks++;
+        const progress = (processedChunks / totalChunks) * 100;
+        
+        if (options.onProgress) {
+          options.onProgress(progress);
+          
+          // Add phase information to the progress event
+          if (options.onProgress.reportPhase) {
+            options.onProgress.reportPhase('chunking');
+          }
+        }
+      }
 
       // Cleanup
       await fs.unlink(inputPath);

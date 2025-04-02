@@ -17,6 +17,7 @@
 const BaseModuleAdapter = require('./BaseModuleAdapter');
 const PageMarkerService = require('../services/PageMarkerService');
 const BrowserService = require('../services/BrowserService');
+const SerializationHelper = require('../utils/serializationHelper');
 const path = require('path');
 
 // Import specialized adapters for platform-specific functionality
@@ -70,6 +71,9 @@ class ConversionServiceAdapter extends BaseModuleAdapter {
       },
       false // Don't validate default export
     );
+    
+    // Initialize serialization helper
+    this.serializationHelper = new SerializationHelper();
     
     // Initialize specialized converters map
     this.specializedConverters = {
@@ -251,12 +255,20 @@ class ConversionServiceAdapter extends BaseModuleAdapter {
     console.log(`🔄 [ConversionServiceAdapter] Converting batch of ${items.length} items`);
     
     try {
+      // Sanitize items to ensure they can be serialized
+      const sanitizedItems = items.map(item => this.serializationHelper.sanitizeForSerialization(item));
+      
       // Create a new instance of the ConversionService class
       const ConversionServiceClass = await this.executeMethodFromExport('ConversionService', []);
       const conversionService = new ConversionServiceClass();
       
       // Call the convertBatch method
-      return await conversionService.convertBatch(items);
+      const result = await conversionService.convertBatch(sanitizedItems);
+      
+      // Sanitize the result to ensure it can be serialized
+      const sanitizedResult = this.serializationHelper.sanitizeForSerialization(result);
+      
+      return sanitizedResult;
     } catch (error) {
       console.error(`❌ [ConversionServiceAdapter] Batch conversion error:`, error);
       throw error;
