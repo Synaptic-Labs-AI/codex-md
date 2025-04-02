@@ -18,8 +18,36 @@ async function loadUrlConverter() {
     const fileUrl = pathToFileURL(urlConverterPath).href;
     console.log('Loading URL converter from:', fileUrl);
     
-    const { convertUrlToMarkdown } = await import(fileUrl);
-    return { convertUrlToMarkdown };
+    // Import the entire module to access all exports
+    const urlConverterModule = await import(fileUrl);
+    console.log('URL converter module loaded, available exports:', Object.keys(urlConverterModule));
+    
+    // Try to get the convertUrlToMarkdown function first
+    if (typeof urlConverterModule.convertUrlToMarkdown === 'function') {
+      console.log('Found convertUrlToMarkdown function');
+      return { convertUrlToMarkdown: urlConverterModule.convertUrlToMarkdown };
+    }
+    
+    // If not found, try to get the urlConverter singleton
+    if (urlConverterModule.urlConverter && typeof urlConverterModule.urlConverter.convertToMarkdown === 'function') {
+      console.log('Found urlConverter.convertToMarkdown method');
+      return { 
+        convertUrlToMarkdown: (url, options) => urlConverterModule.urlConverter.convertToMarkdown(url, options) 
+      };
+    }
+    
+    // If still not found, try to use the UrlConverter class
+    if (urlConverterModule.UrlConverter) {
+      console.log('Found UrlConverter class');
+      return {
+        convertUrlToMarkdown: (url, options) => {
+          const converter = new urlConverterModule.UrlConverter();
+          return converter.convertToMarkdown(url, options);
+        }
+      };
+    }
+    
+    throw new Error('Could not find any URL converter implementation in the module');
   } catch (error) {
     console.error('Failed to load URL converter module:', error);
     throw error;
@@ -139,25 +167,38 @@ async function convertUrl(url, options = {}) {
     // Load the URL converter module and convert
     const { convertUrlToMarkdown } = await modulePromise;
     
-    // Convert the page using existing browser instance
-    const converted = await convertUrlToMarkdown(url, {
-      ...mergedOptions,
-      externalBrowser: page.browser()  // Tell BrowserManager to use our browser
-    });
+    console.log(`🔄 [urlConverterAdapter] Converting URL: ${url}`);
     
-    if (!converted || !converted.content) {
-      throw new Error('Converter returned empty content');
+    try {
+      // Convert the page using existing browser instance
+      const converted = await convertUrlToMarkdown(url, {
+        ...mergedOptions,
+        externalBrowser: page.browser()  // Tell BrowserManager to use our browser
+      });
+      
+      console.log(`✅ [urlConverterAdapter] URL conversion successful`);
+      
+      if (!converted) {
+        throw new Error('URL converter returned null or undefined result');
+      }
+      
+      if (!converted.content) {
+        console.warn(`⚠️ [urlConverterAdapter] URL converter returned empty content`);
+      }
+      
+      return {
+        content: converted.content || `# Conversion Error\n\nFailed to extract content from ${url}`,
+        success: !!converted.content,
+        name: converted.name || url.replace(/^https?:\/\//, '').replace(/[^\w\d]/g, '-'),
+        metadata: converted.metadata || { source: url },
+        images: converted.images || [],
+        url: converted.url || url,
+        type: 'url'
+      };
+    } catch (conversionError) {
+      console.error(`❌ [urlConverterAdapter] Error during URL conversion:`, conversionError);
+      throw conversionError;
     }
-    
-    return {
-      content: converted.content,
-      success: true,
-      name: converted.name,
-      metadata: converted.metadata,
-      images: converted.images,
-      url: converted.url,
-      type: 'url'
-    };
 
   } catch (error) {
     console.error('URL conversion failed in adapter:', error);

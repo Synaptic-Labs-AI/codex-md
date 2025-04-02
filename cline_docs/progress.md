@@ -4,6 +4,33 @@ This document tracks what has been completed and what remains to be built in the
 
 ## Completed Features
 
+- Fixed Batch Conversion URL, PPTX, and PDF Issues:
+  - Fixed "converter.convert is not a function" error in URL conversion
+  - Fixed "No converter available for type: pptx" error in PPTX conversion
+  - Fixed "Invalid input: Expected a buffer" error in PDF conversion
+  - Enhanced conversion-worker.js to directly use specialized adapters for URL, PPTX, and PDF conversions
+  - Improved URL and parentURL converter adapters to handle multiple export formats
+  - Added robust module loading with fallbacks for different export patterns
+  - Enhanced Buffer type detection and conversion in worker process
+  - Added comprehensive error handling and validation in converter adapters
+  - Improved logging for better diagnostics and troubleshooting
+  - Fixed serialization issues that were causing Buffer type loss
+
+- Enhanced Batch Image Transfer System:
+  - Added workerImageTransfer.js utility module for efficient image handling
+  - Implemented temp file-based image transfer between processes
+  - Added automatic cleanup of temporary files
+  - Fixed serialization issues with large image data
+  - Maintained compatibility with both standard and OCR PDF conversion
+  - Added detailed logging for image transfer operations
+
+- Enhanced Batch Conversion Output:
+  - Removed category-based folder organization for simpler structure
+  - Added automatic handling of filename collisions using numeric suffixes
+  - Removed batch summary file generation from batch conversions
+  - Maintained core batch conversion functionality
+  - Reduced file clutter in batch output directories
+
 - Fixed Temporary Filename Issues in Batch Conversion:
   - Fixed issue where files in batch conversion were saving with "temp_" prefix
   - Fixed metadata inconsistencies where originalFile field retained temporary filenames

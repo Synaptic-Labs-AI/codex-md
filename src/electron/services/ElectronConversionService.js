@@ -652,16 +652,20 @@ class ElectronConversionService {
       try {
         if (!result || !result.content) continue;
         
-        const category = result.category || 'unknown';
-        const categoryDir = path.join(batchOutputPath, category);
-        
-        // Create category directory if it doesn't exist
-        await this.fileSystem.createDirectory(categoryDir);
-        
         // Generate filename - clean any temporary filename patterns
         const cleanedName = cleanTemporaryFilename(result.name);
         const baseName = path.basename(cleanedName, path.extname(cleanedName));
-        const outputFile = path.join(categoryDir, `${baseName}.md`);
+        
+        // Handle potential filename collisions
+        let counter = 0;
+        let outputFile = path.join(batchOutputPath, `${baseName}.md`);
+        let stats = await this.fileSystem.getStats(outputFile);
+        
+        while (stats.success) {
+          counter++;
+          outputFile = path.join(batchOutputPath, `${baseName}-${counter}.md`);
+          stats = await this.fileSystem.getStats(outputFile);
+        }
         
         // Write the file
         await this.fileSystem.writeFile(outputFile, result.content);

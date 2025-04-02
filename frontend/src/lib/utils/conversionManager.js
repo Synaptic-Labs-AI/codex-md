@@ -199,55 +199,185 @@ async function saveTempFile(file) {
   }
   
   console.log(`✅ [saveTempFile] Temporary file saved to: ${tempFilePath}`);
+  
+  // Register the temporary file in the registry
+  registerTempFile(tempFilePath, {
+    originalName: file.name,
+    originalSize: file.size,
+    originalType: file.type,
+    isBinaryFile,
+    isVideoFile,
+    isLargeFile
+  });
+  
   return tempFilePath;
 }
 
+// Registry to track temporary files and their status
+const tempFileRegistry = new Map();
+
 /**
- * Cleans up a temporary file
+ * Registers a temporary file for tracking
+ * @param {string} filePath - Path to the temporary file
+ * @param {Object} metadata - Additional metadata about the file
+ */
+function registerTempFile(filePath, metadata = {}) {
+  if (!filePath) return;
+  
+  tempFileRegistry.set(filePath, {
+    path: filePath,
+    created: Date.now(),
+    inUse: true,
+    ...metadata
+  });
+  
+  console.log(`📝 [registerTempFile] Registered temporary file: ${filePath}`);
+}
+
+/**
+ * Marks a temporary file as ready for cleanup
  * @param {string} filePath - Path to the temporary file
  */
-async function cleanupTempFile(filePath) {
+function markTempFileForCleanup(filePath) {
+  if (!filePath || !tempFileRegistry.has(filePath)) return;
+  
+  const fileInfo = tempFileRegistry.get(filePath);
+  fileInfo.inUse = false;
+  fileInfo.readyForCleanup = Date.now();
+  
+  console.log(`🏁 [markTempFileForCleanup] Marked file as ready for cleanup: ${filePath}`);
+}
+
+/**
+ * Cleans up a temporary file with improved error handling and coordination
+ * @param {string} filePath - Path to the temporary file
+ * @param {Object} options - Cleanup options
+ * @param {boolean} options.force - Whether to force cleanup even if file is marked as in use
+ * @param {number} options.retryCount - Number of retry attempts (default: 3)
+ * @param {number} options.retryDelay - Delay between retries in ms (default: 500)
+ */
+async function cleanupTempFile(filePath, options = {}) {
   if (!isElectron || !window.electronAPI) {
     return;
   }
   
+  if (!filePath) {
+    console.warn(`⚠️ [cleanupTempFile] Invalid file path: ${filePath}`);
+    return;
+  }
+  
+  // Default options
+  const { 
+    force = false, 
+    retryCount = 3, 
+    retryDelay = 500 
+  } = options;
+  
   console.log(`🧹 [cleanupTempFile] Cleaning up temporary file: ${filePath}`);
   
+  // Check if file is registered and still in use
+  if (tempFileRegistry.has(filePath)) {
+    const fileInfo = tempFileRegistry.get(filePath);
+    
+    if (fileInfo.inUse && !force) {
+      console.warn(`⚠️ [cleanupTempFile] File is still in use, skipping cleanup: ${filePath}`);
+      return;
+    }
+  }
+  
   // Verify file exists and get stats before deletion
-  try {
-    const stats = await fileSystemOperations.getStats(filePath);
-    if (stats.success) {
-      console.log(`📊 [cleanupTempFile] File stats before deletion: Size=${stats.stats.size} bytes, isFile=${stats.stats.isFile}`);
-    } else {
-      console.warn(`⚠️ [cleanupTempFile] Could not get stats for file: ${stats.error}`);
+  let fileExists = false;
+  let retries = 0;
+  
+  while (retries <= retryCount) {
+    try {
+      const stats = await fileSystemOperations.getStats(filePath);
+      
+      if (stats.success) {
+        console.log(`📊 [cleanupTempFile] File stats before deletion: Size=${stats.stats.size} bytes, isFile=${stats.stats.isFile}`);
+        fileExists = true;
+        break;
+      } else {
+        console.warn(`⚠️ [cleanupTempFile] Could not get stats for file: ${stats.error}`);
+        
+        // If this is not the first attempt, wait before retrying
+        if (retries > 0) {
+          console.log(`⏱️ [cleanupTempFile] Waiting ${retryDelay}ms before retry ${retries}/${retryCount}`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay * retries));
+        }
+        
+        retries++;
+      }
+    } catch (statsError) {
+      console.warn(`⚠️ [cleanupTempFile] Error checking file stats: ${statsError.message}`);
+      
+      // If this is not the first attempt, wait before retrying
+      if (retries > 0) {
+        console.log(`⏱️ [cleanupTempFile] Waiting ${retryDelay}ms before retry ${retries}/${retryCount}`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay * retries));
+      }
+      
+      retries++;
     }
-  } catch (statsError) {
-    console.warn(`⚠️ [cleanupTempFile] Error checking file stats: ${statsError.message}`);
   }
   
-  try {
-    const deleteResult = await fileSystemOperations.deleteItem(filePath, false);
-    if (deleteResult.success) {
-      console.log(`✅ [cleanupTempFile] Temporary file deleted successfully: ${filePath}`);
-    } else {
-      console.warn(`⚠️ [cleanupTempFile] Delete operation returned error: ${deleteResult.error}`);
+  // If file doesn't exist after retries, log and return
+  if (!fileExists) {
+    console.log(`ℹ️ [cleanupTempFile] File does not exist or is inaccessible, no cleanup needed: ${filePath}`);
+    
+    // Remove from registry if present
+    if (tempFileRegistry.has(filePath)) {
+      tempFileRegistry.delete(filePath);
+      console.log(`🗑️ [cleanupTempFile] Removed non-existent file from registry: ${filePath}`);
     }
-  } catch (error) {
-    console.warn(`❌ [cleanupTempFile] Failed to delete temporary file: ${filePath}`, error);
+    
+    return;
   }
   
-  // Verify file was actually deleted
-  try {
-    const checkStats = await fileSystemOperations.getStats(filePath);
-    if (checkStats.success) {
-      console.error(`❌ [cleanupTempFile] File still exists after deletion attempt: ${filePath}`);
-    } else {
-      console.log(`✅ [cleanupTempFile] Confirmed file no longer exists`);
+  // Reset retries for deletion
+  retries = 0;
+  
+  // Attempt to delete the file with retries
+  while (retries <= retryCount) {
+    try {
+      const deleteResult = await fileSystemOperations.deleteItem(filePath, false);
+      
+      if (deleteResult.success) {
+        console.log(`✅ [cleanupTempFile] Temporary file deleted successfully: ${filePath}`);
+        
+        // Remove from registry if present
+        if (tempFileRegistry.has(filePath)) {
+          tempFileRegistry.delete(filePath);
+          console.log(`🗑️ [cleanupTempFile] Removed file from registry: ${filePath}`);
+        }
+        
+        return;
+      } else {
+        console.warn(`⚠️ [cleanupTempFile] Delete operation returned error: ${deleteResult.error}`);
+        
+        // If this is not the first attempt, wait before retrying
+        if (retries > 0) {
+          console.log(`⏱️ [cleanupTempFile] Waiting ${retryDelay}ms before retry ${retries}/${retryCount}`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay * retries));
+        }
+        
+        retries++;
+      }
+    } catch (error) {
+      console.warn(`❌ [cleanupTempFile] Failed to delete temporary file: ${filePath}`, error);
+      
+      // If this is not the first attempt, wait before retrying
+      if (retries > 0) {
+        console.log(`⏱️ [cleanupTempFile] Waiting ${retryDelay}ms before retry ${retries}/${retryCount}`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay * retries));
+      }
+      
+      retries++;
     }
-  } catch (error) {
-    // This is expected - file should not exist
-    console.log(`✅ [cleanupTempFile] Confirmed file no longer exists (error accessing file)`);
   }
+  
+  // Log warning if file couldn't be deleted after all retries
+  console.warn(`⚠️ [cleanupTempFile] Could not delete file after ${retryCount} retries: ${filePath}`);
 }
 
 /**
@@ -422,8 +552,14 @@ async function handleElectronConversion(items, apiKey, outputDir) {
           
           conversionStatus.setProgress(90);
         } finally {
+          // Mark the file as ready for cleanup
+          markTempFileForCleanup(tempFilePath);
+          
+          // Add a small delay to ensure the worker process is done with the file
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
           // Clean up the temporary file regardless of success/failure
-          await cleanupTempFile(tempFilePath);
+          await cleanupTempFile(tempFilePath, { force: true });
           conversionStatus.setProgress(95);
         }
       }
@@ -522,9 +658,17 @@ async function handleElectronConversion(items, apiKey, outputDir) {
       
         // Update status and store result
         if (result && result.outputPath) {
-          // Clean up temporary files
+          // Mark temporary files as ready for cleanup
           conversionStatus.setStatus('cleaning_up');
           conversionStatus.setProgress(95);
+          
+          // First mark all files as ready for cleanup
+          tempFilePaths.forEach(tempFile => {
+            markTempFileForCleanup(tempFile.path);
+          });
+          
+          // Then clean them up with a delay to ensure worker processes are done with them
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           await Promise.all(
             tempFilePaths.map(async (tempFile) => {
@@ -555,10 +699,19 @@ async function handleElectronConversion(items, apiKey, outputDir) {
         // Ensure cleanup happens even if conversion fails
         if (tempFilePaths.length > 0) {
           console.log(`Cleaning up ${tempFilePaths.length} temporary files...`);
+          
+          // First mark all files as ready for cleanup
+          tempFilePaths.forEach(tempFile => {
+            markTempFileForCleanup(tempFile.path);
+          });
+          
+          // Then clean them up with a delay to ensure worker processes are done with them
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           await Promise.all(
             tempFilePaths.map(async (tempFile) => {
               try {
-                await cleanupTempFile(tempFile.path);
+                await cleanupTempFile(tempFile.path, { force: true });
               } catch (cleanupError) {
                 console.warn(`Failed to clean up temporary file ${tempFile.path}:`, cleanupError);
               }
