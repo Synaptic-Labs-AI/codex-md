@@ -120,18 +120,33 @@ function createConversionStore() {
 
     // Website-specific tracking methods
     startWebsiteConversion: (url, pathFilter = null) => {
-      console.log(`Starting website conversion for: ${url}`);
-      update(state => ({
-        ...initialState,
-        status: 'finding_sitemap',
-        websiteUrl: url,
-        pathFilter: pathFilter,
-        startTime: Date.now()
-      }));
+      const startTime = Date.now();
+      console.log('[ConversionStatus] Starting website conversion:', {
+        url,
+        pathFilter,
+        startTime,
+        timestamp: new Date(startTime).toISOString()
+      });
+      
+      update(state => {
+        const newState = {
+          ...initialState,
+          status: 'finding_sitemap',
+          websiteUrl: url,
+          pathFilter: pathFilter,
+          startTime
+        };
+        console.log('[ConversionStatus] Initial website state:', newState);
+        return newState;
+      });
     },
 
     setWebsiteStatus: (status, details = {}) => {
-      console.log(`Setting website status to: ${status}`, details);
+      console.log('[ConversionStatus] Setting website status:', {
+        newStatus: status,
+        details,
+        timestamp: new Date().toISOString()
+      });
       
       // Ensure we're using the correct status names for website conversion
       const validWebsiteStatuses = [
@@ -144,6 +159,13 @@ function createConversionStore() {
         'completed', 
         'error'
       ];
+
+      if (!validWebsiteStatuses.includes(status)) {
+        console.warn('[ConversionStatus] Invalid website status:', {
+          invalidStatus: status,
+          validStatuses: validWebsiteStatuses
+        });
+      }
       
       update(state => {
         // Only update status if it's a valid website status or we're in a non-website state
@@ -158,8 +180,19 @@ function createConversionStore() {
     },
 
     updateWebsiteProgress: (data) => {
-      console.log(`Updating website progress:`, data);
+      console.log('[ConversionStatus] Updating website progress:', {
+        ...data,
+        timestamp: new Date().toISOString()
+      });
+
       update(state => {
+        console.log('[ConversionStatus] Current state before update:', {
+          status: state.status,
+          processedCount: state.processedCount,
+          totalCount: state.totalCount,
+          currentSection: state.currentSection
+        });
+
         // Calculate estimated time remaining if we have processed pages
         let estimatedTimeRemaining = null;
         if (data.processedCount > 0 && state.startTime && data.totalCount > 0) {
@@ -180,20 +213,46 @@ function createConversionStore() {
           };
         }
         
-        return {
+        const updatedState = {
           ...newState,
           estimatedTimeRemaining,
           averagePageTime: data.processedCount > 0 && state.startTime 
             ? (Date.now() - state.startTime) / data.processedCount 
             : state.averagePageTime
         };
+
+        console.log('[ConversionStatus] Updated website state:', {
+          status: updatedState.status,
+          processedCount: updatedState.processedCount,
+          totalCount: updatedState.totalCount,
+          currentSection: updatedState.currentSection,
+          estimatedTimeRemaining: updatedState.estimatedTimeRemaining,
+          averagePageTime: updatedState.averagePageTime
+        });
+
+        return updatedState;
       });
     },
 
     updateSectionCounts: (section, count) => {
+      console.log('[ConversionStatus] Updating section counts:', {
+        section,
+        count,
+        timestamp: new Date().toISOString()
+      });
+
       update(state => {
         const sectionCounts = { ...state.sectionCounts };
-        sectionCounts[section] = (sectionCounts[section] || 0) + count;
+        const previousCount = sectionCounts[section] || 0;
+        sectionCounts[section] = previousCount + count;
+
+        console.log('[ConversionStatus] Section count updated:', {
+          section,
+          previousCount,
+          newCount: sectionCounts[section],
+          allSections: sectionCounts
+        });
+
         return {
           ...state,
           sectionCounts,
@@ -203,19 +262,49 @@ function createConversionStore() {
     },
 
     setSitemapStats: (sitemapUrls) => {
-      update(state => ({
-        ...state,
+      console.log('[ConversionStatus] Setting sitemap stats:', {
         sitemapUrls,
-        discoveredUrls: state.discoveredUrls + sitemapUrls
-      }));
+        timestamp: new Date().toISOString()
+      });
+
+      update(state => {
+        const newState = {
+          ...state,
+          sitemapUrls,
+          discoveredUrls: state.discoveredUrls + sitemapUrls
+        };
+
+        console.log('[ConversionStatus] Updated sitemap stats:', {
+          previousDiscovered: state.discoveredUrls,
+          newDiscovered: newState.discoveredUrls,
+          sitemapUrls: newState.sitemapUrls
+        });
+
+        return newState;
+      });
     },
 
     setCrawledStats: (crawledUrls) => {
-      update(state => ({
-        ...state,
+      console.log('[ConversionStatus] Setting crawled stats:', {
         crawledUrls,
-        discoveredUrls: state.discoveredUrls + crawledUrls
-      }));
+        timestamp: new Date().toISOString()
+      });
+
+      update(state => {
+        const newState = {
+          ...state,
+          crawledUrls,
+          discoveredUrls: state.discoveredUrls + crawledUrls
+        };
+
+        console.log('[ConversionStatus] Updated crawled stats:', {
+          previousDiscovered: state.discoveredUrls,
+          newDiscovered: newState.discoveredUrls,
+          crawledUrls: newState.crawledUrls
+        });
+
+        return newState;
+      });
     }
   };
 }

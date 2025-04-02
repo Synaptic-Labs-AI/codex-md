@@ -35,10 +35,12 @@ export class UrlConverter {
         throw new AppError('URL is required', 400);
       }
       
-      // Normalize URL with proper error handling
+      // Ensure url is a string and normalize it with proper error handling
       let normalizedUrl;
       try {
-        const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+        // Convert to string if not already a string
+        const urlString = typeof url === 'string' ? url : url.toString();
+        const urlObj = new URL(urlString.startsWith('http') ? urlString : `https://${urlString}`);
         normalizedUrl = urlObj.toString();
       } catch (error) {
         throw new AppError(`Invalid URL format: ${error.message}`, 400);

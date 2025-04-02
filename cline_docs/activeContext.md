@@ -1,6 +1,31 @@
 # Active Context
 
 ## Current Focus
+Fixed "Invalid URL format" errors in parent URL converter:
+- Enhanced URL validation in parentUrlConverter.js to properly handle different URL formats and types
+- Added comprehensive type checking for URL objects before processing
+- Implemented robust error handling to skip invalid URLs rather than failing the entire conversion
+- Fixed filename generation for URLs with empty or invalid path segments
+- Improved link generation in the index content to use page titles when available
+- Enhanced logging to better identify problematic URL objects
+- Added fallback mechanisms for invalid URLs to prevent conversion failures
+- Ensured consistent filename generation between index links and output files
+- Fixed section extraction code to properly handle URL objects from sitemap parser
+- Added detailed error logging for section extraction failures
+- Implemented consistent URL handling across all parts of the parent URL converter
+
+Previous Focus:
+Fixed chat bubble progress tracker for parent URL converter:
+- Fixed issue where chat bubbles weren't showing up during parent URL conversion
+- Updated ResultDisplay.svelte to recognize website-specific states as active conversion states
+- Updated CodexMdConverter.svelte to ensure it stays in "converting" mode during website conversions
+- Fixed URL validation in parentUrlConverter.js, urlConverter.js, and SitemapParser.js
+- Added type checking to ensure URLs are strings before using string methods on them
+- Fixed "url.startsWith is not a function" error in URL conversion
+- Enhanced error handling for non-string URL inputs
+- Ensured consistent URL handling across all converter components
+
+Previous Focus:
 Fixed website conversion progress updates:
 - Fixed issue where website conversion would get stuck on "Initializing conversion process..." and then show a blank screen
 - Added explicit status transition from 'initializing' to 'finding_sitemap' in urlConverter.js

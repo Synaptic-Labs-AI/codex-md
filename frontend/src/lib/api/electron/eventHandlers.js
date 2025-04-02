@@ -111,9 +111,16 @@ class EventHandlerManager {
       progress: (event, data) => {
         // Ensure data is defined before accessing properties
         if (!data) {
-          console.error('Received undefined data in progress event handler');
+          console.error('[EventHandler] Received undefined data in progress event handler');
           return;
         }
+        
+        console.log('[EventHandler] Progress event received:', {
+          data,
+          fileIdentifier,
+          isMatch: data.file === fileIdentifier || (data.id && this.activeRequests.has(data.id)),
+          hasStatus: !!data.status
+        });
         
         if (data.file === fileIdentifier || (data.id && this.activeRequests.has(data.id))) {
           // Update progress
@@ -128,6 +135,7 @@ class EventHandlerManager {
           if (data.status) {
             // Check if this is a website-specific status
             const websiteStatuses = [
+              'initializing',
               'finding_sitemap',
               'parsing_sitemap',
               'crawling_pages',
@@ -136,15 +144,41 @@ class EventHandlerManager {
             ];
             
             if (websiteStatuses.includes(data.status)) {
-              console.log(`Received direct website status update: ${data.status}`, data);
+              console.log(`[EventHandler] Received direct website status update: ${data.status}`, data);
               // Directly update the website status
-              conversionStatus.setWebsiteStatus(data.status, data);
+              conversionStatus.setWebsiteStatus(data.status, {
+                ...data,
+                // Ensure these fields are always included for UI updates
+                progress: data.progress || 0,
+                websiteUrl: data.websiteUrl || fileIdentifier,
+                currentFile: data.currentUrl || data.file
+              });
+              
+              // For processing_pages status, also update the website progress
+              if (data.status === 'processing_pages') {
+                console.log('[EventHandler] Updating website progress for processing_pages');
+                conversionStatus.updateWebsiteProgress({
+                  processedCount: data.processedCount || 0,
+                  totalCount: data.totalCount || 0,
+                  progress: data.progress || 0,
+                  currentFile: data.currentUrl || data.file
+                });
+              }
+              
+              // For section updates, also update section counts
+              if (data.section) {
+                console.log('[EventHandler] Updating section counts:', data.section);
+                conversionStatus.updateSectionCounts(
+                  data.section || 'unknown',
+                  data.count || 1
+                );
+              }
             }
             // Handle legacy website_* prefixed status updates for backward compatibility
             else if (data.status.startsWith('website_')) {
               // Extract the actual status by removing the 'website_' prefix
               const websiteStatus = data.status.substring(8);
-              console.log(`Received legacy website progress update: ${websiteStatus}`, data);
+              console.log(`[EventHandler] Received legacy website progress update: ${websiteStatus}`, data);
               
               // Map website-specific progress status to main status
               const statusMap = {
@@ -156,26 +190,35 @@ class EventHandlerManager {
               
               // Update the main status if we have a mapping
               if (statusMap[websiteStatus]) {
-                console.log(`Updating main status to: ${statusMap[websiteStatus]}`);
-                conversionStatus.setWebsiteStatus(statusMap[websiteStatus], data);
+                console.log(`[EventHandler] Updating main status to: ${statusMap[websiteStatus]}`);
+                conversionStatus.setWebsiteStatus(statusMap[websiteStatus], {
+                  ...data,
+                  // Ensure these fields are always included for UI updates
+                  progress: data.progress || 0,
+                  websiteUrl: data.websiteUrl || fileIdentifier
+                });
               }
               
               // Update website-specific progress data
               if (websiteStatus === 'progress') {
+                console.log('[EventHandler] Updating website progress data');
                 conversionStatus.updateWebsiteProgress({
                   processedCount: data.processedCount || 0,
                   totalCount: data.totalCount || 0,
                   progress: data.progress || 0,
-                  currentFile: data.currentUrl
+                  currentFile: data.currentUrl || data.file
                 });
               } else if (websiteStatus === 'section') {
+                console.log('[EventHandler] Updating section counts:', data.section);
                 conversionStatus.updateSectionCounts(
                   data.section || 'unknown',
                   data.count || 1
                 );
               } else if (websiteStatus === 'sitemap') {
+                console.log('[EventHandler] Updating sitemap stats:', data.urlCount);
                 conversionStatus.setSitemapStats(data.urlCount || 0);
               } else if (websiteStatus === 'crawling') {
+                console.log('[EventHandler] Updating crawled stats:', data.urlCount);
                 conversionStatus.setCrawledStats(data.urlCount || 0);
               }
             }

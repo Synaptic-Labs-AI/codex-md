@@ -178,8 +178,13 @@ export class SitemapParser {
    * @returns {Promise<Array>} Array of URL objects
    */
   async initialize(baseUrl, options = {}) {
-    if (!baseUrl.startsWith('http')) {
-      baseUrl = `https://${baseUrl}`;
+    // Ensure baseUrl is a string
+    const baseUrlString = typeof baseUrl === 'string' ? baseUrl : baseUrl.toString();
+    
+    if (!baseUrlString.startsWith('http')) {
+      baseUrl = `https://${baseUrlString}`;
+    } else {
+      baseUrl = baseUrlString;
     }
 
     const urlObj = new URL(baseUrl);

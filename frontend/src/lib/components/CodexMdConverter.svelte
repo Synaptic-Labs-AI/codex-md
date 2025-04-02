@@ -20,11 +20,26 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  // Website-specific conversion states
+  const websiteStates = [
+    'finding_sitemap',
+    'parsing_sitemap',
+    'crawling_pages',
+    'processing_pages',
+    'generating_index'
+  ];
+  
+  // Check if current status is a website conversion state
+  $: isWebsiteConversion = websiteStates.includes($conversionStatus.status);
+  
   // Subscribe to conversion status and result changes
   $: if ($conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp) {
     mode = 'converted';
     hasCompletedConversion = true;
     scrollToTop();
+  } else if (isWebsiteConversion) {
+    // Ensure we're in converting mode for website conversions
+    mode = 'converting';
   }
   
   // If we have a result, ensure we're in converted mode
