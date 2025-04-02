@@ -4,6 +4,16 @@ This document tracks what has been completed and what remains to be built in the
 
 ## Completed Features
 
+- Fixed Batch Conversion Image Handling:
+  - Fixed issue where images weren't included in batch conversion downloads
+  - Modified _writeBatchResults in ElectronConversionService to use ConversionResultManager for saving files with images
+  - Added proper image handling in batch conversion process
+  - Implemented fallback to content-only file writing when image handling fails
+  - Added detailed logging for image handling in batch conversion
+  - Enhanced file type detection for proper category assignment
+  - Improved error handling for image saving in batch conversions
+  - Ensured consistent behavior between single file and batch conversions for images
+
 - Fixed Batch Conversion URL, PPTX, and PDF Issues:
   - Fixed "converter.convert is not a function" error in URL conversion
   - Fixed "No converter available for type: pptx" error in PPTX conversion
