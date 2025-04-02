@@ -53,9 +53,15 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
       });
     }
 
-    const sitemapUrls = await sitemapParser.initialize(parentUrl);
+    // Initialize sitemap parser with progress tracking
+    const sitemapUrls = await sitemapParser.initialize(parentUrl, {
+      onProgress: options.onProgress
+    });
 
+    // Handle sitemap results
     if (sitemapUrls.length > 0) {
+      console.log(`📋 Found ${sitemapUrls.length} URLs in sitemap`);
+      
       if (options.onProgress) {
         options.onProgress({
           status: 'parsing_sitemap',
@@ -67,10 +73,45 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
 
       // Filter sitemap URLs if path filter provided
       const filteredUrls = options.pathFilter
-        ? sitemapUrls.filter(url => url.startsWith(options.pathFilter))
+        ? sitemapUrls.filter(url => {
+            // Handle both string URLs and URL objects from sitemap
+            const urlString = typeof url === 'string' ? url : (url.url || '');
+            return urlString.includes(options.pathFilter);
+          })
         : sitemapUrls;
 
+      console.log(`📋 After filtering, using ${filteredUrls.length} URLs from sitemap`);
+      
+      // Add filtered URLs to processing set
       filteredUrls.forEach(url => urlsToProcess.add(url));
+    } else {
+      console.log(`⚠️ No URLs found in sitemap, will only process parent URL`);
+      
+      // If no sitemap, notify crawling status then transition to processing
+      if (options.onProgress) {
+        // First notify that we didn't find a sitemap and are starting crawl
+        options.onProgress({
+          status: 'crawling_pages',
+          websiteUrl: parentUrl,
+          message: 'No sitemap found, starting crawl',
+          progress: 15,
+          processedCount: 0,
+          totalCount: 1
+        });
+
+        // Short delay to allow UI to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Then transition to processing
+        options.onProgress({
+          status: 'processing_pages',
+          websiteUrl: parentUrl,
+          message: 'Processing parent URL',
+          progress: 20,
+          processedCount: 0,
+          totalCount: 1
+        });
+      }
     }
 
     // Add parent URL if not already included

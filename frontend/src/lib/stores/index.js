@@ -17,3 +17,4 @@ export {
 } from './settings.js';
 
 export { conversionTimer } from './conversionTimer.js';
+export { websiteProgress, Phase } from './websiteProgressStore.js';

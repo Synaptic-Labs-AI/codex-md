@@ -201,34 +201,101 @@ export class SitemapParser {
 
     // Also check robots.txt for sitemap declarations
     const robotsTxtUrl = `${domain}/robots.txt`;
+    console.log(`🔍 Checking robots.txt at ${robotsTxtUrl} for sitemap declarations`);
     const sitemapsFromRobots = await this.findSitemapsInRobotsTxt(robotsTxtUrl);
+    console.log(`📋 Found ${sitemapsFromRobots.length} sitemap declarations in robots.txt`);
+    
     const allLocations = [...commonLocations, ...sitemapsFromRobots];
+    console.log(`🔍 Will check ${allLocations.length} potential sitemap locations`);
 
-    // Try each location until we find a valid sitemap
-    for (const location of allLocations) {
-      try {
-        const urls = await this.fetchAndParseSitemap(location);
-        if (urls.length > 0) {
-          console.log(`✅ Found valid sitemap at ${location} with ${urls.length} URLs`);
-          
-          // Emit progress event if onProgress callback is provided
-          if (options.onProgress) {
-            options.onProgress({
-              status: 'sitemap_found',
-              urlCount: urls.length,
-              sitemapUrl: location
-            });
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Sitemap discovery timed out after ${this.options.timeout}ms`));
+      }, this.options.timeout);
+    });
+
+    // Try each location until we find a valid sitemap, with overall timeout
+    try {
+      // Use Promise.race to implement timeout for the entire discovery process
+      const result = await Promise.race([
+        (async () => {
+          for (const location of allLocations) {
+            try {
+              console.log(`🔍 Checking sitemap at ${location}`);
+              
+              // Update progress if callback provided
+              if (options.onProgress) {
+                options.onProgress({
+                  status: 'finding_sitemap',
+                  websiteUrl: baseUrl,
+                  currentLocation: location,
+                  checkedLocations: allLocations.indexOf(location) + 1,
+                  totalLocations: allLocations.length,
+                  progress: Math.round((allLocations.indexOf(location) + 1) / allLocations.length * 100)
+                });
+              }
+              
+              const urls = await this.fetchAndParseSitemap(location);
+              if (urls.length > 0) {
+                console.log(`✅ Found valid sitemap at ${location} with ${urls.length} URLs`);
+                
+                // Emit progress event if onProgress callback is provided
+                if (options.onProgress) {
+                  options.onProgress({
+                    status: 'parsing_sitemap',
+                    urlCount: urls.length,
+                    sitemapUrl: location,
+                    websiteUrl: baseUrl
+                  });
+                }
+                
+                return urls;
+              }
+            } catch (error) {
+              console.warn(`No valid sitemap found at ${location}: ${error.message}`);
+              continue;
+            }
           }
           
-          return urls;
-        }
-      } catch (error) {
-        console.warn(`No valid sitemap found at ${location}`);
-        continue;
-      }
-    }
+          console.log('⚠️ No sitemaps found at common locations');
+          
+          // Notify that we're moving to crawling when no sitemap is found
+          if (options.onProgress) {
+            options.onProgress({
+              status: 'crawling_pages',
+              websiteUrl: baseUrl,
+              message: 'No sitemap found, switching to crawling mode',
+              progress: 15
+            });
 
-    console.log('⚠️ No sitemaps found at common locations');
-    return [];
+            // Short delay to allow UI to update
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+          return [];
+        })(),
+        timeoutPromise
+      ]);
+      
+      return result;
+    } catch (error) {
+      console.warn(`Sitemap discovery process failed or timed out: ${error.message}`);
+      
+          // Notify about timeout and switch to crawling
+          if (options.onProgress) {
+            options.onProgress({
+              status: 'crawling_pages',
+              websiteUrl: baseUrl,
+              message: `Sitemap discovery timed out: ${error.message}`,
+              progress: 15
+            });
+
+            // Short delay to allow UI to update
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+      
+      return [];
+    }
   }
 }

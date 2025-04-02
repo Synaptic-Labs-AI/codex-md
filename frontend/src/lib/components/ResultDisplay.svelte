@@ -4,7 +4,9 @@
   import Button from './common/Button.svelte';
   import Container from './common/Container.svelte';
   import ConversionProgress from './ConversionProgress.svelte';
+  import WebsiteProgressDisplay from './WebsiteProgressDisplay.svelte';
   import { conversionStatus, currentFile } from '$lib/stores/conversionStatus.js';
+  import { websiteProgress, Phase } from '$lib/stores/websiteProgressStore.js';
   import { conversionResult } from '$lib/stores/conversionResult.js';
   import { triggerDownload } from '$lib/utils/conversionManager.js';
   import electronClient from '$lib/api/electron';
@@ -41,6 +43,15 @@
     'processing_pages',
     'generating_index'
   ].includes($conversionStatus.status);
+  
+  // Check if this is a website conversion
+  $: isWebsiteConversion = [
+    'finding_sitemap',
+    'parsing_sitemap',
+    'crawling_pages',
+    'processing_pages',
+    'generating_index'
+  ].includes($conversionStatus.status) || $websiteProgress.phase !== Phase.INITIALIZING;
   $: {
     // Track completion state in a way that persists
     const statusCompleted = $conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp !== null;
@@ -82,6 +93,7 @@
     files.clearFiles();
     conversionStatus.reset();
     conversionResult.clearResult();
+    websiteProgress.reset(); // Reset our new website progress store
     
     // Reset local state
     persistentCompletion = false;
@@ -102,7 +114,13 @@
     {#if isConverting || isCompleted || hasError}
       <!-- Progress section -->
       <div class="progress-section">
-        <ConversionProgress bind:this={conversionProgressComponent} />
+        {#if isWebsiteConversion}
+          <!-- Use our new simplified website progress display for website conversions -->
+          <WebsiteProgressDisplay />
+        {:else}
+          <!-- Use the regular conversion progress for other conversions -->
+          <ConversionProgress bind:this={conversionProgressComponent} />
+        {/if}
       </div>
 
       <!-- Action buttons - only show when completed -->

@@ -3,6 +3,7 @@
   import { onDestroy, onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import ChatBubble from './common/ChatBubble.svelte';
+  import Timer from './common/Timer.svelte';
   import { conversionTimer } from '$lib/stores/conversionTimer';
   import { conversionStatus } from '$lib/stores/conversionStatus';
   
@@ -66,12 +67,13 @@
       currentFile: value.currentFile,
       processedCount: value.processedCount,
       totalCount: value.totalCount,
-      isPersistentlyCompleted
+      isPersistentlyCompleted,
+      timestamp: new Date().toISOString()
     });
 
     // Don't update status if we're persistently completed unless it's explicitly reset
     if (!isPersistentlyCompleted || value.status === 'ready') {
-      const previousStatus = status;
+      // Update status and other properties
       status = value.status;
       progress = value.progress || 0;
       currentFile = value.currentFile;
@@ -81,12 +83,12 @@
       completionTimestamp = value.completionTimestamp;
 
       console.log('[ConversionProgress] State updated:', {
-        statusChanged: previousStatus !== status,
         newStatus: status,
         progress,
         currentFile,
         processedCount,
-        totalCount
+        totalCount,
+        timestamp: new Date().toISOString()
       });
 
       // Manage timer based on status
@@ -96,13 +98,7 @@
         'selecting_output', 
         'preparing', 
         'converting', 
-        'cleaning_up',
-        // Website-specific states
-        'finding_sitemap',
-        'parsing_sitemap',
-        'crawling_pages',
-        'processing_pages',
-        'generating_index'
+        'cleaning_up'
       ];
       const completedStates = ['completed', 'error', 'stopped', 'cancelled'];
       
@@ -139,21 +135,6 @@
       clearInterval(workerMessageInterval);
       workerMessageInterval = null;
     }
-
-    // Debug website-specific states
-    if (value.websiteUrl) {
-      console.log('[ConversionProgress] Website conversion info:', {
-        status,
-        websiteUrl: value.websiteUrl,
-        pathFilter: value.pathFilter,
-        discoveredUrls: value.discoveredUrls,
-        sitemapUrls: value.sitemapUrls,
-        crawledUrls: value.crawledUrls,
-        currentSection: value.currentSection,
-        sectionCounts: value.sectionCounts,
-        estimatedTimeRemaining: value.estimatedTimeRemaining
-      });
-    }
   });
 
   $: showChunkingProgress = (status === 'preparing' || status === 'converting') && chunkProgress > 0 && chunkProgress < 100;
@@ -184,8 +165,8 @@
 {#if status !== 'idle' && status !== 'cancelled'}
   <div class="conversion-progress" in:fade>
     <!-- Timer -->
-    <div class="timer" in:fade>
-      Time elapsed: {$conversionTimer.elapsedTime}
+    <div in:fade>
+      <Timer time={$conversionTimer.elapsedTime} />
     </div>
 
     <!-- Stage-based chat bubbles -->
@@ -260,141 +241,6 @@
           avatarPosition={togglePosition()}
         />
       {/if}
-    
-    <!-- Website-specific status messages -->
-    {:else if status === 'finding_sitemap'}
-      <ChatBubble
-        name="Codex"
-        avatar="🔍"
-        message="Looking for sitemap at {$conversionStatus.websiteUrl}..."
-        avatarPosition={togglePosition()}
-      />
-      
-      {#if $conversionStatus.pathFilter}
-        <ChatBubble
-          name="Codex"
-          avatar="🔍"
-          message="Using path filter: {$conversionStatus.pathFilter}"
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-      
-      <div class="debug-info">
-        <pre>Debug Website Status:
-Status: {status}
-Website URL: {$conversionStatus.websiteUrl || 'Not set'}
-Progress: {progress}%
-Path Filter: {$conversionStatus.pathFilter || 'None'}
-Discovered URLs: {$conversionStatus.discoveredUrls || 0}
-Sitemap URLs: {$conversionStatus.sitemapUrls || 0}
-Crawled URLs: {$conversionStatus.crawledUrls || 0}
-Current Section: {$conversionStatus.currentSection || 'None'}
-Section Counts: {JSON.stringify($conversionStatus.sectionCounts || {})}
-</pre>
-      </div>
-      
-    {:else if status === 'parsing_sitemap'}
-      <ChatBubble
-        name="Codex"
-        avatar="🔍"
-        message="Found sitemap! Parsing {$conversionStatus.sitemapUrls} URLs..."
-        avatarPosition={togglePosition()}
-      />
-      
-    {:else if status === 'crawling_pages'}
-      <ChatBubble
-        name="Codex"
-        avatar="🕸️"
-        message="No sitemap found. Crawling website for links..."
-        avatarPosition={togglePosition()}
-      />
-      
-      {#if $conversionStatus.crawledUrls > 0}
-        <ChatBubble
-          name="Codex"
-          avatar="🕸️"
-          message="Discovered {$conversionStatus.crawledUrls} pages by crawling"
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-      
-    {:else if status === 'processing_pages'}
-      <ChatBubble
-        name="Codex"
-        avatar="📄"
-        message="Processing {$conversionStatus.discoveredUrls} pages from {$conversionStatus.websiteUrl}"
-        avatarPosition={togglePosition()}
-      />
-      
-      {#if $conversionStatus.currentFile}
-        <ChatBubble
-          name="Codex"
-          avatar="📄"
-          message="Converting page: {$conversionStatus.currentFile} ({$conversionStatus.processedCount}/{$conversionStatus.totalCount})"
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-      
-      {#if $conversionStatus.currentSection}
-        <ChatBubble
-          name="Codex"
-          avatar="📄"
-          message="Current section: {$conversionStatus.currentSection}"
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-      
-      {#if $conversionStatus.estimatedTimeRemaining}
-        <ChatBubble
-          name="Codex"
-          avatar="⏱️"
-          message="Estimated time remaining: {Math.round($conversionStatus.estimatedTimeRemaining / 1000)} seconds"
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-      
-      <div class="debug-info">
-        <pre>Debug Processing Status:
-Status: {status}
-Website URL: {$conversionStatus.websiteUrl || 'Not set'}
-Progress: {progress}%
-Current File: {$conversionStatus.currentFile || 'None'}
-Processed Count: {$conversionStatus.processedCount || 0}
-Total Count: {$conversionStatus.totalCount || 0}
-Current Section: {$conversionStatus.currentSection || 'None'}
-Section Counts: {JSON.stringify($conversionStatus.sectionCounts || {})}
-Discovered URLs: {$conversionStatus.discoveredUrls || 0}
-Estimated Time Remaining: {$conversionStatus.estimatedTimeRemaining ? Math.round($conversionStatus.estimatedTimeRemaining / 1000) + 's' : 'Unknown'}
-</pre>
-      </div>
-      
-    {:else if status === 'generating_index'}
-      <ChatBubble
-        name="Codex"
-        avatar="📚"
-        message="Generating index for {$conversionStatus.processedCount} pages..."
-        avatarPosition={togglePosition()}
-      />
-      
-      {#if Object.keys($conversionStatus.sectionCounts).length > 0}
-        <ChatBubble
-          name="Codex"
-          avatar="📚"
-          message="Sections: {Object.entries($conversionStatus.sectionCounts).map(([section, count]) => `${section} (${count})`).join(', ')}"
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-      
-      <div class="debug-info">
-        <pre>Debug Index Generation Status:
-Status: {status}
-Website URL: {$conversionStatus.websiteUrl || 'Not set'}
-Progress: {progress}%
-Processed Count: {$conversionStatus.processedCount || 0}
-Total Count: {$conversionStatus.totalCount || 0}
-Section Counts: {JSON.stringify($conversionStatus.sectionCounts || {})}
-</pre>
-      </div>
     {:else if status === 'cleaning_up'}
       <ChatBubble
         name="Codex"
@@ -450,14 +296,4 @@ Section Counts: {JSON.stringify($conversionStatus.sectionCounts || {})}
     display: block;
   }
 
-  .timer {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-light);
-    text-align: center;
-    padding: 0.5rem;
-    background: var(--color-surface);
-    border-radius: var(--rounded-md);
-    box-shadow: var(--shadow-sm);
-  }
 </style>
