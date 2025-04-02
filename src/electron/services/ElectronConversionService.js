@@ -655,21 +655,54 @@ class ElectronConversionService {
         // Generate filename - clean any temporary filename patterns
         const cleanedName = cleanTemporaryFilename(result.name);
         const baseName = path.basename(cleanedName, path.extname(cleanedName));
+        const fileType = result.type || 'markdown';
         
-        // Handle potential filename collisions
-        let counter = 0;
-        let outputFile = path.join(batchOutputPath, `${baseName}.md`);
-        let stats = await this.fileSystem.getStats(outputFile);
-        
-        while (stats.success) {
-          counter++;
-          outputFile = path.join(batchOutputPath, `${baseName}-${counter}.md`);
-          stats = await this.fileSystem.getStats(outputFile);
+        // Determine file category
+        let fileCategory = 'text';
+        try {
+          fileCategory = getFileCategory(fileType, fileType) || 'text';
+        } catch (error) {
+          console.warn(`⚠️ Error determining file category:`, error);
         }
         
-        // Write the file
-        await this.fileSystem.writeFile(outputFile, result.content);
-        console.log(`✅ Wrote file: ${outputFile}`);
+        // Check if result has images
+        const hasImages = result.images && Array.isArray(result.images) && result.images.length > 0;
+        console.log(`🖼️ Result "${baseName}" has ${hasImages ? result.images.length : 0} images`);
+        
+        if (hasImages) {
+          // Use ConversionResultManager to save both content and images
+          console.log(`💾 Saving result with ${result.images.length} images using ConversionResultManager`);
+          
+          try {
+            // Save the conversion result using the ConversionResultManager
+            const savedResult = await this.resultManager.saveConversionResult({
+              content: result.content,
+              metadata: {
+                originalFile: cleanedName,
+                type: fileType,
+                category: fileCategory,
+                ...(result.metadata || {})
+              },
+              images: result.images,
+              name: baseName,
+              type: fileType,
+              outputDir: batchOutputPath,
+              options: {
+                createSubdirectory: false // Don't create another subdirectory
+              }
+            });
+            
+            console.log(`✅ Wrote file with images: ${savedResult.mainFile}`);
+          } catch (saveError) {
+            console.error(`❌ Error saving result with images:`, saveError);
+            
+            // Fallback to just writing the content file if saving with images fails
+            await this._writeContentFileOnly(result, baseName, batchOutputPath);
+          }
+        } else {
+          // No images, just write the content file
+          await this._writeContentFileOnly(result, baseName, batchOutputPath);
+        }
       } catch (fileError) {
         console.error(`❌ Error writing result file:`, {
           name: result.name,
@@ -677,6 +710,33 @@ class ElectronConversionService {
         });
       }
     }
+  }
+  
+  /**
+   * Write only the content file (no images)
+   * @param {Object} result - Conversion result
+   * @param {string} baseName - Base name for the file
+   * @param {string} outputPath - Output directory path
+   * @returns {Promise<string>} - Path to the written file
+   * @private
+   */
+  async _writeContentFileOnly(result, baseName, outputPath) {
+    // Handle potential filename collisions
+    let counter = 0;
+    let outputFile = path.join(outputPath, `${baseName}.md`);
+    let stats = await this.fileSystem.getStats(outputFile);
+    
+    while (stats.success) {
+      counter++;
+      outputFile = path.join(outputPath, `${baseName}-${counter}.md`);
+      stats = await this.fileSystem.getStats(outputFile);
+    }
+    
+    // Write the file
+    await this.fileSystem.writeFile(outputFile, result.content);
+    console.log(`✅ Wrote content file: ${outputFile}`);
+    
+    return outputFile;
   }
   
   /**

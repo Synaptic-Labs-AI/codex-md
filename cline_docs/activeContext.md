@@ -1,6 +1,14 @@
 # Active Context
 
 ## Current Focus
+Fixed batch conversion image handling:
+- Fixed issue where images weren't included in batch conversion downloads
+- Modified _writeBatchResults to use ConversionResultManager for saving files with images
+- Added proper image handling in batch conversion process
+- Implemented fallback to content-only file writing when image handling fails
+- Added detailed logging for image handling in batch conversion
+
+Previous Focus:
 Enhanced batch conversion with improved temporary file handling and buffer conversion:
 - Fixed "Path does not exist or access denied" errors in temporary file cleanup
 - Fixed "Invalid PDF: Expected a buffer" and "Invalid PPTX: Expected a buffer" errors
@@ -8,14 +16,6 @@ Enhanced batch conversion with improved temporary file handling and buffer conve
 - Implemented robust temporary file lifecycle management
 - Enhanced buffer handling for binary files in worker process
 - Improved error handling and recovery in batch conversion
-
-Previous Focus:
-Fixed batch conversion issues with URL, PPTX, and PDF files:
-- Fixed "converter.convert is not a function" error in URL conversion
-- Fixed "No converter available for type: pptx" error in PPTX conversion
-- Fixed "Invalid input: Expected a buffer" error in PDF conversion
-- Enhanced converter module loading and error handling in worker process
-- Improved buffer type detection and conversion in batch processing
 
 
 Earlier Focus:
