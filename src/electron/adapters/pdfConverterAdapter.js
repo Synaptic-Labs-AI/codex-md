@@ -120,13 +120,14 @@ class PdfConverterAdapter extends BaseModuleAdapter {
    * @param {string} [apiKey] - Optional API key (used if provided, otherwise fetched from ApiKeyService)
    * @returns {Promise<{content: string, images: Array, pageCount: number}>}
    */
-  async convertPdfToMarkdown(input, originalName, apiKey) {
+  async convertPdfToMarkdown(input, originalName, apiKey, options = {}) {
     console.log(`🔍 Starting PDF conversion for: ${originalName}`);
     console.log(`📊 Input buffer stats:`, {
       isBuffer: Buffer.isBuffer(input),
       length: input ? input.length : 'null',
       firstBytes: input && Buffer.isBuffer(input) ? input.slice(0, 20).toString('hex') : 'null'
     });
+    console.log(`🔧 PDF conversion options:`, options);
     
     // Validate that input is a buffer
     if (!Buffer.isBuffer(input)) {
@@ -151,14 +152,13 @@ class PdfConverterAdapter extends BaseModuleAdapter {
     }
 
     try {
-      // Check if OCR is enabled
-      console.log('🔄 Checking OCR settings...');
-      const useOcr = await this.isOcrEnabled();
+      // Get OCR settings from options or fall back to stored settings
+      const useOcr = options.useOcr ?? await this.isOcrEnabled();
       
       // Get Mistral API key if OCR is enabled
       let mistralApiKey = null;
       if (useOcr) {
-        mistralApiKey = apiKey || await this.getMistralApiKey();
+        mistralApiKey = apiKey || options.mistralApiKey || await this.getMistralApiKey();
       }
       
       console.log('📋 Conversion settings:', {

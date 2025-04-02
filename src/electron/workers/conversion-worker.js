@@ -469,13 +469,15 @@ async function handlePptxConversion(content, name, apiKey, options) {
  */
 async function handlePdfConversion(content, name, apiKey, options) {
   console.log(`🔄 [Worker] Converting PDF: ${name}`);
+  console.log(`🔍 [Worker] PDF conversion options:`, options);
   
   try {
     if (!content || !Buffer.isBuffer(content)) {
       throw new Error('Invalid PDF: Expected a buffer');
     }
     
-    const result = await pdfConverterAdapter.convertPdfToMarkdown(content, name, apiKey);
+    // Pass both apiKey and options to the converter
+    const result = await pdfConverterAdapter.convertPdfToMarkdown(content, name, apiKey, options);
     
     if (!result) {
       throw new Error('PDF conversion returned null or undefined result');

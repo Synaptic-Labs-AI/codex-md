@@ -476,18 +476,27 @@ async function handleElectronConversion(items, apiKey, outputDir) {
   conversionStatus.setProgress(0);
   
   try {
-    // Create options object with outputDir and createSubdirectory: false
+    // Get current OCR settings
+    const ocrEnabled = window?.electronAPI?.getSetting ? 
+      await window.electronAPI.getSetting('ocr.enabled') : false;
+
+    // Create options object with outputDir, OCR settings, and API key
     const options = {
       outputDir,
       createSubdirectory: false, // Save directly to the selected directory without creating subdirectories
       // Add API key if available
-      ...(apiKey ? { apiKey } : {})
+      ...(apiKey ? { apiKey } : {}),
+      // Add OCR settings
+      useOcr: ocrEnabled,
+      mistralApiKey: apiKey, // Use same API key for Mistral if OCR is enabled
     };
     
     console.log('Conversion options:', {
       outputDir,
       createSubdirectory: false,
-      hasApiKey: !!apiKey
+      hasApiKey: !!apiKey,
+      useOcr: ocrEnabled,
+      hasMistralKey: !!options.mistralApiKey
     });
     
     // For single file conversion
