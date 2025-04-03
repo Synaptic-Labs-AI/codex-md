@@ -51,7 +51,7 @@
     'crawling_pages',
     'processing_pages',
     'generating_index'
-  ].includes($conversionStatus.status) || $websiteProgress.phase !== Phase.INITIALIZING;
+  ].includes($conversionStatus.status) || $websiteProgress.phase !== Phase.PREPARE;
   $: {
     // Track completion state in a way that persists
     const statusCompleted = $conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp !== null;
@@ -89,23 +89,35 @@
    * without reloading the page
    */
   function handleConvertMore() {
-    // Reset all stores to their initial state
-    files.clearFiles();
-    conversionStatus.reset();
-    conversionResult.clearResult();
-    websiteProgress.reset(); // Reset our new website progress store
-    
-    // Reset local state
-    persistentCompletion = false;
-    hasCompletedOnce = false;
-    
-    // Reset ConversionProgress component state
-    if (conversionProgressComponent) {
-      conversionProgressComponent.resetState();
+    try {
+      // Reset all stores to their initial state
+      files.clearFiles();
+      conversionStatus.reset();
+      conversionResult.clearResult();
+
+      // Ensure proper website progress cleanup
+      if (isWebsiteConversion) {
+        websiteProgress.setPhase(Phase.PREPARE);
+        conversionTimer.stop();
+      }
+      websiteProgress.reset();
+
+      // Reset local state
+      persistentCompletion = false;
+      hasCompletedOnce = false;
+
+      // Reset ConversionProgress component state if exists
+      if (conversionProgressComponent) {
+        conversionProgressComponent.resetState();
+      }
+
+      // Dispatch event to parent component to switch mode
+      dispatch('convertMore');
+    } catch (error) {
+      console.error('Error resetting state:', error);
+      // Still try to dispatch event even if cleanup fails
+      dispatch('convertMore');
     }
-    
-    // Dispatch event to parent component to switch mode
-    dispatch('convertMore');
   }
 </script>
 

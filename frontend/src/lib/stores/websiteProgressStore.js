@@ -1,33 +1,30 @@
 /**
  * Website Progress Store
  * 
- * A simplified store for tracking website conversion progress.
- * Replaces the complex state machine approach with a more direct
- * and user-focused progress tracking system.
+ * Manages the state of website conversion progress with a simplified
+ * three-phase system: Prepare, Converting, and Complete.
+ * Tracks progress and provides clear status updates for the UI.
  */
 
 import { writable } from 'svelte/store';
 
-// Simple phase enum
+// Simplified phase enum
 export const Phase = {
-  INITIALIZING: 'initializing',
-  DISCOVERING: 'discovering',
-  PROCESSING: 'processing',
-  FINALIZING: 'finalizing',
-  COMPLETED: 'completed',
-  ERROR: 'error'
+  PREPARE: 'prepare',
+  CONVERTING: 'converting',
+  COMPLETE: 'complete'
 };
 
 // Initial state
 const initialState = {
-  phase: Phase.INITIALIZING,
-  pagesFound: 0,
-  pagesProcessed: 0,
-  overallProgress: 0,
-  currentActivity: 'Initializing...',
-  error: null,
-  startTime: null,
-  websiteUrl: null
+  phase: Phase.PREPARE,
+  selectedDirectory: null,
+  currentUrl: null,
+  totalUrls: 0,
+  processedUrls: 0,
+  percentComplete: 0,
+  success: true,
+  error: null
 };
 
 function createWebsiteProgressStore() {
@@ -36,47 +33,76 @@ function createWebsiteProgressStore() {
   return {
     subscribe,
     
-    // Simple update method - no validation, just update
-    updateProgress(data) {
-      update(state => ({
-        ...state,
-        ...data,
-        // Always calculate overall progress based on pages
-        overallProgress: data.pagesFound > 0 
-          ? Math.min(Math.round((data.pagesProcessed / data.pagesFound) * 100), 99)
-          : data.overallProgress || state.overallProgress
-      }));
-    },
-    
-    // Set phase with activity
-    setPhase(phase, activity) {
+    // Phase transition methods
+    setPhase(phase, message = '') {
       update(state => ({
         ...state,
         phase,
-        currentActivity: activity || state.currentActivity,
-        // Auto-set progress to 100% when completed
-        overallProgress: phase === Phase.COMPLETED ? 100 : state.overallProgress
+        currentActivity: message
       }));
     },
-    
-    // Start conversion
+
     start(url) {
-      set({
+      update(state => ({
         ...initialState,
-        phase: Phase.INITIALIZING,
-        startTime: Date.now(),
+        phase: Phase.PREPARE,
         websiteUrl: url,
-        currentActivity: `Starting conversion of ${url}...`
-      });
+        startTime: Date.now()
+      }));
     },
-    
-    // Set error
-    setError(message) {
+
+    selectDirectory(path) {
       update(state => ({
         ...state,
-        phase: Phase.ERROR,
-        error: message,
-        currentActivity: `Error: ${message}`
+        selectedDirectory: path,
+        phase: Phase.PREPARE
+      }));
+    },
+
+    startConverting() {
+      update(state => ({
+        ...state,
+        phase: Phase.CONVERTING,
+        processedUrls: 0,
+        percentComplete: 0,
+        success: true,
+        error: null
+      }));
+    },
+
+    finishConverting(success = true, error = null) {
+      update(state => ({
+        ...state,
+        phase: Phase.COMPLETE,
+        percentComplete: 100,
+        success,
+        error
+      }));
+    },
+
+    // Progress update methods
+    updateProgress(data) {
+      update(state => {
+        const percentComplete = data.totalUrls > 0 
+          ? Math.min(Math.round((data.processedUrls / data.totalUrls) * 100), 99)
+          : 0;
+
+        return {
+          ...state,
+          currentUrl: data.currentUrl,
+          totalUrls: data.totalUrls,
+          processedUrls: data.processedUrls,
+          percentComplete
+        };
+      });
+    },
+
+    // Error handling
+    setError(error) {
+      update(state => ({
+        ...state,
+        error,
+        success: false
       }));
     },
     

@@ -1,48 +1,69 @@
 <script>
-  import { fade, fly } from 'svelte/transition';
+  import { fade, fly, slide } from 'svelte/transition';
+  import { onMount } from 'svelte';
   
   export let avatar = '';
   export let name = '';
   export let message = '';
   export let delay = 0;
-  export let avatarPosition = 'left'; // New prop with default 'left'
-  export let showName = true; // New prop to control name visibility
+  export let avatarPosition = 'left';
+  export let showName = true;
+
+  export let isTyping = false;
+  export let showMessage = true;
 </script>
 
 <div 
   class="chat-bubble-container"
   class:container-right={avatarPosition === 'right'}
-  in:fade|local={{delay: delay, duration: 300}}
+  in:fade|local={{delay, duration: 300}}
 >
   <div 
     class="chat-bubble"
     class:bubble-left={avatarPosition === 'left'}
     class:bubble-right={avatarPosition === 'right'}
-    in:fly|local={{delay: delay, duration: 400, y: 20}}
+    in:fly|local={{delay, duration: 400, y: 20}}
   >
     <div class="message-content">
       {#if showName}
-        <div class="name">{name}</div>
+        <div class="name" in:slide|local={{delay: delay + 100, duration: 200}}>
+          {name}
+        </div>
       {/if}
-      <div class="message">
-        {@html message}
-      </div>
+      
+      {#if isTyping}
+        <div class="typing-indicator" in:fade|local={{duration: 200}}>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      {/if}
+
+      {#if showMessage}
+        <div 
+          class="message"
+          in:slide|local={{delay: 100, duration: 200, axis: 'y'}}
+        >
+          {@html message}
+        </div>
+      {/if}
     </div>
   </div>
   
-  <!-- Left avatar -->
-  {#if avatarPosition === 'left'}
-    <div class="avatar-bubble avatar-left">
-      <span class="avatar">{avatar}</span>
-    </div>
-  {/if}
-  
-  <!-- Right avatar -->
-  {#if avatarPosition === 'right'}
-    <div class="avatar-bubble avatar-right">
-      <span class="avatar">{avatar}</span>
-    </div>
-  {/if}
+  <!-- Avatar -->
+  <div 
+    class="avatar-bubble"
+    class:avatar-left={avatarPosition === 'left'}
+    class:avatar-right={avatarPosition === 'right'}
+    in:fly|local={{
+      delay,
+      duration: 400,
+      x: avatarPosition === 'left' ? -20 : 20
+    }}
+  >
+    <span class="avatar">{avatar}</span>
+    <div class="avatar-glow"></div>
+  </div>
 </div>
 
 <style>
@@ -123,6 +144,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
     background: linear-gradient(135deg,
       var(--color-prime) 0%,
       var(--color-fourth) 50%,
@@ -135,7 +157,9 @@
       0 8px 16px rgba(0, 0, 0, 0.1),
       inset 0 2px 3px rgba(255, 255, 255, 0.3);
     z-index: 10;
-    border: 2px solid white;
+    border: 2px solid var(--color-surface);
+    transform-origin: center;
+    transition: transform 0.3s ease;
   }
 
   .avatar-left {
@@ -148,15 +172,47 @@
     right: 0;
   }
 
-  .avatar-bubble::before {
-    content: '';
+  .avatar-bubble:hover {
+    transform: scale(1.1);
+  }
+
+  .avatar-glow {
     position: absolute;
     inset: -4px;
     border-radius: inherit;
     background: inherit;
     filter: blur(8px);
-    opacity: 0.4;
+    opacity: 0;
     z-index: -1;
+    transition: opacity 0.3s ease;
+  }
+
+  .avatar-bubble:hover .avatar-glow {
+    opacity: 0.4;
+  }
+
+  .typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    align-items: center;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--color-text-light);
+    opacity: 0.6;
+  }
+
+  .dot:nth-child(1) { animation: bounce 1s infinite 0.1s; }
+  .dot:nth-child(2) { animation: bounce 1s infinite 0.2s; }
+  .dot:nth-child(3) { animation: bounce 1s infinite 0.3s; }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
   }
 
   .avatar {
@@ -267,6 +323,11 @@
 
     .avatar {
       font-size: 20px;
+    }
+
+    .dot {
+      width: 4px;
+      height: 4px;
     }
   }
 </style>
