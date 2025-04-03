@@ -21,6 +21,7 @@ import electronClient, { fileSystemOperations } from '$lib/api/electron';
 import FileSaver from 'file-saver';
 import { CONFIG } from '$lib/config'; 
 import { conversionResult } from '$lib/stores/conversionResult.js';
+import { websiteProgress, Phase } from '$lib/stores/websiteProgressStore.js';
 import { validateAndNormalizeItem } from '$lib/api/electron';
 
 // Check if we're running in Electron
@@ -436,6 +437,13 @@ export async function startConversion() {
     // Prepare items for conversion
     const items = await prepareBatchItems(currentFiles);
     const itemCount = items.length;
+    
+    // Handle website conversion initialization
+    const isWebsiteConversion = items[0]?.type === 'parent';
+    if (isWebsiteConversion) {
+      websiteProgress.reset();
+      websiteProgress.setPhase(Phase.PREPARE, 'Preparing website conversion...');
+    }
 
     // Start conversion and set total count
     conversionStatus.startConversion(itemCount);
@@ -449,8 +457,16 @@ export async function startConversion() {
       if (!outputResult.success) {
         // User cancelled directory selection
         conversionStatus.setStatus('cancelled');
+        if (isWebsiteConversion) {
+          websiteProgress.setPhase(Phase.COMPLETE, 'Website conversion cancelled');
+        }
         showFeedback('Conversion cancelled: No output directory selected', 'info');
         return;
+      }
+
+      // Update website progress if needed
+      if (isWebsiteConversion && outputResult.path) {
+        websiteProgress.setPhase(Phase.CONVERTING, 'Starting website conversion...');
       }
       
       // Proceed with conversion using the selected directory
@@ -477,9 +493,16 @@ export async function startConversion() {
   } catch (error) {
     console.error('Conversion error:', error);
 
-    conversionStatus.setError(error.message || 'An unexpected error occurred during conversion');
+    const errorMessage = error.message || 'An unexpected error occurred during conversion';
+    conversionStatus.setError(errorMessage);
     conversionStatus.setStatus('error');
-    showFeedback(error.message || 'An unexpected error occurred during conversion', 'error');
+
+    // Handle top-level website error state
+    if (items && items[0]?.type === 'parent') {
+      websiteProgress.setPhase(Phase.COMPLETE, `Error: ${errorMessage}`);
+    }
+
+    showFeedback(errorMessage, 'error');
   }
 }
 
@@ -551,6 +574,9 @@ async function handleElectronConversion(items, apiKey, outputDir) {
           ...options
         }, (progress) => {
           conversionStatus.setProgress(progress);
+          if (progress === 100) {
+            websiteProgress.setPhase(Phase.COMPLETE, 'Website conversion complete!');
+          }
         });
       } else if (item.type === 'youtube') {
         // Convert YouTube URL with output directory
@@ -773,6 +799,12 @@ async function handleElectronConversion(items, apiKey, outputDir) {
     console.error('Electron conversion error:', error);
     conversionStatus.setError(error.message);
     conversionStatus.setStatus('error');
+
+    // Handle website error state
+    if (items[0]?.type === 'parent') {
+      websiteProgress.setPhase(Phase.COMPLETE, `Error: ${error.message}`);
+    }
+
     throw error;
   }
 }
@@ -799,6 +831,12 @@ async function handleWebConversion(items, apiKey) {
     console.error('Web conversion error:', error);
     conversionStatus.setError(error.message);
     conversionStatus.setStatus('error');
+
+    // Handle website error state
+    if (items[0]?.type === 'parent') {
+      websiteProgress.setPhase(Phase.COMPLETE, `Error: ${error.message}`);
+    }
+
     throw error;
   }
 }
@@ -853,6 +891,9 @@ export function triggerDownload() {
  * Cancels the ongoing conversion process
  */
 export function cancelConversion() {
+  const currentFiles = get(files);
+  const isWebsiteConversion = currentFiles[0]?.type === 'parent';
+
   if (isElectron) {
     electronClient.cancelRequests();
   } else {
@@ -860,6 +901,11 @@ export function cancelConversion() {
   }
 
   conversionStatus.setStatus('cancelled');
+  
+  // Update website progress if it's a website conversion
+  if (isWebsiteConversion) {
+    websiteProgress.setPhase(Phase.COMPLETE, 'Website conversion cancelled');
+  }
   
   files.update(items => 
     items.map(item => 

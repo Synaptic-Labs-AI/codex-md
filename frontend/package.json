@@ -19,7 +19,6 @@
     "uuid": "^11.0.4"
   },
   "dependencies": {
-    "@sveltejs/adapter-auto": "^5.0.0",
     "skeleton-elements": "^4.0.1"
   }
 }

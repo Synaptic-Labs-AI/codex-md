@@ -1,18 +1,49 @@
 /**
  * transcriptionConfigAdapter.js
  * 
- * This adapter provides a CommonJS wrapper around the transcription config.
- * It allows the Electron code (which uses CommonJS) to import the backend code
- * (which uses ES modules) without compatibility issues.
+ * This adapter provides access to the transcription configuration for Electron services.
+ * It uses dynamic imports to load the ES Module configuration while maintaining CommonJS
+ * compatibility. The configuration is cached after first load for performance.
  * 
  * Related files:
- * - backend/src/config/transcription.js: The original module
- * - src/electron/config/transcription.js: The local config
+ * - backend/src/config/transcription.mjs: The source of truth configuration
  * - src/electron/services/TranscriptionService.js: The consumer of this adapter
  */
 
-// Import the local transcription config
-const transcriptionConfig = require('../config/transcription.js');
+let cachedConfig = null;
 
-// Export the config
-module.exports = transcriptionConfig;
+/**
+ * Retrieves the transcription configuration, using cache if available
+ * @returns {Promise<object>} The transcription configuration
+ * @throws {Error} If the configuration fails to load
+ */
+async function getConfig() {
+    try {
+        if (!cachedConfig) {
+            const config = await import('../../../backend/src/config/transcription.mjs');
+            
+            if (!config || !config.MODELS) {
+                throw new Error('Invalid configuration format');
+            }
+            
+            cachedConfig = {
+                MODELS: config.MODELS,
+                DEFAULT_MODEL: config.DEFAULT_MODEL,
+                RESPONSE_FORMATS: config.RESPONSE_FORMATS
+            };
+        }
+        
+        return cachedConfig;
+    } catch (error) {
+        throw new Error(`Failed to load transcription configuration: ${error.message}`);
+    }
+}
+
+// Export an async interface
+module.exports = {
+    getConfig,
+    // Synchronous access to last known config (may be null)
+    get currentConfig() {
+        return cachedConfig;
+    }
+};
