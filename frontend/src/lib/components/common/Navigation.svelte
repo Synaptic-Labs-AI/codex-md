@@ -4,13 +4,6 @@
   import { onMount } from 'svelte';
   import Logo from './Logo.svelte';
   
-  // Check if we're running in Electron
-  let isElectron = false;
-  
-  onMount(() => {
-    // Check if window.electronAPI exists (only in Electron)
-    isElectron = !!window.electronAPI;
-  });
 </script>
 
 <nav class="navigation">
@@ -45,15 +38,13 @@
       About
     </a>
     
-    {#if isElectron}
-      <a 
-        href="/settings" 
-        class="nav-link" 
-        class:active={$page.url.pathname === '/settings'}
-      >
-        Settings
-      </a>
-    {/if}
+    <a 
+      href="/settings" 
+      class="nav-link" 
+      class:active={$page.url.pathname === '/settings'}
+    >
+      Settings
+    </a>
   </div>
 </nav>
 

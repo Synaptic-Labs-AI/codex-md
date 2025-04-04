@@ -5,7 +5,7 @@
   import Button from './common/Button.svelte';
   import Container from './common/Container.svelte';
   import { files } from '$lib/stores/files.js';
-  import { startConversion, triggerDownload } from '$lib/utils/conversionManager.js';
+  import { startConversion } from '$lib/utils/conversion';
   import { conversionResult } from '$lib/stores/conversionResult.js';
   import { conversionStatus } from '$lib/stores/conversionStatus.js';
   import welcomeState, { MESSAGE_TYPES } from '$lib/stores/welcomeState.js';

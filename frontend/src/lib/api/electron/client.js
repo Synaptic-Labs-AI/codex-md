@@ -22,16 +22,7 @@ import { convertFile, convertBatch, getResult } from './converters/fileConverter
 
 class ElectronClient {
   constructor() {
-    // Check if we're in a browser environment first
-    const isBrowser = typeof window !== 'undefined';
-    
-    // Then check if we're in an Electron environment
-    this.isElectron = isBrowser && window.electronAPI !== undefined;
-    
-    if (isBrowser && !this.isElectron) {
-      console.warn('ElectronClient: Not running in Electron environment');
-    }
-    
+    // This is now an Electron-only app
     this.supportedTypes = ['file', 'url', 'parent', 'youtube', 'audio', 'video'];
     
     // Constants for chunked file transfer
@@ -40,11 +31,11 @@ class ElectronClient {
   }
 
   /**
-   * Checks if the client is running in Electron
-   * @returns {boolean} Whether the client is running in Electron
+   * Always returns true since we're now Electron-only
+   * @returns {boolean} Always true
    */
   isRunningInElectron() {
-    return this.isElectron;
+    return true;
   }
 
   /**
@@ -175,10 +166,6 @@ class ElectronClient {
    * @returns {Promise<{success: boolean, finalPath: string, error?: string}>}
    */
   async transferLargeFile(file, tempFilePath, onProgress = null) {
-    if (!this.isElectron || !window.electronAPI) {
-      throw new ConversionError('Cannot transfer large file: Not running in Electron environment');
-    }
-    
     console.log(`📤 [transferLargeFile] Starting chunked transfer for ${file.name} (${Math.round(file.size / (1024 * 1024))}MB)`);
     
     try {
@@ -286,16 +273,10 @@ class ElectronClient {
    * Cancels all active conversion requests
    */
   cancelRequests() {
-    if (!this.isElectron) {
-      return;
-    }
-
     // Cancel all active requests
-    if (window.electronAPI) {
-      const activeJobs = eventHandlerManager.getActiveJobs();
-      for (const jobId of activeJobs) {
-        window.electronAPI.cancelConversion(jobId);
-      }
+    const activeJobs = eventHandlerManager.getActiveJobs();
+    for (const jobId of activeJobs) {
+      window.electronAPI.cancelConversion(jobId);
     }
 
     // Remove all event handlers

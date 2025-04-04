@@ -18,20 +18,14 @@ function createConversionResultStore() {
   // Default state with null values
   const initialState = {
     success: false,
-    blob: null,           // For web downloads
-    contentType: null,    // For web downloads
     outputPath: null,     // For Electron file system
     items: [],            // Converted items
-    isNative: false,      // Whether this is a native file path
+    isNative: true,       // Always true in Electron-only mode
     message: null,        // Success or error message
     error: null           // Error details if any
   };
   
   const { subscribe, set, update } = writable(null);
-  
-  // Check if we're running in Electron
-  const isElectron = typeof window !== 'undefined' && 
-    window.electronAPI !== undefined;
 
   return {
     subscribe,
@@ -41,20 +35,8 @@ function createConversionResultStore() {
      * @param {Object} result The conversion result
      */
     setResult: (result) => {
-      // Handle web result (blob-based)
-      if (result.blob) {
-        set({
-          success: true,
-          blob: result.blob,
-          contentType: result.contentType,
-          items: result.items || [],
-          isNative: false,
-          message: 'Conversion completed successfully',
-          error: null
-        });
-      } 
       // Handle Electron result (path-based)
-      else if (result.outputPath) {
+      if (result.outputPath) {
         set({
           success: true,
           outputPath: result.outputPath,
@@ -70,7 +52,7 @@ function createConversionResultStore() {
           success: false,
           error: result.error,
           message: result.message || 'Conversion failed',
-          isNative: isElectron
+          isNative: true
         });
       }
       // Handle other result formats
@@ -79,7 +61,7 @@ function createConversionResultStore() {
           ...initialState,
           ...result,
           success: result.success !== false,
-          isNative: isElectron
+          isNative: true
         });
       }
     },
@@ -118,7 +100,7 @@ function createConversionResultStore() {
         success: false,
         error,
         message: message || error,
-        isNative: isElectron
+        isNative: true
       });
     },
     

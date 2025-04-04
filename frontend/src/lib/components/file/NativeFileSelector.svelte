@@ -29,24 +29,15 @@
   export let disabled = false;
   
   // Internal state
-  let isElectron = false;
   let isSelecting = false;
   
   const dispatch = createEventDispatcher();
-  
-  // Check if we're running in Electron
-  $: {
-    isElectron = electronClient.isRunningInElectron();
-    if (!isElectron) {
-      console.warn('NativeFileSelector: Not running in Electron environment');
-    }
-  }
   
   /**
    * Opens the native file selection dialog
    */
   async function openFileDialog() {
-    if (!isElectron || isSelecting || disabled) {
+    if (isSelecting || disabled) {
       return;
     }
     
@@ -93,11 +84,11 @@
 </script>
 
 <div class="native-file-selector" in:fade={{ duration: 200 }}>
-  <Button
+<Button
     variant={buttonVariant}
     size={buttonSize}
     fullWidth={fullWidth}
-    disabled={disabled || isSelecting || !isElectron}
+    disabled={disabled || isSelecting}
     on:click={openFileDialog}
     data-testid="native-file-selector"
   >
@@ -107,11 +98,6 @@
     {label}
   </Button>
   
-  {#if !isElectron}
-    <div class="electron-warning">
-      Native file selection requires Electron
-    </div>
-  {/if}
 </div>
 
 <style>

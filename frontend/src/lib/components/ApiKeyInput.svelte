@@ -23,23 +23,17 @@
   let showApiKey = false;
   let saving = false;
   let error = '';
-  let isElectron = false;
   let keyStatus = { exists: false, valid: false };
 
   onMount(() => {
-    // Check if we're running in Electron
-    isElectron = !!window.electronAPI;
-    
     // Initialize with current value from store
     apiKeyValue = getApiKey(provider) || '';
     
-    // If in Electron, check if API key exists
-    if (isElectron) {
-      checkApiKey();
-    }
+    // Check if API key exists
+    checkApiKey();
   });
 
-  // Check if API key exists in Electron
+  // Check if API key exists
   async function checkApiKey() {
     try {
       const result = await window.electronAPI.checkApiKeyExists(provider);
@@ -69,7 +63,7 @@
     showApiKey = !showApiKey;
   }
   
-  // Save API key without validation
+  // Save API key
   async function saveApiKey() {
     if (!apiKeyValue) return;
     
@@ -77,18 +71,12 @@
     error = '';
     
     try {
-      // If in Electron, save with API
-      if (isElectron) {
-        const result = await window.electronAPI.saveApiKey(apiKeyValue, provider);
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to save API key');
-        }
-        
-        keyStatus = { exists: true, valid: true };
-      } else {
-        // In web mode, just update the store
-        setApiKey(apiKeyValue, provider);
+      const result = await window.electronAPI.saveApiKey(apiKeyValue, provider);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save API key');
       }
+      
+      keyStatus = { exists: true, valid: true };
     } catch (e) {
       error = e.message;
     } finally {
@@ -96,10 +84,8 @@
     }
   }
   
-  // Delete API key (Electron only)
+  // Delete API key
   async function deleteApiKey() {
-    if (!isElectron) return;
-    
     try {
       await window.electronAPI.deleteApiKey(provider);
       keyStatus = { exists: false, valid: false };
@@ -114,7 +100,7 @@
 <div class="api-key-wrapper api-key-input-section">
   <div class="api-key-header">
     <h3>{title}</h3>
-    {#if isElectron && keyStatus.exists}
+    {#if keyStatus.exists}
       <div class="key-status success">
         <span>✓ API key is configured</span>
         <button on:click={deleteApiKey} class="delete-btn">Remove</button>
@@ -122,7 +108,7 @@
     {/if}
   </div>
 
-  {#if !(isElectron && keyStatus.exists)}
+  {#if !keyStatus.exists}
     <div class="input-container">
       <!-- Use separate input elements for text and password -->
       {#if showApiKey}
@@ -155,20 +141,18 @@
         {showApiKey ? '👁️' : '🙈'}
       </button>
       
-      {#if isElectron}
-        <Button
-          on:click={saveApiKey}
-          disabled={saving || !apiKeyValue}
-          variant="primary"
-          size="small"
-        >
-          {#if saving}
-            Saving...
-          {:else}
-            Save
-          {/if}
-        </Button>
-      {/if}
+      <Button
+        on:click={saveApiKey}
+        disabled={saving || !apiKeyValue}
+        variant="primary"
+        size="small"
+      >
+        {#if saving}
+          Saving...
+        {:else}
+          Save
+        {/if}
+      </Button>
     </div>
   {/if}
 
@@ -178,11 +162,7 @@
 
   <div class="api-key-info">
     <p>
-      {#if isElectron}
-        {infoText} Your key is stored securely on your device.
-      {:else}
-        {infoText} Won't persist on refresh.
-      {/if}
+      {infoText} Your key is stored securely on your device.
     </p>
     <a href={helpLink} target={provider !== 'openai' ? '_blank' : undefined} rel={provider !== 'openai' ? 'noopener noreferrer' : undefined} class="help-link">{helpText}</a>
   </div>
