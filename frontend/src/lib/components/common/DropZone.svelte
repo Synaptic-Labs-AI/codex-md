@@ -17,21 +17,7 @@
       dragCounter = 0;
       
       const files = Array.from(event.dataTransfer.files);
-      // Add size validation before dispatching
-      const oversizedFiles = files.filter(file => {
-        const validation = validateFileSize(file);
-        return !validation.valid;
-      });
-
-      if (oversizedFiles.length > 0) {
-        const fileType = getFileType(oversizedFiles[0]);
-        const maxSize = fileType === 'video' ? MAX_VIDEO_SIZE : MAX_FILE_SIZE;
-        uploadStore.setMessage(
-          `File too large: Maximum size is ${formatFileSize(maxSize)}`,
-          'error'
-        );
-        return;
-      }
+      // Size validation removed - no file size limits
       dispatch('filesDropped', { files });
     }
   
@@ -51,21 +37,7 @@
   
     function handleFileSelect(event) {
       const files = Array.from(event.target.files);
-      // Add size validation before dispatching
-      const oversizedFiles = files.filter(file => {
-        const validation = validateFileSize(file);
-        return !validation.valid;
-      });
-
-      if (oversizedFiles.length > 0) {
-        const fileType = getFileType(oversizedFiles[0]);
-        const maxSize = fileType === 'video' ? MAX_VIDEO_SIZE : MAX_FILE_SIZE;
-        uploadStore.setMessage(
-          `File too large: Maximum size is ${formatFileSize(maxSize)}`,
-          'error'
-        );
-        return;
-      }
+      // Size validation removed - no file size limits
       dispatch('filesSelected', { files });
       event.target.value = ''; // Reset input
     }

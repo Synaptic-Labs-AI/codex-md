@@ -25,7 +25,8 @@ export const TEMP_FILE_CONFIG = {
     RETRY_COUNT: 3,
     RETRY_DELAY: 500,
     CLEANUP_DELAY: 1000,
-    SIZE_THRESHOLD: 100 * 1024 * 1024 // 100MB
+    SIZE_THRESHOLD: 100 * 1024 * 1024, // 100MB
+    MAX_AGE: 30 * 60 * 1000 // 30 minutes - max time to keep temp files
 };
 
 export const BINARY_FILE_EXTENSIONS = [
