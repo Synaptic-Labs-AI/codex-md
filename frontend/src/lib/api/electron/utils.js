@@ -13,11 +13,13 @@
  * Generates a unique identifier
  * @returns {string} A UUID v4 or timestamp-based fallback
  */
-export function generateId() {
+export function generateId(type = '') {
   try {
-    return crypto.randomUUID();
+    const uuid = crypto.randomUUID();
+    return type ? `${type}-${uuid}` : uuid;
   } catch (e) {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return type ? `${type}-${id}` : id;
   }
 }
 

@@ -4,11 +4,11 @@
   import Button from './common/Button.svelte';
   import Container from './common/Container.svelte';
   import ConversionProgress from './ConversionProgress.svelte';
-  import WebsiteProgressDisplay from './WebsiteProgressDisplay.svelte';
-  import { unifiedConversion, ConversionState, currentFile, websiteProgress } from '$lib/stores/unifiedConversion.js';
+  import { unifiedConversion, ConversionState, currentFile } from '$lib/stores/unifiedConversion.js';
   import { conversionResult } from '$lib/stores/conversionResult.js';
   import { clearFiles, downloadHandler, storeManager } from '$lib/utils/conversion';
   import { files } from '$lib/stores/files.js';
+  import { conversionTimer } from '$lib/stores/conversionTimer.js';
 
   const dispatch = createEventDispatcher();
   
@@ -34,16 +34,6 @@
     'processing_pages',
     'generating_index'
   ].includes($unifiedConversion.status);
-  
-  // Check if this is a website conversion
-  $: isWebsiteConversion = $unifiedConversion.type === ConversionState.TYPE.WEBSITE || 
-    [
-      'finding_sitemap',
-      'parsing_sitemap',
-      'crawling_pages',
-      'processing_pages',
-      'generating_index'
-    ].includes($unifiedConversion.status);
   $: {
     // Track completion state in a way that persists
     const statusCompleted = $unifiedConversion.status === ConversionState.STATUS.COMPLETED || $unifiedConversion.completionTime !== null;
@@ -110,13 +100,8 @@
     {#if isConverting || isCompleted || hasError}
       <!-- Progress section -->
       <div class="progress-section">
-        {#if isWebsiteConversion}
-          <!-- Use our new simplified website progress display for website conversions -->
-          <WebsiteProgressDisplay />
-        {:else}
-          <!-- Use the regular conversion progress for other conversions -->
-          <ConversionProgress bind:this={conversionProgressComponent} />
-        {/if}
+        <!-- Use the simplified conversion progress for all conversion types -->
+        <ConversionProgress bind:this={conversionProgressComponent} />
       </div>
 
       <!-- Action buttons - only show when completed -->

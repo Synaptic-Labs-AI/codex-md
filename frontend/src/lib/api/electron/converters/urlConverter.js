@@ -106,54 +106,33 @@ export async function convertUrl(url, options = {}, onProgress = null) {
  */
 export async function convertParentUrl(url, options = {}, onProgress = null) {
   try {
+    // Reset any existing state first
+    unifiedConversion.reset();
+
     // Normalize URL
     const normalizedUrl = normalizeUrl(url);
 
-    // Set initial website status
-    unifiedConversion.batchUpdate({
-      type: ConversionState.TYPE.WEBSITE,
-      status: ConversionState.STATUS.INITIALIZING,
-      message: `Preparing to convert ${normalizedUrl}...`,
-      currentUrl: normalizedUrl,
-      progress: 0
-    });
+    // Initialize website conversion with simplified state
+    console.log(`[urlConverter] Starting website conversion for: ${normalizedUrl}`);
     
-    // Log the initial status
-    console.log('[urlConverter] Website conversion initialized:', {
-      url: normalizedUrl,
-      pathFilter: options.pathFilter,
-      timestamp: new Date().toISOString()
-    });
+    // Start website conversion
+    unifiedConversion.startWebsiteConversion(normalizedUrl);
 
-    // Generate a job ID
-    const jobId = generateId();
+    // Generate a unique job ID for tracking
+    const jobId = generateId('website');
 
     // Register event handlers
     eventHandlerManager.registerHandlers(jobId, normalizedUrl, onProgress);
 
-    // Prepare request data with enhanced options for better content extraction
+    // Prepare request data with essential options
     const requestData = {
       url: normalizedUrl,
       options: {
         includeImages: true,
         includeMeta: true,
-        handleDynamicContent: true, // Enable dynamic content handling for SPAs
         // Default crawling parameters
-        concurrentLimit: 30, // Limit concurrent requests to avoid overwhelming the server
-        waitBetweenRequests: 500, // Add a small delay between requests to be more respectful
-        maxDepth: options.depth || 2, // Default to depth 2 for better content coverage
-        maxPages: options.maxPages || 50, // Default to 50 pages for better content coverage
-        // Enhanced options for better content extraction
-        got: {
-          timeout: {
-            request: 45000,
-            response: 45000
-          },
-          retry: {
-            limit: 5,
-            statusCodes: [408, 413, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524]
-          }
-        },
+        maxDepth: options.depth || 2,
+        maxPages: options.maxPages || 50,
         ...options
       }
     };
@@ -161,8 +140,7 @@ export async function convertParentUrl(url, options = {}, onProgress = null) {
     // Log options for debugging
     console.log('Parent URL conversion options:', {
       url: normalizedUrl,
-      outputDir: options.outputDir,
-      createSubdirectory: options.createSubdirectory
+      outputDir: options.outputDir
     });
 
     // Call the IPC method

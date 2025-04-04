@@ -344,50 +344,42 @@ class ElectronConversionService {
           pathFilter: pathFilter || options.pathFilter, // Use detected path filter or provided one
           outputDir: options.outputDir || this.defaultOutputDir,
           onProgress: (progressData) => {
-            // Handle different progress events from the parentUrlConverter
+            // Always pass through all backend information
+            if (options.onProgress && typeof progressData === 'object') {
+              // Clean and standardize the progress data
+              const cleanedData = {
+                ...progressData,
+                // Ensure required fields are present
+                status: progressData.status || 'converting',
+                websiteUrl: url,
+                // Keep the original progress value
+                progress: progressData.progress,
+                // Preserve all page processing information
+                currentUrl: progressData.currentUrl,
+                currentPath: progressData.currentPath,
+                currentHost: progressData.currentHost,
+                processedCount: progressData.processedCount,
+                totalCount: progressData.totalCount,
+                // Ensure section information is preserved
+                sections: progressData.sections,
+                currentSection: progressData.section || progressData.currentSection
+              };
+
+              // Log progress update for debugging
+              console.log('[ElectronConversionService] Website progress update:', {
+                data: cleanedData,
+                timestamp: new Date().toISOString()
+              });
+
+              // Pass through to the progress handler
+              options.onProgress(cleanedData);
+            }
+
+            // Update overall progress if a number is provided
             if (typeof progressData === 'number') {
-              // Simple progress percentage
-              progressTracker.updateScaled(progressData, 10, 50);
-            } else if (typeof progressData === 'object') {
-              // Enhanced progress data
-              if (progressData.status === 'sitemap_found') {
-                // Update status when sitemap is found
-                if (options.onProgress) {
-                  options.onProgress({
-                    status: 'parsing_sitemap',
-                    sitemapUrls: progressData.urlCount || 0
-                  });
-                }
-              } else if (progressData.status === 'crawling') {
-                // Update status when crawling pages
-                if (options.onProgress) {
-                  options.onProgress({
-                    status: 'crawling_pages',
-                    crawledUrls: progressData.urlCount || 0
-                  });
-                }
-              } else if (progressData.status === 'processing') {
-                // Update status when processing pages
-                if (options.onProgress) {
-                  options.onProgress({
-                    status: 'processing_pages',
-                    currentFile: progressData.currentUrl,
-                    processedCount: progressData.processedCount || 0,
-                    totalCount: progressData.totalCount || 0
-                  });
-                }
-              } else if (progressData.status === 'section') {
-                // Update section information
-                if (options.onProgress) {
-                  options.onProgress({
-                    currentSection: progressData.section,
-                    sectionCounts: { [progressData.section]: progressData.count }
-                  });
-                }
-              }
-              
-              // Always update the scaled progress
-              progressTracker.updateScaled(progressData.progress || 0, 10, 50);
+              progressTracker.update(progressData);
+            } else if (progressData.progress) {
+              progressTracker.update(progressData.progress);
             }
           }
         }
@@ -405,12 +397,13 @@ class ElectronConversionService {
       
       progressTracker.update(50);
       
-      // Update status to generating index
+      // Update status to generating index - don't mark as completed yet
       if (options.onProgress) {
         options.onProgress({
           status: 'generating_index',
           processedCount: result.stats?.successfulPages || 0,
-          totalCount: result.stats?.totalPages || 0
+          totalCount: result.stats?.totalPages || 0,
+          progress: 90 // Almost done but not complete
         });
       }
       
@@ -499,13 +492,21 @@ class ElectronConversionService {
         }
       }
       
-      progressTracker.update(100);
+      // Update progress to almost complete, but not 100% yet
+      progressTracker.update(95);
       
       console.log(`✅ Parent URL conversion completed in ${Date.now() - startTime}ms:`, {
         url,
         outputPath: outputBasePath,
         childPages: result.files?.length || 0
       });
+      
+      // Final progress update - NOW we can mark as 100% complete
+      // This happens right before returning, when all work is truly done
+      progressTracker.update(100);
+      
+      // Add a small delay to ensure UI has time to process the completion
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       return {
         success: true,

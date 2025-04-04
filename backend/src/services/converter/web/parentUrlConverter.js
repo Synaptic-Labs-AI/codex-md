@@ -22,55 +22,33 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
     const hostname = urlObj.hostname;
     console.log(`🚀 Starting conversion of ${parentUrl}`);
 
+    // Send a single initial progress event
+    if (options.onProgress) {
+      options.onProgress({
+        status: 'converting',
+        websiteUrl: parentUrl,
+        startTime: Date.now(),
+        progress: 10,
+        message: `Starting conversion of ${hostname}`
+      });
+    }
+
     // Initialize sitemap parser
     const sitemapParser = new SitemapParser({
       maxEntries: options.maxPages || 1000,
       timeout: options.timeout || 30000
     });
 
-    // Report initial status
-    if (options.onProgress) {
-      options.onProgress({
-        status: 'initializing',
-        websiteUrl: parentUrl,
-        startTime: Date.now(),
-        progress: 5
-      });
-
-      // Give UI time to show initial state
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
     // Find URLs to process
     let urlsToProcess = new Set();
 
-    // First try sitemap
-    if (options.onProgress) {
-      options.onProgress({
-        status: 'finding_sitemap',
-        websiteUrl: parentUrl,
-        progress: 10
-      });
-    }
-
-    // Initialize sitemap parser with progress tracking
-    const sitemapUrls = await sitemapParser.initialize(parentUrl, {
-      onProgress: options.onProgress
-    });
+    // Initialize sitemap parser (without sending progress events)
+    const sitemapUrls = await sitemapParser.initialize(parentUrl);
 
     // Handle sitemap results
     if (sitemapUrls.length > 0) {
       console.log(`📋 Found ${sitemapUrls.length} URLs in sitemap`);
       
-      if (options.onProgress) {
-        options.onProgress({
-          status: 'parsing_sitemap',
-          websiteUrl: parentUrl,
-          urlCount: sitemapUrls.length,
-          progress: 20
-        });
-      }
-
       // Filter sitemap URLs if path filter provided
       const filteredUrls = options.pathFilter
         ? sitemapUrls.filter(url => {
@@ -86,32 +64,6 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
       filteredUrls.forEach(url => urlsToProcess.add(url));
     } else {
       console.log(`⚠️ No URLs found in sitemap, will only process parent URL`);
-      
-      // If no sitemap, notify crawling status then transition to processing
-      if (options.onProgress) {
-        // First notify that we didn't find a sitemap and are starting crawl
-        options.onProgress({
-          status: 'crawling_pages',
-          websiteUrl: parentUrl,
-          message: 'No sitemap found, starting crawl',
-          progress: 15,
-          processedCount: 0,
-          totalCount: 1
-        });
-
-        // Short delay to allow UI to update
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Then transition to processing
-        options.onProgress({
-          status: 'processing_pages',
-          websiteUrl: parentUrl,
-          message: 'Processing parent URL',
-          progress: 20,
-          processedCount: 0,
-          totalCount: 1
-        });
-      }
     }
 
     // Add parent URL if not already included
@@ -124,17 +76,6 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
 
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
-
-      if (options.onProgress) {
-        options.onProgress({
-          status: 'processing',
-          websiteUrl: parentUrl,
-          currentUrl: url,
-          processedCount: i,
-          totalCount: totalUrls,
-          progress: 20 + Math.floor((i / totalUrls) * 70)
-        });
-      }
 
       try {
         // Validate and normalize URL before conversion
@@ -190,56 +131,6 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
           success: true
         });
 
-        // Track section progress
-        try {
-          // Extract URL string from url (which might be an object from sitemap)
-          let urlString;
-          if (typeof url === 'string') {
-            urlString = url;
-          } else if (url && typeof url === 'object') {
-            // If it's a URL object from sitemap parser
-            if (url.url && typeof url.url === 'string') {
-              urlString = url.url;
-            } else if (typeof url.toString === 'function') {
-              const tempString = url.toString();
-              // Verify toString() didn't just return [object Object]
-              if (tempString === '[object Object]') {
-                console.warn(`Skipping section extraction for invalid URL object: ${JSON.stringify(url)}`);
-                continue; // Skip section extraction
-              }
-              urlString = tempString;
-            } else {
-              console.warn(`Skipping section extraction for URL with invalid format: ${JSON.stringify(url)}`);
-              continue; // Skip section extraction
-            }
-          } else {
-            console.warn(`Skipping section extraction for URL with invalid type: ${typeof url}`);
-            continue; // Skip section extraction
-          }
-          
-          // Ensure URL has proper protocol
-          if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
-            urlString = `https://${urlString}`;
-          }
-          
-          const urlObj = new URL(urlString);
-          const pathParts = urlObj.pathname.split('/').filter(Boolean);
-          const section = pathParts[0] || 'main';
-          
-          if (options.onProgress) {
-            options.onProgress({
-              status: 'section',
-              websiteUrl: parentUrl,
-              section: section.charAt(0).toUpperCase() + section.slice(1),
-              count: 1,
-              progress: 20 + Math.floor((i / totalUrls) * 70), // Include current progress
-              processedCount: i,
-              totalCount: totalUrls
-            });
-          }
-        } catch (error) {
-          console.error('Error extracting section:', error, typeof url === 'object' ? JSON.stringify(url) : url);
-        }
       } catch (error) {
         console.error(`Failed to convert ${typeof url === 'string' ? url : JSON.stringify(url)}:`, error);
         processedPages.push({
@@ -250,18 +141,42 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
       }
     }
 
-    // Generate index
+    // Generate output files
+    const { files, indexContent } = generateOutputFiles(parentUrl, processedPages, hostname);
+
+    // Send a single final progress event
     if (options.onProgress) {
+      const successCount = processedPages.filter(p => p.success).length;
+      const failedCount = processedPages.filter(p => !p.success).length;
+      const sections = new Set();
+      
+      // Extract sections for reporting
+      processedPages.forEach(page => {
+        try {
+          if (page.success) {
+            const urlObj = new URL(page.url);
+            const pathParts = urlObj.pathname.split('/').filter(Boolean);
+            const section = pathParts[0] || 'main';
+            sections.add(section);
+          }
+        } catch (error) {
+          // Ignore errors in section extraction for reporting
+        }
+      });
+      
       options.onProgress({
-        status: 'generating_index',
+        status: 'completed',
         websiteUrl: parentUrl,
         processedCount: processedPages.length,
         totalCount: processedPages.length,
-        progress: 90
+        successCount: successCount,
+        failedCount: failedCount,
+        sectionCount: sections.size,
+        sections: Array.from(sections),
+        progress: 100, // Explicitly set to 100%
+        message: `Completed scraping ${hostname}: ${successCount} pages successful, ${failedCount} failed, ${sections.size} sections`
       });
     }
-
-    const { files, indexContent } = generateOutputFiles(parentUrl, processedPages, hostname);
 
     return {
       url: parentUrl,

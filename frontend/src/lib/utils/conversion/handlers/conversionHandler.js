@@ -224,12 +224,6 @@ class ConversionHandler {
                     ...options
                 }, (progress) => {
                     storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
-                    if (progress === 100) {
-                        unifiedConversion.batchUpdate({
-                            status: Phase.COMPLETE,
-                            message: 'Website conversion complete!'
-                        });
-                    }
                 });
             } else if (item.type === FILE_TYPES.YOUTUBE) {
                 // Convert YouTube URL with output directory

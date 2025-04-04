@@ -1,4 +1,14 @@
-<!-- src/lib/components/ConversionProgress.svelte -->
+<!-- 
+  ConversionProgress.svelte
+  
+  A simplified component that shows conversion progress with a timer and rotating fun messages.
+  Messages rotate on a fixed interval, completely independent of actual conversion progress.
+  
+  Related files:
+  - frontend/src/lib/utils/conversionMessages.js: Source of fun messages
+  - frontend/src/lib/stores/conversionTimer.js: Timer functionality
+  - frontend/src/lib/stores/unifiedConversion.js: Basic conversion state
+-->
 <script>
   import { onDestroy, onMount } from 'svelte';
   import { fade } from 'svelte/transition';
@@ -6,9 +16,7 @@
   import Timer from './common/Timer.svelte';
   import { conversionTimer } from '$lib/stores/conversionTimer';
   import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion';
-  
-  // Debug mode flag
-  let debugMode = false;
+  import { conversionMessages } from '$lib/utils/conversionMessages';
   
   // Track bubble position to alternate
   let bubblePosition = 'left';
@@ -19,37 +27,32 @@
     return bubblePosition;
   }
 
+  // State for message rotation
+  let currentMessageIndex = 0;
+  let messageInterval;
+  let currentMessage = '';
+
   // Persistent state for completion
   let isPersistentlyCompleted = false;
   let completionMessage = '';
   let finalTotalCount = 0;
   let finalElapsedTime = '';
 
-  // Subscribe to stores
+  // Subscribe to minimal set of store properties
   let status = ConversionState.STATUS.IDLE;
-  let progress = 0;
-  let currentFile = null;
-  let processedCount = 0;
   let totalCount = 0;
-  let chunkProgress = 0;
-  let completionTimestamp = null;
+  let error = null;
 
   // Function to capture completion state
   function captureCompletionState() {
     isPersistentlyCompleted = true;
     finalTotalCount = totalCount;
     finalElapsedTime = $conversionTimer.elapsedTime;
-    completionMessage = `Successfully converted all ${finalTotalCount} files! 🎉<br>Time taken: ${finalElapsedTime}`;
+    completionMessage = `Successfully converted ${finalTotalCount > 0 ? `all ${finalTotalCount} files` : 'your content'}! 🎉<br>Time taken: ${finalElapsedTime}`;
+    
+    // Clear message rotation interval
+    stopMessageRotation();
   }
-
-  // Worker initialization messages
-  const workerMessages = [
-    "Initializing worker processes...",
-    "Setting up conversion environment...",
-    "Preparing files for processing..."
-  ];
-  let currentWorkerMessageIndex = 0;
-  let workerMessageInterval;
 
   // Function to reset state
   export function resetState() {
@@ -57,111 +60,90 @@
     completionMessage = '';
     finalTotalCount = 0;
     finalElapsedTime = '';
+    
+    // Reset message rotation
+    stopMessageRotation();
+    currentMessageIndex = 0;
+    updateCurrentMessage();
   }
 
+  // Function to get the next message
+  function updateCurrentMessage() {
+    currentMessage = conversionMessages[currentMessageIndex];
+    currentMessageIndex = (currentMessageIndex + 1) % conversionMessages.length;
+  }
+
+  // Start message rotation - completely independent of conversion progress
+  function startMessageRotation() {
+    // Initialize with first message
+    updateCurrentMessage();
+    
+    // Set up interval to rotate messages every 3 seconds
+    if (!messageInterval) {
+      messageInterval = setInterval(() => {
+        updateCurrentMessage();
+      }, 3000);
+    }
+  }
+
+  // Stop message rotation
+  function stopMessageRotation() {
+    if (messageInterval) {
+      clearInterval(messageInterval);
+      messageInterval = null;
+    }
+  }
+
+  // Simple subscription to conversion state - only care about active/completed
   const unsubStatus = unifiedConversion.subscribe(value => {
-    console.log('[ConversionProgress] Received store update:', {
-      newStatus: value.status,
-      currentStatus: status,
-      progress: value.progress,
-      currentFile: value.currentFile,
-      processedCount: value.processedCount,
-      totalCount: value.totalCount,
-      isPersistentlyCompleted,
-      timestamp: new Date().toISOString()
-    });
+    // Update minimal set of properties
+    status = value.status;
+    totalCount = value.totalCount || 0;
+    error = value.error;
 
-    // Don't update status if we're persistently completed unless it's explicitly reset
-    if (!isPersistentlyCompleted || value.status === ConversionState.STATUS.IDLE) {
-      // Update status and other properties
-      status = value.status;
-      progress = value.progress || 0;
-      currentFile = value.currentFile;
-      processedCount = value.processedCount || 0;
-      totalCount = value.totalCount || 0;
-      chunkProgress = value.chunkProgress || 0;
-      completionTimestamp = value.completionTimestamp;
-
-      console.log('[ConversionProgress] State updated:', {
-        newStatus: status,
-        progress,
-        currentFile,
-        processedCount,
-        totalCount,
-        timestamp: new Date().toISOString()
-      });
-
-      // Manage timer based on status
-      const activeStates = [
-        ConversionState.STATUS.INITIALIZING, 
-        'initializing_workers', // Legacy status
-        'selecting_output', // Legacy status
-        ConversionState.STATUS.PREPARING, 
-        ConversionState.STATUS.CONVERTING, 
-        ConversionState.STATUS.CLEANING_UP
-      ];
-      const completedStates = [
-        ConversionState.STATUS.COMPLETED, 
-        ConversionState.STATUS.ERROR, 
-        'stopped', // Legacy status
-        ConversionState.STATUS.CANCELLED
-      ];
-      
-      if (activeStates.includes(status) && !$conversionTimer.isRunning) {
-        console.log('[ConversionProgress] Starting timer for status:', status);
-        conversionTimer.start();
-      } else if (completedStates.includes(status)) {
-        console.log('[ConversionProgress] Stopping timer for status:', status);
-        conversionTimer.stop();
-        
-        // Clear worker message interval if it's running
-        if (workerMessageInterval) {
-          clearInterval(workerMessageInterval);
-          workerMessageInterval = null;
-        }
-
-        // Capture completion state when status becomes 'completed'
-        if (status === ConversionState.STATUS.COMPLETED) {
-          captureCompletionState();
-        }
-      }
+    // Start timer and message rotation as soon as conversion starts
+    if (status !== ConversionState.STATUS.IDLE && 
+        status !== ConversionState.STATUS.COMPLETED && 
+        status !== ConversionState.STATUS.ERROR &&
+        status !== ConversionState.STATUS.CANCELLED &&
+        !$conversionTimer.isRunning) {
+      conversionTimer.start();
+      startMessageRotation();
     }
     
-    // Start worker message rotation if we're initializing workers
-    if (status === 'initializing_workers' && !workerMessageInterval) {
-      console.log('[ConversionProgress] Starting worker message rotation');
-      currentWorkerMessageIndex = 0;
-      workerMessageInterval = setInterval(() => {
-        currentWorkerMessageIndex = (currentWorkerMessageIndex + 1) % workerMessages.length;
-        console.log('[ConversionProgress] Updated worker message:', workerMessages[currentWorkerMessageIndex]);
-      }, 2000); // Rotate messages every 2 seconds
-    } else if (status !== 'initializing_workers' && workerMessageInterval) {
-      console.log('[ConversionProgress] Stopping worker message rotation');
-      clearInterval(workerMessageInterval);
-      workerMessageInterval = null;
+    // Handle completion
+    if (status === ConversionState.STATUS.COMPLETED && !isPersistentlyCompleted) {
+      conversionTimer.stop();
+      captureCompletionState();
+    }
+    
+    // Handle error
+    if (status === ConversionState.STATUS.ERROR || 
+        status === ConversionState.STATUS.CANCELLED) {
+      conversionTimer.stop();
+      stopMessageRotation();
     }
   });
 
-  $: showChunkingProgress = (status === ConversionState.STATUS.PREPARING || status === ConversionState.STATUS.CONVERTING) && chunkProgress > 0 && chunkProgress < 100;
-
-  // Enable debug mode with keyboard shortcut (Ctrl+Shift+D)
-  function handleKeyDown(event) {
-    if (event.ctrlKey && event.shiftKey && event.key === 'D') {
-      debugMode = !debugMode;
-      document.body.setAttribute('data-debug', debugMode.toString());
-      console.log(`[ConversionProgress] Debug mode ${debugMode ? 'enabled' : 'disabled'}`);
-    }
-  }
-
   onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    // Start message rotation immediately if conversion is active
+    if (status !== ConversionState.STATUS.IDLE && 
+        status !== ConversionState.STATUS.COMPLETED && 
+        status !== ConversionState.STATUS.ERROR &&
+        status !== ConversionState.STATUS.CANCELLED &&
+        !isPersistentlyCompleted) {
+      startMessageRotation();
+      
+      // Start timer if not already running
+      if (!$conversionTimer.isRunning) {
+        conversionTimer.start();
+      }
+    }
   });
 
   onDestroy(() => {
     unsubStatus();
+    stopMessageRotation();
     // Don't reset the timer on component destroy
     // This ensures the timer continues across different phases
   });
@@ -174,104 +156,34 @@
       <Timer time={$conversionTimer.elapsedTime} />
     </div>
 
-    <!-- Stage-based chat bubbles -->
-    {#if status === ConversionState.STATUS.INITIALIZING}
+    <!-- Show appropriate message based on state -->
+    {#if status === ConversionState.STATUS.COMPLETED || isPersistentlyCompleted}
       <ChatBubble
         name="Codex"
         avatar="📖"
-        message="Initializing conversion process..."
-        avatarPosition={togglePosition()}
-      />
-    {:else if status === 'initializing_workers'}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message={workerMessages[currentWorkerMessageIndex]}
-        avatarPosition={togglePosition()}
-      />
-    {:else if status === 'selecting_output'}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message="Please select an output location..."
-        avatarPosition={togglePosition()}
-      />
-    {:else if status === ConversionState.STATUS.PREPARING}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message="Getting everything ready..."
-        avatarPosition={togglePosition()}
-      />
-      
-      {#if showChunkingProgress}
-        <ChatBubble
-          name="Codex"
-          avatar="📖"
-          message="Breaking down {currentFile} into manageable pieces... {chunkProgress.toFixed(2)}%"
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-    {:else if status === ConversionState.STATUS.CONVERTING}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message="Preparing {totalCount} files for conversion..."
-        avatarPosition={togglePosition()}
-      />
-
-      {#if showChunkingProgress}
-        <ChatBubble
-          name="Codex"
-          avatar="📖"
-          message="Breaking down {currentFile} into manageable pieces... {chunkProgress.toFixed(2)}%"
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-
-      <!-- Create message content reactively -->
-      {#if currentFile}
-        {@const conversionMsg = `Converting ${processedCount}/${totalCount} files\nCurrent: ${currentFile} - ${progress.toFixed(2)}%`}
-        <ChatBubble
-          name="Codex"
-          avatar="📖"
-          message={conversionMsg}
-          avatarPosition={togglePosition()}
-        />
-      {:else}
-        <ChatBubble
-          name="Codex"
-          avatar="📖"
-          message={`Converting ${processedCount}/${totalCount} files...`}
-          avatarPosition={togglePosition()}
-        />
-      {/if}
-    {:else if status === ConversionState.STATUS.CLEANING_UP}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message="Cleaning up temporary files..."
-        avatarPosition={togglePosition()}
-      />
-    {:else if status === ConversionState.STATUS.COMPLETED || isPersistentlyCompleted}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message={isPersistentlyCompleted ? completionMessage : `Successfully converted all ${totalCount} files! 🎉<br>Time taken: ${$conversionTimer.elapsedTime}`}
+        message={completionMessage}
         avatarPosition={togglePosition()}
       />
     {:else if status === ConversionState.STATUS.ERROR}
       <ChatBubble
         name="Codex"
         avatar="📖"
-        message="Encountered an error during conversion. Please try again."
+        message={`Encountered an error during conversion: ${error || 'Unknown error'}. Please try again.`}
         avatarPosition={togglePosition()}
       />
     {:else if status === 'stopped' || status === ConversionState.STATUS.CANCELLED}
       <ChatBubble
         name="Codex"
         avatar="📖"
-        message="Conversion {status === ConversionState.STATUS.CANCELLED ? 'cancelled' : 'stopped'}. Processed {processedCount} of {totalCount} files."
+        message={`Conversion ${status === ConversionState.STATUS.CANCELLED ? 'cancelled' : 'stopped'}. ${totalCount > 0 ? `Processed some of ${totalCount} files.` : ''}`}
+        avatarPosition={togglePosition()}
+      />
+    {:else}
+      <!-- Show rotating fun messages during active conversion -->
+      <ChatBubble
+        name="Codex"
+        avatar="📖"
+        message={currentMessage}
         avatarPosition={togglePosition()}
       />
     {/if}
@@ -285,20 +197,4 @@
     gap: 1rem;
     padding: 1rem;
   }
-
-  :global(.debug-info) {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: #1e1e1e;
-    color: #d4d4d4;
-    border-radius: 4px;
-    font-family: monospace;
-    white-space: pre-wrap;
-    display: none;
-  }
-
-  :global([data-debug="true"] .debug-info) {
-    display: block;
-  }
-
 </style>

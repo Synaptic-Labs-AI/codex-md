@@ -313,5 +313,42 @@ async function findMainContent(page, options) {
 }
 
 module.exports = {
-  convertUrl
+  convertUrl,
+  convertParentUrl: async (url, options = {}) => {
+    // Import and use the parent URL converter
+    const { convertParentUrlToMarkdown } = await import(
+      '../../../backend/src/services/converter/web/parentUrlConverter.js'
+    );
+
+    // Create website-specific progress handler
+    const websiteOptions = {
+      ...options,
+      onProgress: (data) => {
+        const progressData = {
+          ...data,
+          type: 'website',
+          _conversionType: 'website',
+          _jobType: 'website-conversion',
+          websiteUrl: url,
+        };
+
+        // Log each progress update
+        console.log('[urlConverterAdapter] Website progress:', {
+          status: progressData.status,
+          type: progressData.type,
+          currentUrl: progressData.currentUrl,
+          progress: progressData.progress,
+          timestamp: new Date().toISOString()
+        });
+
+        // Pass through to original handler
+        if (options.onProgress) {
+          options.onProgress(progressData);
+        }
+      }
+    };
+
+    // Call parent URL converter with enhanced options
+    return await convertParentUrlToMarkdown(url, websiteOptions);
+  }
 };

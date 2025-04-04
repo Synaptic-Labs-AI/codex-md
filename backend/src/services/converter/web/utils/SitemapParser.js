@@ -174,10 +174,9 @@ export class SitemapParser {
   /**
    * Initialize parsing by checking common sitemap locations
    * @param {string} baseUrl - Base URL of the website
-   * @param {Object} options - Additional options including onProgress callback
    * @returns {Promise<Array>} Array of URL objects
    */
-  async initialize(baseUrl, options = {}) {
+  async initialize(baseUrl) {
     // Ensure baseUrl is a string
     const baseUrlString = typeof baseUrl === 'string' ? baseUrl : baseUrl.toString();
     
@@ -224,32 +223,9 @@ export class SitemapParser {
             try {
               console.log(`🔍 Checking sitemap at ${location}`);
               
-              // Update progress if callback provided
-              if (options.onProgress) {
-                options.onProgress({
-                  status: 'finding_sitemap',
-                  websiteUrl: baseUrl,
-                  currentLocation: location,
-                  checkedLocations: allLocations.indexOf(location) + 1,
-                  totalLocations: allLocations.length,
-                  progress: Math.round((allLocations.indexOf(location) + 1) / allLocations.length * 100)
-                });
-              }
-              
               const urls = await this.fetchAndParseSitemap(location);
               if (urls.length > 0) {
                 console.log(`✅ Found valid sitemap at ${location} with ${urls.length} URLs`);
-                
-                // Emit progress event if onProgress callback is provided
-                if (options.onProgress) {
-                  options.onProgress({
-                    status: 'parsing_sitemap',
-                    urlCount: urls.length,
-                    sitemapUrl: location,
-                    websiteUrl: baseUrl
-                  });
-                }
-                
                 return urls;
               }
             } catch (error) {
@@ -259,20 +235,6 @@ export class SitemapParser {
           }
           
           console.log('⚠️ No sitemaps found at common locations');
-          
-          // Notify that we're moving to crawling when no sitemap is found
-          if (options.onProgress) {
-            options.onProgress({
-              status: 'crawling_pages',
-              websiteUrl: baseUrl,
-              message: 'No sitemap found, switching to crawling mode',
-              progress: 15
-            });
-
-            // Short delay to allow UI to update
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-          
           return [];
         })(),
         timeoutPromise
@@ -281,20 +243,6 @@ export class SitemapParser {
       return result;
     } catch (error) {
       console.warn(`Sitemap discovery process failed or timed out: ${error.message}`);
-      
-          // Notify about timeout and switch to crawling
-          if (options.onProgress) {
-            options.onProgress({
-              status: 'crawling_pages',
-              websiteUrl: baseUrl,
-              message: `Sitemap discovery timed out: ${error.message}`,
-              progress: 15
-            });
-
-            // Short delay to allow UI to update
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-      
       return [];
     }
   }

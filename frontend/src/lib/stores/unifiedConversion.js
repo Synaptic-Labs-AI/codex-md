@@ -1,18 +1,12 @@
 /**
  * Unified Conversion Store
  * 
- * A centralized store for managing all conversion-related state including:
- * - File conversions
- * - Batch conversions
- * - Website conversions
- * 
- * This store replaces the separate conversionStatus and websiteProgressStore
- * with a unified API and state model.
+ * A simplified store for managing conversion state.
+ * Provides basic status tracking and essential methods.
  * 
  * Related files:
+ * - frontend/src/lib/components/ConversionProgress.svelte
  * - frontend/src/lib/utils/conversion/manager/storeManager.js
- * - frontend/src/lib/components/ConversionStatus.svelte
- * - frontend/src/lib/components/WebsiteProgressDisplay.svelte
  */
 
 import { writable, derived } from 'svelte/store';
@@ -39,7 +33,24 @@ export const ConversionState = {
   }
 };
 
-// Initial state with all possible properties
+// Legacy status mapping for backward compatibility
+const legacyStatusMap = {
+  'initializing': ConversionState.STATUS.INITIALIZING,
+  'preparing': ConversionState.STATUS.PREPARING,
+  'finding_sitemap': ConversionState.STATUS.PREPARING,
+  'parsing_sitemap': ConversionState.STATUS.PREPARING,
+  'crawling_pages': ConversionState.STATUS.PREPARING,
+  'processing': ConversionState.STATUS.CONVERTING,
+  'section': ConversionState.STATUS.CONVERTING,
+  'converting': ConversionState.STATUS.CONVERTING,
+  'generating_index': ConversionState.STATUS.CONVERTING,
+  'completed': ConversionState.STATUS.COMPLETED,
+  'complete': ConversionState.STATUS.COMPLETED,
+  'error': ConversionState.STATUS.ERROR,
+  'failed': ConversionState.STATUS.ERROR
+};
+
+// Initial state with essential properties
 const initialState = {
   // Common properties
   status: ConversionState.STATUS.IDLE,
@@ -50,26 +61,15 @@ const initialState = {
   
   // File-specific properties
   currentFile: null,
-  completedCount: 0,
-  errorCount: 0,
-  processedCount: 0,
   totalCount: 0,
-  chunkProgress: 0,
-  
-  // Website-specific properties
-  websiteUrl: null,
-  currentUrl: null,
-  totalUrls: 0,
-  processedUrls: 0,
-  selectedDirectory: null,
   
   // Conversion type
   type: null
 };
 
 /**
- * Creates a unified conversion store
- * @returns {Object} The unified conversion store
+ * Creates a simplified conversion store
+ * @returns {Object} The conversion store
  */
 function createUnifiedConversionStore() {
   const { subscribe, set, update } = writable(initialState);
@@ -118,9 +118,9 @@ function createUnifiedConversionStore() {
     startWebsiteConversion: (url) => {
       set({
         ...initialState,
-        status: ConversionState.STATUS.PREPARING,
+        status: ConversionState.STATUS.CONVERTING, // Start directly in converting state
         type: ConversionState.TYPE.WEBSITE,
-        websiteUrl: url,
+        currentFile: url,
         startTime: Date.now()
       });
     },
@@ -129,72 +129,12 @@ function createUnifiedConversionStore() {
     setCurrentFile: (currentFile) => 
       update(state => ({ ...state, currentFile })),
     
-    incrementCompleted: () => {
-      update(state => {
-        const completedCount = state.completedCount + 1;
-        const processedCount = state.processedCount + 1;
-        const progress = state.totalCount > 0 
-          ? Math.min(Math.round((processedCount / state.totalCount) * 100), 99)
-          : 0;
-          
-        return { 
-          ...state, 
-          completedCount,
-          processedCount,
-          progress
-        };
-      });
-    },
-    
-    incrementError: () => {
-      update(state => {
-        const errorCount = state.errorCount + 1;
-        const processedCount = state.processedCount + 1;
-        
-        return { 
-          ...state, 
-          errorCount,
-          processedCount
-        };
-      });
-    },
-    
-    setChunkProgress: (progress) => {
-      update(state => ({ ...state, chunkProgress: Math.min(progress, 100) }));
-    },
-    
-    // Website-specific methods
-    updateWebsiteProgress: (data) => {
-      update(state => {
-        if (state.type !== ConversionState.TYPE.WEBSITE) return state;
-        
-        const percentComplete = data.totalUrls > 0 
-          ? Math.min(Math.round((data.processedUrls / data.totalUrls) * 100), 99)
-          : 0;
-          
-        return {
-          ...state,
-          currentUrl: data.currentUrl,
-          totalUrls: data.totalUrls,
-          processedUrls: data.processedUrls,
-          progress: percentComplete
-        };
-      });
-    },
-    
-    selectDirectory: (path) => {
-      update(state => ({
-        ...state,
-        selectedDirectory: path
-      }));
-    },
-    
     // Complete conversion
     completeConversion: () => {
       update(state => ({
         ...state,
         status: ConversionState.STATUS.COMPLETED,
-        progress: 100,
+        progress: 100, // Explicitly set to 100%
         completionTime: Date.now()
       }));
       
@@ -213,19 +153,21 @@ function createUnifiedConversionStore() {
     /**
      * Batch updates multiple state properties atomically
      * @param {Object} updates State updates to apply
-     * @param {string} [status] Optional status update
      */
-    batchUpdate: (updates, status = null) => {
+    batchUpdate: (updates) => {
       update(state => {
-        const newState = { ...state, ...updates };
-        if (status) {
-          newState.status = status;
+        // Create new state with updates
+        const newState = {
+          ...state,
+          ...updates
+        };
+
+        // Map legacy status to normalized values if present
+        if (updates.status) {
+          const normalizedStatus = legacyStatusMap[updates.status] || updates.status;
+          newState.status = normalizedStatus;
         }
-        console.log('[UnifiedConversion] Batch update:', {
-          updates,
-          status,
-          timestamp: new Date().toISOString()
-        });
+
         return newState;
       });
     }
@@ -239,8 +181,6 @@ export const unifiedConversion = createUnifiedConversionStore();
 export const conversionProgress = derived(unifiedConversion, $state => $state.progress);
 export const currentFile = derived(unifiedConversion, $state => $state.currentFile);
 export const conversionError = derived(unifiedConversion, $state => $state.error);
-export const completedCount = derived(unifiedConversion, $state => $state.completedCount);
-export const errorCount = derived(unifiedConversion, $state => $state.errorCount);
 export const conversionType = derived(unifiedConversion, $state => $state.type);
 export const conversionStatus = derived(unifiedConversion, $state => $state.status);
 
@@ -248,19 +188,4 @@ export const conversionStatus = derived(unifiedConversion, $state => $state.stat
 export const isConversionComplete = derived(
   unifiedConversion,
   $state => $state.status === ConversionState.STATUS.COMPLETED
-);
-
-// Derived store for website-specific properties
-export const websiteProgress = derived(
-  unifiedConversion,
-  $state => ({
-    phase: $state.status,
-    websiteUrl: $state.websiteUrl,
-    currentUrl: $state.currentUrl,
-    totalUrls: $state.totalUrls,
-    processedUrls: $state.processedUrls,
-    percentComplete: $state.progress,
-    selectedDirectory: $state.selectedDirectory,
-    error: $state.error
-  })
 );

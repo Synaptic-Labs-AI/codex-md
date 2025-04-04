@@ -178,43 +178,30 @@ async function convertParentUrl(url, options = {}) {
       }
     };
     
-    // Add simplified progress tracking for website conversion
-    if (options.onProgress) {
-      const originalOnProgress = options.onProgress;
-      
-      // Create a simple wrapper for the onProgress callback
-      mergedOptions.onProgress = (progressData) => {
-        // If progressData is a simple number, just pass it through
-        if (typeof progressData === 'number') {
-          console.log('[ParentUrlAdapter] Received numeric progress:', progressData);
-          originalOnProgress(progressData);
-          return;
-        }
-        
-        // For object-based progress updates, pass through with minimal transformation
-        if (typeof progressData === 'object') {
-          console.log('[ParentUrlAdapter] Received progress update:', {
-            type: 'incoming',
-            status: progressData.status,
-            data: progressData,
-            timestamp: new Date().toISOString()
-          });
-          
-          // Pass through the update with minimal changes
-          const progressUpdate = {
-            ...progressData,
-            websiteUrl: progressData.websiteUrl || url
-          };
-          
-          console.log('[ParentUrlAdapter] Sending progress update:', progressUpdate);
-          originalOnProgress(progressUpdate);
-        }
-        else {
-          // For any other type of progress data, just pass it through
-          originalOnProgress(progressData);
-        }
-      };
-    }
+  // Enhanced progress tracking with website type
+  if (options.onProgress) {
+    const originalOnProgress = options.onProgress;
+    mergedOptions.onProgress = (progressData) => {
+      // Add website-specific fields to all updates
+      const enhancedData = typeof progressData === 'object' ? {
+        ...progressData,
+        type: 'website',
+        _conversionType: 'website',
+        _jobType: 'website-conversion',
+        websiteUrl: progressData.websiteUrl || url
+      } : progressData;
+
+      console.log('[ParentUrlAdapter] Progress update:', {
+        status: enhancedData.status,
+        type: enhancedData.type,
+        currentUrl: enhancedData.currentUrl,
+        progress: enhancedData.progress,
+        timestamp: new Date().toISOString()
+      });
+
+      originalOnProgress(enhancedData);
+    };
+  }
     
     const { convertParentUrlToMarkdown } = await modulePromise;
     
