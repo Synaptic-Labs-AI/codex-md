@@ -203,12 +203,16 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
 
 /**
  * Generate output files including index
+ * All files are organized in a dedicated folder for the website
  * @private
  */
 function generateOutputFiles(parentUrl, pages, hostname) {
   const successfulPages = pages.filter(p => p.success);
   const failedPages = pages.filter(p => !p.success);
   const timestamp = new Date().toISOString();
+  
+  // Generate a folder name for the website
+  const folderName = generateFolderName(hostname, timestamp);
 
   // Group pages by sections
   const sections = new Map();
@@ -274,6 +278,7 @@ function generateOutputFiles(parentUrl, pages, hostname) {
         
         // Use the page title from metadata if available, otherwise use the filename
         const displayName = page.metadata?.title || filename;
+        // Note: We don't need to change the internal links as they're relative within the folder
         return `- [[${filename}|${displayName}]] - [Original](${page.url})`;
       }),
       ''
@@ -285,10 +290,10 @@ function generateOutputFiles(parentUrl, pages, hostname) {
     ].join('\n') : ''
   ].join('\n');
 
-  // Create files array
+  // Create files array with folder prefix
   const files = [
     {
-      name: 'index.md',
+      name: `${folderName}/index.md`,
       content: indexContent,
       type: 'text'
     },
@@ -319,7 +324,7 @@ function generateOutputFiles(parentUrl, pages, hostname) {
       }
       
       return {
-        name: `${filename}.md`,
+        name: `${folderName}/${filename}.md`,
         content: page.content,
         type: 'text'
       };
@@ -327,4 +332,27 @@ function generateOutputFiles(parentUrl, pages, hostname) {
   ];
 
   return { files, indexContent };
+}
+
+/**
+ * Generate a folder name based on hostname and timestamp
+ * @param {string} hostname - The website hostname
+ * @param {string} timestamp - ISO timestamp string
+ * @returns {string} A sanitized folder name
+ * @private
+ */
+function generateFolderName(hostname, timestamp) {
+  // Sanitize hostname for folder name
+  const sanitizedHostname = hostname
+    .replace(/[^a-zA-Z0-9]/g, '-') // Replace invalid chars with hyphen
+    .replace(/-+/g, '-')           // Replace multiple hyphens with single one
+    .toLowerCase();
+  
+  // Extract date and time components from timestamp for a more readable format
+  const date = new Date(timestamp);
+  const dateStr = date.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
+  const timeStr = date.toISOString().split('T')[1].substring(0, 8).replace(/:/g, ''); // HHMMSS
+  
+  // Combine hostname with date and time to ensure uniqueness
+  return `${sanitizedHostname}-${dateStr}-${timeStr}`;
 }

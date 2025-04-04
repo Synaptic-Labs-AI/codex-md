@@ -533,18 +533,4 @@
       text-decoration: underline;
     }
   }
-
-  /* Reduced Motion */
-  @media (prefers-reduced-motion: reduce) {
-    .company-logo,
-    .social-button {
-      transition: none;
-    }
-
-    .company-logo:hover,
-    .social-button:hover {
-      transform: none;
-      box-shadow: none;
-    }
-  }
 </style>

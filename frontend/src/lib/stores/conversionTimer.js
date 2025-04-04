@@ -10,7 +10,8 @@ function createTimer() {
   const { subscribe, set, update } = writable({
     startTime: null,
     elapsedTime: '00:00:00',
-    isRunning: false
+    isRunning: false,
+    secondsCount: 0
   });
 
   let intervalId = null;
@@ -29,10 +30,15 @@ function createTimer() {
     start: () => {
       update(state => ({ ...state, startTime: Date.now(), isRunning: true }));
       intervalId = setInterval(() => {
-        update(state => ({
-          ...state,
-          elapsedTime: formatTime(Date.now() - state.startTime)
-        }));
+        update(state => {
+          const elapsedMs = Date.now() - state.startTime;
+          const seconds = Math.floor(elapsedMs / 1000);
+          return {
+            ...state,
+            elapsedTime: formatTime(elapsedMs),
+            secondsCount: seconds
+          };
+        });
       }, 1000);
     },
     stop: () => {
@@ -41,7 +47,7 @@ function createTimer() {
     },
     reset: () => {
       if (intervalId) clearInterval(intervalId);
-      set({ startTime: null, elapsedTime: '00:00:00', isRunning: false });
+      set({ startTime: null, elapsedTime: '00:00:00', isRunning: false, secondsCount: 0 });
     }
   };
 }
