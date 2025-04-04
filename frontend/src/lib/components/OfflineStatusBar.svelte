@@ -112,6 +112,15 @@
     class="status-indicator" 
     on:click={toggleExpanded}
     on:keydown={(e) => e.key === 'Enter' && toggleExpanded()}
+    aria-expanded={expanded}
+    aria-controls="offline-expanded-content"
+    role="button"
+    tabindex="0"
+  >
+    <div class="status-icon" class:online={$offlineStore.online}>
+      {#if $offlineStore.online}
+        <span class="icon">🟢</span>
+      {:else}
         <span class="icon">🔴</span>
       {/if}
     </div>
