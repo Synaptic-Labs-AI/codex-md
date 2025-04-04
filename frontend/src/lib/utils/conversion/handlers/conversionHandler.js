@@ -14,12 +14,19 @@
 import { get } from 'svelte/store';
 import { files } from '$lib/stores/files.js';
 import { apiKey } from '$lib/stores/apiKey.js';
-import { websiteProgress, Phase } from '$lib/stores/websiteProgressStore.js';
+import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
 import electronClient from '$lib/api/electron';
 import { storeManager } from '../manager/storeManager.js';
 import { batchHandler } from './batchHandler.js';
 import { tempFileManager } from './tempFileManager.js';
 import { CONVERSION_STATUSES, FILE_TYPES } from '../constants';
+
+// Map old Phase constants to new ConversionState constants for backward compatibility
+const Phase = {
+  PREPARE: ConversionState.STATUS.PREPARING,
+  CONVERTING: ConversionState.STATUS.CONVERTING,
+  COMPLETE: ConversionState.STATUS.COMPLETED
+};
 
 class ConversionHandler {
     /**
@@ -49,8 +56,12 @@ class ConversionHandler {
             // Handle website conversion initialization
             const isWebsiteConversion = items[0]?.type === FILE_TYPES.PARENT;
             if (isWebsiteConversion) {
-                websiteProgress.reset();
-                websiteProgress.setPhase(Phase.PREPARE, 'Preparing website conversion...');
+                unifiedConversion.reset();
+                unifiedConversion.batchUpdate({
+                    type: ConversionState.TYPE.WEBSITE,
+                    status: Phase.PREPARE,
+                    message: 'Preparing website conversion...'
+                });
             }
 
             // Start conversion and set total count
@@ -83,7 +94,10 @@ class ConversionHandler {
             // Handle top-level website error state
             const currentFiles = get(files);
             if (currentFiles && currentFiles[0]?.type === FILE_TYPES.PARENT) {
-                websiteProgress.setPhase(Phase.COMPLETE, `Error: ${errorMessage}`);
+                unifiedConversion.batchUpdate({
+                    status: Phase.COMPLETE,
+                    message: `Error: ${errorMessage}`
+                });
             }
 
             this.showFeedback(errorMessage, 'error');
@@ -106,7 +120,10 @@ class ConversionHandler {
                 
                 // Update website progress if needed
                 if (items[0]?.type === FILE_TYPES.PARENT) {
-                    websiteProgress.setPhase(Phase.COMPLETE, 'Website conversion cancelled');
+                    unifiedConversion.batchUpdate({
+                        status: Phase.COMPLETE,
+                        message: 'Website conversion cancelled'
+                    });
                 }
                 
                 this.showFeedback('Conversion cancelled: No output directory selected', 'info');
@@ -115,7 +132,10 @@ class ConversionHandler {
 
             // Update website progress if needed
             if (items[0]?.type === FILE_TYPES.PARENT && outputResult.path) {
-                websiteProgress.setPhase(Phase.CONVERTING, 'Starting website conversion...');
+                unifiedConversion.batchUpdate({
+                    status: Phase.CONVERTING,
+                    message: 'Starting website conversion...'
+                });
             }
             
             // Get current OCR settings
@@ -158,7 +178,10 @@ class ConversionHandler {
 
             // Handle website error state
             if (items[0]?.type === FILE_TYPES.PARENT) {
-                websiteProgress.setPhase(Phase.COMPLETE, `Error: ${error.message}`);
+                unifiedConversion.batchUpdate({
+                    status: Phase.COMPLETE,
+                    message: `Error: ${error.message}`
+                });
             }
 
             throw error;
@@ -202,7 +225,10 @@ class ConversionHandler {
                 }, (progress) => {
                     storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
                     if (progress === 100) {
-                        websiteProgress.setPhase(Phase.COMPLETE, 'Website conversion complete!');
+                        unifiedConversion.batchUpdate({
+                            status: Phase.COMPLETE,
+                            message: 'Website conversion complete!'
+                        });
                     }
                 });
             } else if (item.type === FILE_TYPES.YOUTUBE) {
@@ -219,10 +245,10 @@ class ConversionHandler {
                 
                 // Save the file to a temporary location
                 const tempFilePath = await tempFileManager.saveTempFile(item.file, (progress) => {
-                    // Update chunk progress if available
-                    if (typeof conversionStatus.setChunkProgress === 'function') {
-                        conversionStatus.setChunkProgress(progress);
-                    }
+                    // Update chunk progress
+                    unifiedConversion.batchUpdate({
+                        chunkProgress: progress
+                    });
                 });
                 
                 try {

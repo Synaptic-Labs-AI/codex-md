@@ -9,37 +9,41 @@
  * - converters/*.js: Converter implementations using these handlers
  */
 
-import { conversionStatus } from '../../stores/conversionStatus.js';
-import { websiteProgress, Phase } from '../../stores/websiteProgressStore.js';
+import { unifiedConversion, ConversionState } from '../../stores/unifiedConversion.js';
+
+// Map old Phase constants to new ConversionState constants for backward compatibility
+const Phase = {
+  PREPARE: ConversionState.STATUS.PREPARING,
+  CONVERTING: ConversionState.STATUS.CONVERTING,
+  COMPLETE: ConversionState.STATUS.COMPLETED
+};
 
 /**
- * Maps conversion events to conversionStatus store methods
+ * Maps conversion events to unifiedConversion store methods
  * @private
  */
 const statusActions = {
   initializing: (state) => {
-    conversionStatus.setStatus('initializing');
-    conversionStatus.setProgress(0);
+    unifiedConversion.setStatus(ConversionState.STATUS.INITIALIZING);
+    unifiedConversion.setProgress(0);
   },
   converting: (state) => {
-    conversionStatus.setStatus('converting');
+    unifiedConversion.setStatus(ConversionState.STATUS.CONVERTING);
     if (state && state.file) {
-      conversionStatus.setCurrentFile(state.file);
+      unifiedConversion.setCurrentFile(state.file);
     }
   },
   completed: (state) => {
-    conversionStatus.setStatus('completed');
-    conversionStatus.setProgress(100);
-    conversionStatus.setCurrentFile(null);
+    unifiedConversion.completeConversion();
+    unifiedConversion.setCurrentFile(null);
   },
   error: (state) => {
-    conversionStatus.setStatus('error');
-    conversionStatus.setError((state && state.error) || 'Unknown error occurred');
+    unifiedConversion.setError((state && state.error) || 'Unknown error occurred');
   },
   cancelled: () => {
-    conversionStatus.setStatus('cancelled');
-    conversionStatus.setProgress(0);
-    conversionStatus.setCurrentFile(null);
+    unifiedConversion.setStatus(ConversionState.STATUS.CANCELLED);
+    unifiedConversion.setProgress(0);
+    unifiedConversion.setCurrentFile(null);
   }
 };
 
@@ -73,10 +77,10 @@ const websiteProgressHandler = (data) => {
   // Update phase if we have one
   if (newPhase) {
     // Set appropriate message based on phase
-    let currentActivity;
+    let message;
     if (newPhase === Phase.PREPARE) {
       if (data.websiteUrl) {
-        currentActivity = data.status === 'finding_sitemap' 
+        message = data.status === 'finding_sitemap' 
           ? `Analyzing website structure for ${data.websiteUrl}...`
           : data.status === 'parsing_sitemap'
           ? `Found sitemap - preparing to convert ${data.websiteUrl}...`
@@ -88,18 +92,23 @@ const websiteProgressHandler = (data) => {
             data.progress ? ` - ${Math.round(data.progress)}%` : ''
           })`
         : data.progress ? `(${Math.round(data.progress)}%)` : '';
-      currentActivity = `Converting ${data.currentUrl} ${progressText}`;
+      message = `Converting ${data.currentUrl} ${progressText}`;
     } else if (newPhase === Phase.COMPLETE) {
-      currentActivity = data.processedCount 
+      message = data.processedCount 
         ? `Successfully converted ${data.processedCount} pages! 🎉`
         : `Website conversion complete! 🎉`;
     }
 
-    websiteProgress.setPhase(newPhase, currentActivity);
+    // Set the type to WEBSITE
+    unifiedConversion.batchUpdate({
+      type: ConversionState.TYPE.WEBSITE,
+      status: newPhase,
+      message
+    });
   }
 
   // Always update progress data
-  websiteProgress.updateProgress({
+  unifiedConversion.updateWebsiteProgress({
     currentUrl: data.currentUrl,
     totalUrls: data.totalUrls || data.urlCount,
     processedUrls: data.processedCount,
@@ -108,7 +117,7 @@ const websiteProgressHandler = (data) => {
 
   // Handle errors
   if (data.status === 'error') {
-    websiteProgress.setError(data.error || 'Unknown error occurred');
+    unifiedConversion.setError(data.error || 'Unknown error occurred');
   }
 };
 
@@ -174,14 +183,17 @@ class EventHandlerManager {
         if (action) {
           action(data);
         } else if (data.status) {
-          conversionStatus.setStatus(data.status);
+          unifiedConversion.setStatus(data.status);
         }
       },
       
       complete: (event, data) => {
         if (!data || !data.id || !this.activeRequests.has(data.id)) return;
         
-        websiteProgress.finishConverting(true);
+        // Mark website conversion as complete if applicable
+        if (unifiedConversion.type === ConversionState.TYPE.WEBSITE) {
+          unifiedConversion.setStatus(ConversionState.STATUS.COMPLETED);
+        }
         statusActions.completed(data);
         
         if (onItemComplete) {
@@ -195,7 +207,10 @@ class EventHandlerManager {
       error: (event, data) => {
         if (!data || !data.id || !this.activeRequests.has(data.id)) return;
         
-        websiteProgress.finishConverting(false, data.error);
+        // Mark website conversion as error if applicable
+        if (unifiedConversion.type === ConversionState.TYPE.WEBSITE) {
+          unifiedConversion.setError(data.error || 'Unknown error occurred');
+        }
         statusActions.error(data);
         
         this.removeHandlers(data.id);

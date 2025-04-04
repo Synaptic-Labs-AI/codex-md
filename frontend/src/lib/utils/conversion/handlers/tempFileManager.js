@@ -9,7 +9,7 @@
  * - src/electron/services/FileSystemService.js
  */
 
-import { fileSystemOperations } from '$lib/api/electron/fileSystem.js';
+import fileSystemOperations from '$lib/api/electron/fileSystem.js';
 import { BINARY_FILE_EXTENSIONS, TEMP_FILE_CONFIG } from '../constants';
 
 /**

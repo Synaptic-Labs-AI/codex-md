@@ -13,8 +13,7 @@
 
 import { ConversionError } from '../../errors.js';
 import { normalizeUrl } from '../utils.js';
-import { conversionStatus } from '../../../stores/conversionStatus.js';
-import { websiteProgress } from '../../../stores/websiteProgressStore.js';
+import { unifiedConversion, ConversionState } from '../../../stores/unifiedConversion.js';
 import eventHandlerManager from '../eventHandlers.js';
 import { generateId } from '../utils.js';
 
@@ -31,10 +30,11 @@ export async function convertUrl(url, options = {}, onProgress = null) {
     const normalizedUrl = normalizeUrl(url);
 
     // Set initial status
-    conversionStatus.setStatus('initializing');
-    conversionStatus.setProgress(0);
-    conversionStatus.setCurrentFile(normalizedUrl);
-    conversionStatus.setError(null);
+    unifiedConversion.setStatus(ConversionState.STATUS.INITIALIZING);
+    unifiedConversion.setProgress(0);
+    unifiedConversion.setCurrentFile(normalizedUrl);
+    unifiedConversion.setError(null);
+    unifiedConversion.batchUpdate({ type: ConversionState.TYPE.URL });
 
     // Generate a job ID
     const jobId = generateId();
@@ -88,9 +88,8 @@ export async function convertUrl(url, options = {}, onProgress = null) {
     return result;
   } catch (error) {
     // Update status
-    conversionStatus.setStatus('error');
-    conversionStatus.setError(error.message || 'Unknown error occurred');
-    conversionStatus.setProgress(0);
+    unifiedConversion.setError(error.message || 'Unknown error occurred');
+    unifiedConversion.setProgress(0);
 
     throw error instanceof ConversionError ? 
       error : 
@@ -110,8 +109,14 @@ export async function convertParentUrl(url, options = {}, onProgress = null) {
     // Normalize URL
     const normalizedUrl = normalizeUrl(url);
 
-    // Set initial website status with our new simplified store
-    websiteProgress.start(normalizedUrl);
+    // Set initial website status
+    unifiedConversion.batchUpdate({
+      type: ConversionState.TYPE.WEBSITE,
+      status: ConversionState.STATUS.INITIALIZING,
+      message: `Preparing to convert ${normalizedUrl}...`,
+      currentUrl: normalizedUrl,
+      progress: 0
+    });
     
     // Log the initial status
     console.log('[urlConverter] Website conversion initialized:', {
@@ -176,8 +181,8 @@ export async function convertParentUrl(url, options = {}, onProgress = null) {
 
     return result;
   } catch (error) {
-    // Update status with our new simplified store
-    websiteProgress.setError(error.message || 'Unknown error occurred');
+    // Update status
+    unifiedConversion.setError(error.message || 'Unknown error occurred');
 
     throw error instanceof ConversionError ? 
       error : 
@@ -198,10 +203,11 @@ export async function convertYoutube(url, options = {}, onProgress = null) {
     const normalizedUrl = normalizeUrl(url);
 
     // Set initial status
-    conversionStatus.setStatus('initializing');
-    conversionStatus.setProgress(0);
-    conversionStatus.setCurrentFile(`YouTube: ${normalizedUrl}`);
-    conversionStatus.setError(null);
+    unifiedConversion.setStatus(ConversionState.STATUS.INITIALIZING);
+    unifiedConversion.setProgress(0);
+    unifiedConversion.setCurrentFile(`YouTube: ${normalizedUrl}`);
+    unifiedConversion.setError(null);
+    unifiedConversion.batchUpdate({ type: ConversionState.TYPE.URL });
 
     // Generate a job ID
     const jobId = generateId();
@@ -231,9 +237,8 @@ export async function convertYoutube(url, options = {}, onProgress = null) {
     return result;
   } catch (error) {
     // Update status
-    conversionStatus.setStatus('error');
-    conversionStatus.setError(error.message || 'Unknown error occurred');
-    conversionStatus.setProgress(0);
+    unifiedConversion.setError(error.message || 'Unknown error occurred');
+    unifiedConversion.setProgress(0);
 
     throw error instanceof ConversionError ? 
       error : 

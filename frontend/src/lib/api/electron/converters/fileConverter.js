@@ -12,7 +12,7 @@
 
 import { ConversionError } from '../../errors.js';
 import { isSupportedFileType, generateId } from '../utils.js';
-import { conversionStatus } from '../../../stores/conversionStatus.js';
+import { unifiedConversion, ConversionState } from '../../../stores/unifiedConversion.js';
 import eventHandlerManager from '../eventHandlers.js';
 
 /**
@@ -32,10 +32,11 @@ export async function convertFile(filePath, options = {}, onProgress = null) {
     }
 
     // Set initial status
-    conversionStatus.setStatus('initializing');
-    conversionStatus.setProgress(0);
-    conversionStatus.setCurrentFile(filePath.split('/').pop());
-    conversionStatus.setError(null);
+    unifiedConversion.setStatus(ConversionState.STATUS.INITIALIZING);
+    unifiedConversion.setProgress(0);
+    unifiedConversion.setCurrentFile(filePath.split('/').pop());
+    unifiedConversion.setError(null);
+    unifiedConversion.batchUpdate({ type: ConversionState.TYPE.FILE });
 
     // Generate a job ID
     const jobId = generateId();
@@ -67,9 +68,8 @@ export async function convertFile(filePath, options = {}, onProgress = null) {
     return result;
   } catch (error) {
     // Update status
-    conversionStatus.setStatus('error');
-    conversionStatus.setError(error.message || 'Unknown error occurred');
-    conversionStatus.setProgress(0);
+    unifiedConversion.setError(error.message || 'Unknown error occurred');
+    unifiedConversion.setProgress(0);
 
     throw error instanceof ConversionError ? 
       error : 
@@ -93,10 +93,11 @@ export async function convertBatch(filePaths, options = {}, onProgress = null, o
 
   try {
     // Set initial status
-    conversionStatus.setStatus('initializing');
-    conversionStatus.setProgress(0);
-    conversionStatus.setCurrentFile('Starting batch conversion...');
-    conversionStatus.setError(null);
+    unifiedConversion.setStatus(ConversionState.STATUS.INITIALIZING);
+    unifiedConversion.setProgress(0);
+    unifiedConversion.setCurrentFile('Starting batch conversion...');
+    unifiedConversion.setError(null);
+    unifiedConversion.batchUpdate({ type: ConversionState.TYPE.BATCH });
 
     // Generate a job ID
     const jobId = generateId();
@@ -104,9 +105,9 @@ export async function convertBatch(filePaths, options = {}, onProgress = null, o
     // Register event handlers with batch-specific progress handling
     eventHandlerManager.registerHandlers(jobId, 'batch', 
       (progress, data) => {
-        conversionStatus.setProgress(progress);
+        unifiedConversion.setProgress(progress);
         if (data?.file) {
-          conversionStatus.setCurrentFile(data.file);
+          unifiedConversion.setCurrentFile(data.file);
         }
         if (onProgress) {
           onProgress(progress, data);
@@ -145,9 +146,8 @@ export async function convertBatch(filePaths, options = {}, onProgress = null, o
     return result;
   } catch (error) {
     // Update status
-    conversionStatus.setStatus('error');
-    conversionStatus.setError(error.message || 'Unknown error occurred');
-    conversionStatus.setProgress(0);
+    unifiedConversion.setError(error.message || 'Unknown error occurred');
+    unifiedConversion.setProgress(0);
 
     throw error instanceof ConversionError ? 
       error : 

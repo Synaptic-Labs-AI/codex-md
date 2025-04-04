@@ -93,10 +93,8 @@ class BatchHandler {
                     else if (item.file instanceof File) {
                         storeManager.updateCurrentFile(`Preparing ${item.file.name}...`);
                         const tempFilePath = await tempFileManager.saveTempFile(item.file, (progress) => {
-                            // Update chunk progress if available
-                            if (typeof conversionStatus.setChunkProgress === 'function') {
-                                conversionStatus.setChunkProgress(progress);
-                            }
+                            // Update chunk progress
+                            storeManager.updateConversionStatus(CONVERSION_STATUSES.PREPARING, progress);
                         });
                         
                         tempFilePaths.push({ 

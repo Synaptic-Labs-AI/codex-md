@@ -15,7 +15,23 @@ const { createStore } = require('../../../utils/storeFactory');
 const transcriptionService = require('../../../services/TranscriptionService');
 const apiKeyService = require('../../../services/ApiKeyService');
 const { IPCChannels } = require('../../types');
-const CONFIG = require('../../../config/transcription');
+const configAdapter = require('../../../adapters/transcriptionConfigAdapter');
+// Will be initialized asynchronously
+let CONFIG = null;
+// Initialize config as soon as possible
+(async function initConfig() {
+  try {
+    CONFIG = await configAdapter.getConfig();
+    console.log('✅ Transcription handlers: Configuration loaded');
+  } catch (error) {
+    console.error('❌ Transcription handlers: Failed to load configuration:', error);
+    // Use fallback if needed
+    CONFIG = configAdapter.currentConfig || {
+      MODELS: { 'whisper-1': { default: true } },
+      DEFAULT_MODEL: 'whisper-1'
+    };
+  }
+})();
 
 // Initialize store with error handling
 const store = createStore('transcription-handlers');
