@@ -43,13 +43,7 @@
       return { valid: false, message: `Unsupported file type: ${fileName}` };
     }
 
-    // Skip size validation for file paths (Electron will handle this)
-    if (!isFilePath) {
-      const sizeValidation = validateFileSize(file);
-      if (!sizeValidation.valid) {
-        return { valid: false, message: `${fileName}: ${sizeValidation.message}` };
-      }
-    }
+    // Size validation removed - no file size limits
 
     return { valid: true };
   }

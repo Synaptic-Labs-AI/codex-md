@@ -4,6 +4,8 @@
  * Handles all temporary file operations during the conversion process.
  * This includes saving files to temp storage, cleanup, and tracking file status.
  * 
+ * Implements aggressive cleanup to ensure temporary files don't persist.
+ * 
  * Related files:
  * - frontend/src/lib/api/electron/fileSystem.js
  * - src/electron/services/FileSystemService.js
@@ -212,7 +214,11 @@ class TempFileManager {
         if (tempFileRegistry.has(filePath)) {
             const fileInfo = tempFileRegistry.get(filePath);
             if (fileInfo.inUse && !force) {
-                console.warn(`⚠️ [TempFileManager] File still in use, skipping cleanup: ${filePath}`);
+                console.warn(`⚠️ [TempFileManager] File still in use, scheduling cleanup for later: ${filePath}`);
+                // Schedule cleanup for later
+                setTimeout(() => {
+                    this.cleanup(filePath, { ...options, force: true });
+                }, TEMP_FILE_CONFIG.CLEANUP_DELAY * 2);
                 return;
             }
         }
@@ -242,6 +248,52 @@ class TempFileManager {
         }
         
         console.warn(`⚠️ [TempFileManager] Could not clean up file after ${retryCount} attempts: ${filePath}`);
+        
+        // Add to cleanup queue for later retry
+        this.scheduleForceCleanup(filePath);
+    }
+    
+    /**
+     * Schedule a forced cleanup for a file that couldn't be deleted
+     */
+    scheduleForceCleanup(filePath) {
+        if (!filePath) return;
+        
+        console.log(`📅 [TempFileManager] Scheduling forced cleanup for: ${filePath}`);
+        
+        // Try again after a longer delay with force=true
+        setTimeout(() => {
+            this.cleanup(filePath, { force: true, retryCount: 5 });
+        }, TEMP_FILE_CONFIG.CLEANUP_DELAY * 5);
+    }
+    
+    /**
+     * Clean up all unused temporary files
+     */
+    async cleanupAllUnusedFiles() {
+        console.log(`🧹 [TempFileManager] Running cleanup for all unused temporary files`);
+        
+        const unusedFiles = [];
+        const now = Date.now();
+        
+        // Find all files that are not in use
+        for (const [filePath, fileInfo] of tempFileRegistry.entries()) {
+            if (!fileInfo.inUse || (now - fileInfo.created > TEMP_FILE_CONFIG.MAX_AGE)) {
+                unusedFiles.push(filePath);
+            }
+        }
+        
+        if (unusedFiles.length === 0) {
+            console.log(`✅ [TempFileManager] No unused temporary files to clean up`);
+            return;
+        }
+        
+        console.log(`🧹 [TempFileManager] Cleaning up ${unusedFiles.length} unused temporary files`);
+        
+        // Clean up each file
+        for (const filePath of unusedFiles) {
+            await this.cleanup(filePath, { force: true });
+        }
     }
     
     /**
@@ -260,5 +312,14 @@ class TempFileManager {
     }
 }
 
+// Create singleton instance
+const tempFileManager = new TempFileManager();
+
+// Set up automatic cleanup interval
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+setInterval(() => {
+    tempFileManager.cleanupAllUnusedFiles();
+}, CLEANUP_INTERVAL);
+
 // Export singleton instance
-export const tempFileManager = new TempFileManager();
+export { tempFileManager };

@@ -138,9 +138,8 @@ async function convertUrl(url, options = {}) {
       timeout: 30000
     });
 
-    // Take initial screenshot
-    await page.screenshot({ path: 'debug-screenshot-initial.png' });
-    console.log('Saved initial screenshot');
+    // Log navigation progress
+    console.log('Page loaded, waiting for content');
 
     // Wait for network idle
     await page.waitForNetworkIdle({ 
@@ -151,18 +150,15 @@ async function convertUrl(url, options = {}) {
     // Wait for and find main content
     const result = await findMainContent(page, mergedOptions);
     
-    // Take final screenshot with content highlight
+    // Highlight main content if found (for debugging in console only)
     if (result.selector) {
       await page.evaluate((selector) => {
         const element = document.querySelector(selector);
         if (element) {
-          element.style.outline = '3px solid red';
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          console.log(`Found main content with selector: ${selector}`);
         }
       }, result.selector);
     }
-    await page.screenshot({ path: 'debug-screenshot-final.png' });
-    console.log('Saved final screenshot');
 
     // Load the URL converter module and convert
     const { convertUrlToMarkdown } = await modulePromise;
@@ -202,13 +198,8 @@ async function convertUrl(url, options = {}) {
 
   } catch (error) {
     console.error('URL conversion failed in adapter:', error);
-    if (page) {
-      try {
-        await page.screenshot({ path: 'debug-screenshot-error.png' });
-      } catch (e) {
-        console.error('Failed to save error screenshot:', e);
-      }
-    }
+    // Log error without saving screenshot
+    console.error('URL conversion failed with error:', error.message);
     return {
       success: false,
       error: error.message || 'URL conversion failed',

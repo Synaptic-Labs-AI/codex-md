@@ -7,7 +7,7 @@
     <h1>About <span class="codex-md-brand">codex.md</span></h1>
 
     <p>
-      <span class="codex-md-brand">codex.md</span> is an elegant, cross-platform desktop application designed to convert various file formats into pristine Markdown for seamless integration with Obsidian and other knowledge management systems. Built with Electron and Svelte, <span class="codex-md-brand">codex.md</span> bridges the gap between different content formats and your knowledge base.
+      <span class="codex-md-brand">codex.md</span> is an elegant, cross-platform desktop application developed by Synaptic Labs, and designed to convert various file formats into pristine Markdown for seamless integration with applications .md first applications like Obsidian. Built with Electron and Svelte, <span class="codex-md-brand">codex.md</span> bridges the gap between different content formats and your knowledge base.
     </p>
 
     <h2>Key Features</h2>
@@ -16,10 +16,7 @@
         <strong>Multi-format Support</strong>: Convert documents (PDF, DOCX, PPTX), data files (CSV, XLSX), web content (URLs, parent pages), and multimedia (audio, video) to structured Markdown.
       </li>
       <li>
-        <strong>Local Processing</strong>: Process most files locally without internet dependency, ensuring privacy and data security.
-      </li>
-      <li>
-        <strong>Desktop Integration</strong>: Enjoy native system features including file system access, drag-and-drop, system tray integration, and offline capabilities.
+        <strong>Local Processing</strong>: Process most files locally without internet dependency, ensuring privacy and data security (Audio, Video and advanced PDFs require APIs).
       </li>
       <li>
         <strong>Intelligent Formatting</strong>: Preserve document structure, headings, tables, and formatting during conversion for high-fidelity output.
@@ -28,7 +25,7 @@
         <strong>Batch Processing</strong>: Convert multiple files at once with organized output files and proper metadata.
       </li>
       <li>
-        <strong>OpenAI Integration</strong>: Transcribe audio and video content using state-of-the-art AI technology (requires API key).
+        <strong>AI Integration</strong>: Transcribe audio and video content, and use more advanced PDf processing using state-of-the-art AI technology (requires API key).
       </li>
     </ul>
 
@@ -36,14 +33,6 @@
     <p>
       <span class="codex-md-brand">codex.md</span> is an open-source project developed by Synaptic Labs, leveraging modern web technologies to create powerful desktop software. The application combines Electron for native desktop capabilities, Svelte for a responsive user interface, and Node.js for backend processing.
     </p>
-
-    <h3>Technology Stack</h3>
-    <ul>
-      <li><strong>Electron</strong>: Cross-platform desktop framework</li>
-      <li><strong>Svelte/SvelteKit</strong>: Frontend UI framework</li>
-      <li><strong>Node.js</strong>: Backend processing</li>
-      <li><strong>OpenAI API</strong>: Transcription services (optional)</li>
-    </ul>
 
     <h3>Contribution</h3>
     <p>
@@ -251,11 +240,6 @@
   
   .synaptic-banner img {
     max-width: 300px;
-  }
-  
-  .logo-container {
-    text-align: center;
-    margin: var(--spacing-lg) 0;
   }
 
   .mission-statement {

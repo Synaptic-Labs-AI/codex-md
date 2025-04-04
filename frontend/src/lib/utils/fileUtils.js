@@ -1,8 +1,8 @@
 // src/lib/utils/fileUtils.js
 
-// File size limits
-export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
-export const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB in bytes
+// File size limits (effectively removed by setting to extremely large values)
+export const MAX_FILE_SIZE = Number.MAX_SAFE_INTEGER; // No practical limit
+export const MAX_VIDEO_SIZE = Number.MAX_SAFE_INTEGER; // No practical limit
 
 const FILE_CATEGORIES = {
     documents: ['pdf', 'docx', 'pptx'],
@@ -133,19 +133,17 @@ export function sanitizeFilename(filename) {
 
 /**
  * Validates if a file size is within allowed limits
+ * Size limits have been removed, so this function always returns valid
  * @param {File} file - The file to check
  * @returns {Object} - Validation result with valid status and message
  */
 export function validateFileSize(file) {
   if (!file || !file.size) return { valid: false, message: 'Invalid file' };
   
-  const fileType = getFileType(file);
-  const maxSize = fileType === 'video' ? MAX_VIDEO_SIZE : MAX_FILE_SIZE;
-  const isValid = file.size <= maxSize;
-  
+  // Always return valid regardless of file size
   return {
-    valid: isValid,
-    maxSize,
-    message: isValid ? '' : `File exceeds maximum size of ${formatFileSize(maxSize)}`
+    valid: true,
+    maxSize: Number.MAX_SAFE_INTEGER,
+    message: ''
   };
 }

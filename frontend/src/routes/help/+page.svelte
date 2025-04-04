@@ -41,9 +41,9 @@
           <li>
             <strong>Files from Your Computer</strong> - Click the upload box or drag files into it. You can add:
             <ul class="sub-list">
-              <li>Regular documents (like Word files or PDFs) - up to 50MB per file</li>
-              <li>Audio files (these need an API key) - up to 50MB per file</li>
-              <li>Video files (these need an API key) - up to 500MB per file</li>
+              <li>Regular documents (like Word files or PDFs)</li>
+              <li>Audio files (these need an API key)</li>
+              <li>Video files (these need an API key)</li>
             </ul>
           </li>
         </ul>
@@ -76,9 +76,9 @@
         <p><strong>New to <span class="codex-md-brand">codex.md</span>?</strong> Check out these resources:</p>
         <ul>
           <li><a href="https://obsidian.md/" target="_blank" rel="noopener noreferrer">Download Obsidian</a> - Free personal knowledge base</li>
-          <li><a href="https://help.obsidian.md/Home" target="_blank" rel="noopener noreferrer">Obsidian Help</a> - Official documentation</li>
-          <li><a href="https://forum.obsidian.md/" target="_blank" rel="noopener noreferrer">Obsidian Forum</a> - Community support</li>
-          <li><a href="https://www.reddit.com/r/ObsidianMD/" target="_blank" rel="noopener noreferrer">Obsidian Reddit</a> - Tips and showcases</li>
+          <li><a href="https://www.youtube.com/watch?v=vdD2FB-bmiE&list=PLa9S_7NRneu-XYTNzCA8T_B3B37ZVrgxx" target="_blank" rel="noopener noreferrer">Build your second brain</a> - Video Tutorials</li>
+          <li><a href="https://discord.gg/z5DgD5ZHNJ" target="_blank" rel="noopener noreferrer">Discord</a> - Community support</li>
+          <li><a href="https://www.synapticlabs.ai" target="_blank" rel="noopener noreferrer">Synaptic Labs</a> - Work with Us</li>
         </ul>
       </section>
 
@@ -160,7 +160,7 @@
     transform: translateX(-50%);
     width: 100px;
     height: 3px;
-    background: linear-gradient(90deg, var(--color-prime), var(--color-second));
+    background: linear-gradient(90deg, var(--color-prime), var(--color-fourth));
     border-radius: var(--rounded-full);
   }
 
@@ -184,7 +184,7 @@
     top: 0;
     bottom: 0;
     width: 3px;
-    background: linear-gradient(180deg, var(--color-prime), var(--color-second));
+    background: linear-gradient(180deg, var(--color-prime), var(--color-fourth));
     border-radius: var(--rounded-full);
   }
 
