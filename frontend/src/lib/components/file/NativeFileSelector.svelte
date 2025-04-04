@@ -105,13 +105,6 @@
     position: relative;
   }
   
-  .electron-warning {
-    font-size: var(--font-size-xs);
-    color: var(--color-warning);
-    margin-top: var(--spacing-xs);
-    text-align: center;
-  }
-  
   .loading-indicator {
     display: inline-block;
     width: 1em;

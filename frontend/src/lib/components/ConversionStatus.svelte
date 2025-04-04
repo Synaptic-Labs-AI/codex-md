@@ -165,17 +165,4 @@
     transform: scale(1.02);
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
   }
-
-  /* Basic responsiveness */
-  @media (max-width: 600px) {
-    .conversion-container {
-      margin: 1rem;
-    }
-    .progress-info {
-      font-size: 0.85rem;
-    }
-  }
-
-  /* (Optional) If you want to forcibly ignore dark mode, remove 
-     any @media (prefers-color-scheme) rules from your global. */
 </style>
