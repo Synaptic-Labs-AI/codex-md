@@ -407,27 +407,37 @@ async function handleUrlConversion(url, name, options) {
  * Handle Parent URL conversion using specialized adapter
  */
 async function handleParentUrlConversion(url, name, options) {
-  console.log(`🔄 [Worker] Converting Parent URL: ${url}`);
+  console.log(`🔄 [Worker] Converting Parent URL: ${url}`, {
+    hasProgress: !!options.onProgress
+  });
   
   try {
     if (!url || typeof url !== 'string') {
       throw new Error('Invalid URL: URL must be a string');
     }
     
-    const result = await urlConverterAdapter.convertUrl(url, {
+    // Important: Use convertParentUrl instead of convertUrl
+    const result = await urlConverterAdapter.convertParentUrl(url, {
       ...options,
-      isParentUrl: true
+      onProgress: (progressData) => {
+        // Ensure progress updates are passed through
+        console.log('[Worker] Parent URL progress:', progressData);
+        if (options.onProgress) {
+          options.onProgress(progressData);
+        }
+      }
     });
     
     if (!result) {
       throw new Error('Parent URL conversion returned null or undefined result');
     }
     
+    // Return complete result with all fields
     return {
       ...result,
-      success: true,
+      success: result.success !== false,
       type: 'parenturl',
-      name: name || result.name
+      name: name || result.name || url.replace(/^https?:\/\//, '')
     };
   } catch (error) {
     console.error(`❌ [Worker] Parent URL conversion error:`, error);

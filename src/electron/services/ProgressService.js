@@ -124,7 +124,8 @@ class ProgressService {
       window.webContents.send(IPCChannels.CONVERSION_PROGRESS, {
         id,
         progress: job.progress,
-        status: job.status,
+        // Only include status if explicitly provided in data
+        ...(data.status ? { status: data.status } : {}),
         ...data
       });
     });

@@ -270,10 +270,9 @@ function registerConversionHandlers() {
       const result = await ElectronConversionService.convertParentUrl(request.url, {
         ...request.options,
         onProgress: (progress) => {
-          // Update progress via ProgressService
+          // Update progress via ProgressService without auto-setting status
           ProgressService.updateProgress(jobId, progress, {
-            file: request.url,
-            status: progress < 100 ? 'converting' : 'complete'
+            file: request.url
           });
         }
       });
