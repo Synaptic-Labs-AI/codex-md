@@ -70,7 +70,11 @@ class TempFileManager {
     }
     
     /**
-     * Handles saving of large video files
+     * Handles saving of large video files using chunked transfer
+     * Uses a three-step process:
+     * 1. Initialize transfer
+     * 2. Send chunks
+     * 3. Finalize transfer
      */
     async handleLargeVideoFile(file, tempFilePath, onProgress) {
         console.log(`📊 [TempFileManager] Handling large video file (${Math.round(file.size / (1024 * 1024))}MB)`);
@@ -90,21 +94,69 @@ class TempFileManager {
             throw new Error(`Failed to write temporary file metadata: ${writeResult.error}`);
         }
         
-        // Use specialized video file transfer
-        const transferResult = await window.electronAPI.transferLargeFile(
-            file, 
-            tempFilePath,
-            (progress) => {
+        try {
+            // Step 1: Initialize transfer
+            const initResult = await window.electronAPI.initLargeFileTransfer({
+                tempFilePath,
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                chunkSize: 8 * 1024 * 1024 // 8MB chunks
+            });
+            
+            if (!initResult.success) {
+                throw new Error(`Failed to initialize large file transfer: ${initResult.error}`);
+            }
+            
+            const transferId = initResult.transferId;
+            const chunkSize = 8 * 1024 * 1024; // 8MB chunks
+            const totalChunks = Math.ceil(file.size / chunkSize);
+            
+            console.log(`📊 [TempFileManager] Transfer initialized with ID: ${transferId}, total chunks: ${totalChunks}`);
+            
+            // Step 2: Send chunks
+            for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                const start = chunkIndex * chunkSize;
+                const end = Math.min(start + chunkSize, file.size);
+                const chunk = file.slice(start, end);
+                
+                // Read chunk as base64
+                const chunkBase64 = await this.readFileAsBase64(chunk);
+                
+                // Send chunk
+                const chunkResult = await window.electronAPI.transferFileChunk({
+                    transferId,
+                    chunkIndex,
+                    data: chunkBase64,
+                    size: chunk.size
+                });
+                
+                if (!chunkResult.success) {
+                    throw new Error(`Failed to transfer chunk ${chunkIndex + 1}/${totalChunks}: ${chunkResult.error}`);
+                }
+                
+                // Update progress
+                const progress = ((chunkIndex + 1) / totalChunks) * 100;
                 console.log(`📊 [TempFileManager] Transfer progress: ${Math.round(progress)}%`);
                 onProgress?.(progress);
             }
-        );
-        
-        if (!transferResult.success) {
-            throw new Error(`Failed to transfer large file: ${transferResult.error}`);
+            
+            // Step 3: Finalize transfer
+            const finalizeResult = await window.electronAPI.finalizeLargeFileTransfer({
+                transferId
+            });
+            
+            if (!finalizeResult.success) {
+                throw new Error(`Failed to finalize large file transfer: ${finalizeResult.error}`);
+            }
+            
+            console.log(`✅ [TempFileManager] Transfer completed in ${finalizeResult.transferTime.toFixed(2)}s (${finalizeResult.transferSpeed}MB/s)`);
+            
+            return finalizeResult.finalPath;
+        } catch (error) {
+            console.error(`❌ [TempFileManager] Large file transfer failed:`, error);
+            throw error;
         }
-        
-        return transferResult.finalPath;
     }
     
     /**

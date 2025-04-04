@@ -16,7 +16,7 @@
   import Timer from './common/Timer.svelte';
   import { conversionTimer } from '$lib/stores/conversionTimer';
   import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion';
-  import { conversionMessages } from '$lib/utils/conversionMessages';
+  import { conversionMessages, getRandomMessage } from '$lib/utils/conversionMessages';
   
   // Track bubble position to alternate
   let bubblePosition = 'left';
@@ -27,10 +27,16 @@
     return bubblePosition;
   }
 
-  // State for message rotation
-  let currentMessageIndex = 0;
+  // State for message rotation and typing animation
   let messageInterval;
+  let typingInterval;
   let currentMessage = '';
+  let displayedMessage = '';
+  let isTyping = true;
+  let showMessage = true;
+  
+  // Typing animation configuration
+  const typingSpeed = 40; // milliseconds per character
 
   // Persistent state for completion
   let isPersistentlyCompleted = false;
@@ -61,16 +67,60 @@
     finalTotalCount = 0;
     finalElapsedTime = '';
     
-    // Reset message rotation
+    // Reset message rotation and typing animation
     stopMessageRotation();
-    currentMessageIndex = 0;
+    stopTypingAnimation();
     updateCurrentMessage();
   }
 
-  // Function to get the next message
+  // Function to get a random message and start typing animation
   function updateCurrentMessage() {
-    currentMessage = conversionMessages[currentMessageIndex];
-    currentMessageIndex = (currentMessageIndex + 1) % conversionMessages.length;
+    // Get a random message
+    currentMessage = getRandomMessage();
+    displayedMessage = '';
+    
+    // Start typing animation
+    startTypingAnimation();
+  }
+
+  // Start typing animation for the current message
+  function startTypingAnimation() {
+    // Clear any existing typing animation
+    stopTypingAnimation();
+    
+    // Show typing indicator first
+    isTyping = true;
+    showMessage = true;
+    displayedMessage = '';
+    
+    // Start typing after a short delay
+    setTimeout(() => {
+      isTyping = false;
+      
+      // Type out the message character by character
+      let charIndex = 0;
+      let fullMessage = currentMessage; // Store the complete message
+      
+      typingInterval = setInterval(() => {
+        if (charIndex < fullMessage.length) {
+          // Replace the entire message with a substring of increasing length
+          // This prevents character duplication issues
+          displayedMessage = fullMessage.substring(0, charIndex + 1);
+          charIndex++;
+        } else {
+          // Typing complete
+          stopTypingAnimation();
+        }
+      }, typingSpeed);
+    }, 800); // Show typing indicator for 800ms before starting to type
+  }
+
+  // Stop typing animation
+  function stopTypingAnimation() {
+    if (typingInterval) {
+      clearInterval(typingInterval);
+      typingInterval = null;
+    }
   }
 
   // Start message rotation - completely independent of conversion progress
@@ -78,11 +128,18 @@
     // Initialize with first message
     updateCurrentMessage();
     
-    // Set up interval to rotate messages every 3 seconds
+    // Calculate a reasonable interval based on average message length and typing speed
+    // This ensures messages have time to fully type out before changing
+    const avgMessageLength = 50; // Approximate average character count
+    const typingTime = avgMessageLength * typingSpeed; // Time to type average message
+    const pauseTime = 2000; // Time to pause after typing completes
+    const totalRotationTime = typingTime + pauseTime + 800; // Total time including typing indicator
+    
+    // Set up interval to rotate messages
     if (!messageInterval) {
       messageInterval = setInterval(() => {
         updateCurrentMessage();
-      }, 3000);
+      }, totalRotationTime);
     }
   }
 
@@ -92,6 +149,7 @@
       clearInterval(messageInterval);
       messageInterval = null;
     }
+    stopTypingAnimation();
   }
 
   // Simple subscription to conversion state - only care about active/completed
@@ -179,12 +237,13 @@
         avatarPosition={togglePosition()}
       />
     {:else}
-      <!-- Show rotating fun messages during active conversion -->
+      <!-- Show rotating fun messages during active conversion with typing effect -->
       <ChatBubble
         name="Codex"
         avatar="📖"
-        message={currentMessage}
+        message={displayedMessage}
         avatarPosition={togglePosition()}
+        isTyping={isTyping}
       />
     {/if}
   </div>

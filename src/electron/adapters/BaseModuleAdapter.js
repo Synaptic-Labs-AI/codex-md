@@ -218,7 +218,7 @@ class BaseModuleAdapter {
       console.log(`📋 [DIAGNOSTICS] Backend directory contents:`, files);
       
       // Check for PDF converter specifically
-      const pdfConverterPath = path.join(backendPath, 'src/services/converter/text/pdfConverter.js');
+      const pdfConverterPath = path.join(backendPath, 'src/services/converter/pdf/PdfConverterFactory.js');
       if (fs.existsSync(pdfConverterPath)) {
         console.log(`✅ [DIAGNOSTICS] PDF converter exists: ${pdfConverterPath}`);
         const content = fs.readFileSync(pdfConverterPath, 'utf8');
