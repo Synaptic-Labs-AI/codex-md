@@ -21,8 +21,17 @@
   let showQueuedOperations = false;
   
   // Handle offline events
-  function handleOfflineEvent(event) {
-    const { type, online, status, operation } = event.data;
+  function handleOfflineEvent(event, data) {
+    // Log the event structure to help with debugging
+    console.log('[OfflineStatusBar] Received offline event:', { event, data });
+    
+    // Check if data exists and extract properties safely
+    if (!data) {
+      console.error('[OfflineStatusBar] Received offline event with no data');
+      return;
+    }
+    
+    const { type, online, status, operation } = data;
     
     if (type === 'status-change') {
       offlineStore.setOnlineStatus(online);
@@ -103,15 +112,6 @@
     class="status-indicator" 
     on:click={toggleExpanded}
     on:keydown={(e) => e.key === 'Enter' && toggleExpanded()}
-    aria-expanded={expanded}
-    aria-controls="offline-expanded-content"
-    role="button"
-    tabindex="0"
-  >
-    <div class="status-icon" class:online={$offlineStore.online}>
-      {#if $offlineStore.online}
-        <span class="icon">🟢</span>
-      {:else}
         <span class="icon">🔴</span>
       {/if}
     </div>

@@ -10,7 +10,9 @@ import { path as ffprobePath } from '@ffmpeg-installer/ffmpeg';
 import { Readable } from 'stream';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-import transcriptionConfig from '../config/transcription.esm.js';
+
+// Import the transcription config using ES Module syntax
+import transcriptionConfig from '../config/transcription.js';
 
 // Set ffmpeg and ffprobe paths
 ffmpeg.setFfmpegPath(ffmpegStatic);

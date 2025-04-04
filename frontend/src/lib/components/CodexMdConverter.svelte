@@ -7,7 +7,7 @@
   import { files } from '$lib/stores/files.js';
   import { startConversion } from '$lib/utils/conversion';
   import { conversionResult } from '$lib/stores/conversionResult.js';
-  import { conversionStatus } from '$lib/stores/conversionStatus.js';
+  import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
   import welcomeState, { MESSAGE_TYPES } from '$lib/stores/welcomeState.js';
   import ResultDisplay from './ResultDisplay.svelte';
 
@@ -20,20 +20,11 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Website-specific conversion states
-  const websiteStates = [
-    'finding_sitemap',
-    'parsing_sitemap',
-    'crawling_pages',
-    'processing_pages',
-    'generating_index'
-  ];
-  
-  // Check if current status is a website conversion state
-  $: isWebsiteConversion = websiteStates.includes($conversionStatus.status);
+  // Check if current conversion is a website conversion
+  $: isWebsiteConversion = $unifiedConversion.type === ConversionState.TYPE.WEBSITE;
   
   // Subscribe to conversion status and result changes
-  $: if ($conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp) {
+  $: if ($unifiedConversion.status === ConversionState.STATUS.COMPLETED || $unifiedConversion.completionTime) {
     mode = 'converted';
     hasCompletedConversion = true;
     scrollToTop();
@@ -61,7 +52,7 @@
   function handleConvertMore() {
     scrollToTop();
     files.clearFiles();
-    conversionStatus.reset();
+    unifiedConversion.reset();
     conversionResult.clearResult();
     hasCompletedConversion = false; // Reset the completion flag
     mode = 'upload';

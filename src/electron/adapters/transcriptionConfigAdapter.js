@@ -6,44 +6,58 @@
  * compatibility. The configuration is cached after first load for performance.
  * 
  * Related files:
- * - backend/src/config/transcription.mjs: The source of truth configuration
+ * - backend/src/config/transcription.js: The source of truth configuration (ES Module)
  * - src/electron/services/TranscriptionService.js: The consumer of this adapter
  */
 
+// Cache for the configuration
 let cachedConfig = null;
 
 /**
- * Retrieves the transcription configuration, using cache if available
+ * Dynamically imports and returns the transcription configuration
  * @returns {Promise<object>} The transcription configuration
- * @throws {Error} If the configuration fails to load
  */
 async function getConfig() {
-    try {
-        if (!cachedConfig) {
-            const config = await import('../../../backend/src/config/transcription.mjs');
-            
-            if (!config || !config.MODELS) {
-                throw new Error('Invalid configuration format');
-            }
-            
-            cachedConfig = {
-                MODELS: config.MODELS,
-                DEFAULT_MODEL: config.DEFAULT_MODEL,
-                RESPONSE_FORMATS: config.RESPONSE_FORMATS
-            };
-        }
-        
-        return cachedConfig;
-    } catch (error) {
-        throw new Error(`Failed to load transcription configuration: ${error.message}`);
+  try {
+    if (!cachedConfig) {
+      // Use dynamic import to load the ES Module
+      const configModule = await import('../../../backend/src/config/transcription.js');
+      
+      // Validate the imported configuration
+      if (!configModule.default || !configModule.default.MODELS) {
+        throw new Error('Invalid configuration format');
+      }
+      
+      // Cache the configuration
+      cachedConfig = configModule.default;
+      console.log('✅ Successfully loaded transcription configuration');
     }
+    
+    return cachedConfig;
+  } catch (error) {
+    console.error('❌ Failed to load transcription configuration:', error);
+    // Return a fallback configuration in case of error
+    return {
+      MODELS: {
+        'whisper-1': {
+          name: 'Whisper',
+          description: 'Fallback model (configuration error)',
+          features: ['timestamps'],
+          default: true
+        }
+      },
+      DEFAULT_MODEL: 'whisper-1',
+      RESPONSE_FORMATS: {
+        'whisper-1': ['json', 'text']
+      }
+    };
+  }
 }
 
-// Export an async interface
 module.exports = {
-    getConfig,
-    // Synchronous access to last known config (may be null)
-    get currentConfig() {
-        return cachedConfig;
-    }
+  getConfig,
+  // For synchronous access to the cached config (may be null initially)
+  get currentConfig() {
+    return cachedConfig;
+  }
 };

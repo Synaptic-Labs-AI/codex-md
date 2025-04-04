@@ -21,7 +21,18 @@ const crypto = require('crypto');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegStatic = require('ffmpeg-static');
 const Store = require('electron-store');
-const CONFIG = require('../adapters/transcriptionConfigAdapter');
+const configAdapter = require('../adapters/transcriptionConfigAdapter');
+// Will be initialized asynchronously
+let CONFIG = null;
+// Initialize config as soon as possible
+(async function initConfig() {
+  try {
+    CONFIG = await configAdapter.getConfig();
+    console.log('✅ Transcription configuration loaded');
+  } catch (error) {
+    console.error('❌ Failed to load transcription configuration:', error);
+  }
+})();
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegStatic);
