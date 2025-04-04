@@ -52,11 +52,21 @@
       <section class="help-section">
         <h2>🔑 About API Keys</h2>
         <ul>
-          <li>You <strong>only</strong> need an OpenAI API key for audio/video files</li>
-          <li>Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI's platform</a></li>
-          <li>You'll need to set up billing with OpenAI, but transcription is very affordable (typically just cents per audio minute)</li>
-          <li>The key is temporary and gets cleared when you refresh</li>
-          <li>Don't worry if you don't have one - you can still convert regular documents!</li>
+          <li>You need API keys for specific conversion features:
+            <ul class="sub-list">
+              <li><strong>OpenAI API key</strong> - Required for audio/video transcription</li>
+              <li><strong>Mistral API key</strong> - Required for advanced OCR processing of PDF files</li>
+            </ul>
+          </li>
+          <li>Get your API keys from:
+            <ul class="sub-list">
+              <li><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI's platform</a> - For audio/video transcription</li>
+              <li><a href="https://console.mistral.ai/" target="_blank" rel="noopener noreferrer">Mistral's platform</a> - For OCR processing</li>
+            </ul>
+          </li>
+          <li>You'll need to set up billing with these services, but usage is typically affordable</li>
+          <li>Your API keys are stored securely on your device and persist between sessions</li>
+          <li>Don't worry if you don't have these keys - you can still convert most documents without them!</li>
         </ul>
       </section>
 
@@ -103,8 +113,8 @@
         </div>
         
         <div class="faq-item">
-          <h3>What happens to my API key?</h3>
-          <p>Your API key is stored securely on your device and is only used for the current session. It's never sent to our servers and is cleared when you close the application.</p>
+          <h3>What happens to my API keys?</h3>
+          <p>Your API keys are stored securely on your device using machine-specific encryption. They persist between sessions so you don't need to re-enter them each time. Your keys are never sent to our servers and are only used for the specific services they're intended for (OpenAI for transcription, Mistral for OCR).</p>
         </div>
         
         <div class="faq-item">
