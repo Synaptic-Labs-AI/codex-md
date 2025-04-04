@@ -11,12 +11,14 @@
 -->
 <script>
   import { onDestroy, onMount } from 'svelte';
-  import { fade } from 'svelte/transition';
   import ChatBubble from './common/ChatBubble.svelte';
-  import Timer from './common/Timer.svelte';
+  import NeuralNetwork from './common/NeuralNetwork.svelte';
   import { conversionTimer } from '$lib/stores/conversionTimer';
   import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion';
   import { conversionMessages, getRandomMessage } from '$lib/utils/conversionMessages';
+  
+  // Component references
+  let neuralNetwork;
   
   // Track bubble position to alternate
   let bubblePosition = 'left';
@@ -28,15 +30,19 @@
   }
 
   // State for message rotation and typing animation
-  let messageInterval;
+  let messageTimeout;
+  let typingTimeout;
   let typingInterval;
   let currentMessage = '';
   let displayedMessage = '';
   let isTyping = true;
   let showMessage = true;
+  let isAnimating = false; // Flag to track if animation is in progress
   
-  // Typing animation configuration
+  // Animation configuration
   const typingSpeed = 40; // milliseconds per character
+  const messageDisplayTime = 4000; // Time to display a message before showing the next one
+  const typingIndicatorTime = 800; // Time to show typing indicator before starting to type
 
   // Persistent state for completion
   let isPersistentlyCompleted = false;
@@ -56,8 +62,8 @@
     finalElapsedTime = $conversionTimer.elapsedTime;
     completionMessage = `Successfully converted ${finalTotalCount > 0 ? `all ${finalTotalCount} files` : 'your content'}! 🎉<br>Time taken: ${finalElapsedTime}`;
     
-    // Clear message rotation interval
-    stopMessageRotation();
+    // Stop message animation
+    stopMessageAnimation();
   }
 
   // Function to reset state
@@ -67,106 +73,110 @@
     finalTotalCount = 0;
     finalElapsedTime = '';
     
-    // Reset message rotation and typing animation
-    stopMessageRotation();
-    stopTypingAnimation();
-    updateCurrentMessage();
+    // Reset message animation
+    stopMessageAnimation();
+    
+    // Start a new animation if needed
+    if (status !== ConversionState.STATUS.IDLE && 
+        status !== ConversionState.STATUS.COMPLETED && 
+        status !== ConversionState.STATUS.ERROR &&
+        status !== ConversionState.STATUS.CANCELLED) {
+      animateMessage();
+    }
   }
 
-  // Function to get a random message and start typing animation
-  function updateCurrentMessage() {
+  /**
+   * Manages the complete animation sequence for a message:
+   * 1. Show typing indicator
+   * 2. Type out the message
+   * 3. Pause to let user read
+   * 4. Move to next message
+   */
+  function animateMessage() {
+    // If already animating, don't start a new animation
+    if (isAnimating) return;
+    
+    isAnimating = true;
+    
     // Get a random message
     currentMessage = getRandomMessage();
     displayedMessage = '';
     
-    // Start typing animation
-    startTypingAnimation();
-  }
-
-  // Start typing animation for the current message
-  function startTypingAnimation() {
-    // Clear any existing typing animation
-    stopTypingAnimation();
-    
-    // Show typing indicator first
+    // Step 1: Show typing indicator
     isTyping = true;
     showMessage = true;
-    displayedMessage = '';
     
-    // Start typing after a short delay
-    setTimeout(() => {
+    // Step 2: After delay, hide indicator and start typing
+    typingTimeout = setTimeout(() => {
       isTyping = false;
       
       // Type out the message character by character
       let charIndex = 0;
-      let fullMessage = currentMessage; // Store the complete message
+      let fullMessage = currentMessage;
       
       typingInterval = setInterval(() => {
         if (charIndex < fullMessage.length) {
-          // Replace the entire message with a substring of increasing length
-          // This prevents character duplication issues
           displayedMessage = fullMessage.substring(0, charIndex + 1);
           charIndex++;
         } else {
-          // Typing complete
-          stopTypingAnimation();
+          // Typing complete, clear interval
+          clearInterval(typingInterval);
+          typingInterval = null;
+          
+          // Step 3: Pause to let user read the message
+          typingTimeout = setTimeout(() => {
+            // Step 4: Schedule next message
+            messageTimeout = setTimeout(() => {
+              isAnimating = false;
+              animateMessage();
+            }, 100); // Small delay before starting next animation
+          }, messageDisplayTime);
         }
       }, typingSpeed);
-    }, 800); // Show typing indicator for 800ms before starting to type
+    }, typingIndicatorTime);
   }
 
-  // Stop typing animation
-  function stopTypingAnimation() {
+  /**
+   * Stops all animations and clears all timers
+   */
+  function stopMessageAnimation() {
+    isAnimating = false;
+    
+    if (messageTimeout) {
+      clearTimeout(messageTimeout);
+      messageTimeout = null;
+    }
+    
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+    
     if (typingInterval) {
       clearInterval(typingInterval);
       typingInterval = null;
     }
   }
 
-  // Start message rotation - completely independent of conversion progress
-  function startMessageRotation() {
-    // Initialize with first message
-    updateCurrentMessage();
-    
-    // Calculate a reasonable interval based on average message length and typing speed
-    // This ensures messages have time to fully type out before changing
-    const avgMessageLength = 50; // Approximate average character count
-    const typingTime = avgMessageLength * typingSpeed; // Time to type average message
-    const pauseTime = 2000; // Time to pause after typing completes
-    const totalRotationTime = typingTime + pauseTime + 800; // Total time including typing indicator
-    
-    // Set up interval to rotate messages
-    if (!messageInterval) {
-      messageInterval = setInterval(() => {
-        updateCurrentMessage();
-      }, totalRotationTime);
-    }
-  }
-
-  // Stop message rotation
-  function stopMessageRotation() {
-    if (messageInterval) {
-      clearInterval(messageInterval);
-      messageInterval = null;
-    }
-    stopTypingAnimation();
-  }
-
-  // Simple subscription to conversion state - only care about active/completed
+  // Subscription to conversion state
   const unsubStatus = unifiedConversion.subscribe(value => {
     // Update minimal set of properties
     status = value.status;
     totalCount = value.totalCount || 0;
     error = value.error;
 
-    // Start timer and message rotation as soon as conversion starts
+    // Start timer and message animation as soon as conversion starts
     if (status !== ConversionState.STATUS.IDLE && 
         status !== ConversionState.STATUS.COMPLETED && 
         status !== ConversionState.STATUS.ERROR &&
         status !== ConversionState.STATUS.CANCELLED &&
         !$conversionTimer.isRunning) {
       conversionTimer.start();
-      startMessageRotation();
+      
+      // Start message animation if not already running
+      if (!isAnimating) {
+        animateMessage();
+      }
     }
     
     // Handle completion
@@ -179,18 +189,22 @@
     if (status === ConversionState.STATUS.ERROR || 
         status === ConversionState.STATUS.CANCELLED) {
       conversionTimer.stop();
-      stopMessageRotation();
+      stopMessageAnimation();
     }
   });
 
   onMount(() => {
-    // Start message rotation immediately if conversion is active
+    // Start message animation immediately if conversion is active
     if (status !== ConversionState.STATUS.IDLE && 
         status !== ConversionState.STATUS.COMPLETED && 
         status !== ConversionState.STATUS.ERROR &&
         status !== ConversionState.STATUS.CANCELLED &&
         !isPersistentlyCompleted) {
-      startMessageRotation();
+      
+      // Start message animation if not already running
+      if (!isAnimating) {
+        animateMessage();
+      }
       
       // Start timer if not already running
       if (!$conversionTimer.isRunning) {
@@ -199,53 +213,65 @@
     }
   });
 
+  // Update neural network when seconds count changes, unless completed
+  $: if (neuralNetwork && $conversionTimer.secondsCount > 0 && 
+         status !== ConversionState.STATUS.COMPLETED) {
+    neuralNetwork.updateNetwork($conversionTimer.secondsCount);
+  }
+
   onDestroy(() => {
     unsubStatus();
-    stopMessageRotation();
+    stopMessageAnimation();
     // Don't reset the timer on component destroy
     // This ensures the timer continues across different phases
   });
 </script>
 
 {#if status !== ConversionState.STATUS.IDLE && status !== ConversionState.STATUS.CANCELLED}
-  <div class="conversion-progress" in:fade>
-    <!-- Timer -->
-    <div in:fade>
-      <Timer time={$conversionTimer.elapsedTime} />
+  <div class="conversion-progress" class:fade-in={status !== ConversionState.STATUS.IDLE}>
+    <!-- Chat Bubbles -->
+    <div class="chat-container">
+      {#if status === ConversionState.STATUS.COMPLETED || isPersistentlyCompleted}
+        <ChatBubble
+          name="Codex"
+          avatar="📖"
+          message={completionMessage}
+          avatarPosition={togglePosition()}
+        />
+      {:else if status === ConversionState.STATUS.ERROR}
+        <ChatBubble
+          name="Codex"
+          avatar="📖"
+          message={`Encountered an error during conversion: ${error || 'Unknown error'}. Please try again.`}
+          avatarPosition={togglePosition()}
+        />
+      {:else if status === 'stopped' || status === ConversionState.STATUS.CANCELLED}
+        <ChatBubble
+          name="Codex"
+          avatar="📖"
+          message={`Conversion ${status === ConversionState.STATUS.CANCELLED ? 'cancelled' : 'stopped'}. ${totalCount > 0 ? `Processed some of ${totalCount} files.` : ''}`}
+          avatarPosition={togglePosition()}
+        />
+      {:else}
+        <!-- Show rotating fun messages during active conversion with typing effect -->
+        <ChatBubble
+          name="Codex"
+          avatar="📖"
+          message={displayedMessage}
+          avatarPosition={togglePosition()}
+          isTyping={isTyping}
+        />
+      {/if}
     </div>
 
-    <!-- Show appropriate message based on state -->
-    {#if status === ConversionState.STATUS.COMPLETED || isPersistentlyCompleted}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message={completionMessage}
-        avatarPosition={togglePosition()}
+    <!-- Neural Network Visualization -->
+    <div class="neural-network-container" class:fade-in={status !== ConversionState.STATUS.IDLE}>
+      <NeuralNetwork 
+        secondsCount={$conversionTimer.secondsCount}
+        bind:this={neuralNetwork}
+        keepAlive={status === ConversionState.STATUS.COMPLETED}
       />
-    {:else if status === ConversionState.STATUS.ERROR}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message={`Encountered an error during conversion: ${error || 'Unknown error'}. Please try again.`}
-        avatarPosition={togglePosition()}
-      />
-    {:else if status === 'stopped' || status === ConversionState.STATUS.CANCELLED}
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message={`Conversion ${status === ConversionState.STATUS.CANCELLED ? 'cancelled' : 'stopped'}. ${totalCount > 0 ? `Processed some of ${totalCount} files.` : ''}`}
-        avatarPosition={togglePosition()}
-      />
-    {:else}
-      <!-- Show rotating fun messages during active conversion with typing effect -->
-      <ChatBubble
-        name="Codex"
-        avatar="📖"
-        message={displayedMessage}
-        avatarPosition={togglePosition()}
-        isTyping={isTyping}
-      />
-    {/if}
+    </div>
   </div>
 {/if}
 
@@ -253,7 +279,26 @@
   .conversion-progress {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 2rem;
     padding: 1rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  
+  .chat-container {
+    margin-bottom: 0;
+  }
+  
+  .neural-network-container {
+    margin: 0;
+  }
+
+  .fade-in {
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 </style>

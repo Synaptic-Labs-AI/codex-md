@@ -199,11 +199,6 @@
       transform: translate(-50%, -50%) scale(1.1);
     }
   
-    .size-limits {
-      font-style: italic;
-      opacity: 0.9;
-    }
-  
     /* Mobile Adjustments */
     @media (max-width: 640px) {
       .drop-zone {
