@@ -26,10 +26,6 @@ import { generateId } from '../utils.js';
  * @returns {Promise<Object>} Conversion result
  */
 export async function convertUrl(url, options = {}, onProgress = null) {
-  if (!window.electronAPI) {
-    throw new ConversionError('Cannot convert URL: Not running in Electron environment');
-  }
-
   try {
     // Normalize URL
     const normalizedUrl = normalizeUrl(url);
@@ -110,10 +106,6 @@ export async function convertUrl(url, options = {}, onProgress = null) {
  * @returns {Promise<Object>} Conversion result
  */
 export async function convertParentUrl(url, options = {}, onProgress = null) {
-  if (!window.electronAPI) {
-    throw new ConversionError('Cannot convert parent URL: Not running in Electron environment');
-  }
-
   try {
     // Normalize URL
     const normalizedUrl = normalizeUrl(url);
@@ -201,10 +193,6 @@ export async function convertParentUrl(url, options = {}, onProgress = null) {
  * @returns {Promise<Object>} Conversion result
  */
 export async function convertYoutube(url, options = {}, onProgress = null) {
-  if (!window.electronAPI) {
-    throw new ConversionError('Cannot convert YouTube URL: Not running in Electron environment');
-  }
-
   try {
     // Normalize URL
     const normalizedUrl = normalizeUrl(url);

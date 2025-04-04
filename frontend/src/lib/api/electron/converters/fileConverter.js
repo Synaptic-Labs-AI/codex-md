@@ -23,9 +23,6 @@ import eventHandlerManager from '../eventHandlers.js';
  * @returns {Promise<Object>} Conversion result
  */
 export async function convertFile(filePath, options = {}, onProgress = null) {
-  if (!window.electronAPI) {
-    throw new ConversionError('Cannot convert file: Not running in Electron environment');
-  }
 
   try {
     // Get file extension
@@ -89,9 +86,6 @@ export async function convertFile(filePath, options = {}, onProgress = null) {
  * @returns {Promise<Object>} Conversion result
  */
 export async function convertBatch(filePaths, options = {}, onProgress = null, onItemComplete = null) {
-  if (!window.electronAPI) {
-    throw new ConversionError('Cannot convert batch: Not running in Electron environment');
-  }
 
   if (!Array.isArray(filePaths) || filePaths.length === 0) {
     throw new ConversionError('No files provided for conversion');
@@ -167,9 +161,6 @@ export async function convertBatch(filePaths, options = {}, onProgress = null, o
  * @returns {Promise<Object>} Conversion result
  */
 export async function getResult(path) {
-  if (!window.electronAPI) {
-    throw new ConversionError('Cannot get result: Not running in Electron environment');
-  }
 
   try {
     const result = await window.electronAPI.getResult(path);

@@ -43,11 +43,9 @@ const createSettingsStore = () => {
         // Update enabled state
         settings.ocr.enabled = enabled;
         
-        // Save to electron store if available
-        if (window?.electronAPI?.setSetting) {
-          window.electronAPI.setSetting('ocr.enabled', enabled)
-            .catch(err => console.error('Error saving OCR setting:', err));
-        }
+        // Save to electron store
+        window.electronAPI.setSetting('ocr.enabled', enabled)
+          .catch(err => console.error('Error saving OCR setting:', err));
         
         return settings;
       });
@@ -59,13 +57,11 @@ const createSettingsStore = () => {
     reset: () => {
       set(DEFAULT_SETTINGS);
       
-      // Save to electron store if available
-      if (window?.electronAPI?.setSetting) {
-        Object.entries(DEFAULT_SETTINGS).forEach(([key, value]) => {
-          window.electronAPI.setSetting(key, value)
-            .catch(err => console.error(`Error resetting setting ${key}:`, err));
-        });
-      }
+      // Save to electron store
+      Object.entries(DEFAULT_SETTINGS).forEach(([key, value]) => {
+        window.electronAPI.setSetting(key, value)
+          .catch(err => console.error(`Error resetting setting ${key}:`, err));
+      });
     }
   };
 };
@@ -111,11 +107,9 @@ export const updateSetting = (key, value) => {
     // Set the value
     current[keys[keys.length - 1]] = value;
     
-    // Save to electron store if available
-    if (window?.electronAPI?.setSetting) {
-      window.electronAPI.setSetting(key, value)
-        .catch(err => console.error(`Error updating setting ${key}:`, err));
-    }
+    // Save to electron store
+    window.electronAPI.setSetting(key, value)
+      .catch(err => console.error(`Error updating setting ${key}:`, err));
     
     return settings;
   });

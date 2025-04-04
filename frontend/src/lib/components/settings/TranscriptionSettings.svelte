@@ -11,15 +11,13 @@
   
   // Initialize settings
   async function initSettings() {
-    if (window?.electronAPI?.getTranscriptionModel) {
-      try {
-        const result = await window.electronAPI.getTranscriptionModel();
-        if (result?.success && result?.model && CONFIG.TRANSCRIPTION.MODELS[result.model]) {
-          selectedModel = result.model;
-        }
-      } catch (err) {
-        console.error('Error loading transcription settings:', err);
+    try {
+      const result = await window.electronAPI.getTranscriptionModel();
+      if (result?.success && result?.model && CONFIG.TRANSCRIPTION.MODELS[result.model]) {
+        selectedModel = result.model;
       }
+    } catch (err) {
+      console.error('Error loading transcription settings:', err);
     }
     initialized = true;
   }
@@ -34,14 +32,8 @@
     error = '';
     
     try {
-      if (!window?.electronAPI) {
-        throw new Error('Electron API not available');
-      }
-
-      // Try to save using the transcription model API
-      if (window.electronAPI.setTranscriptionModel) {
-        await window.electronAPI.setTranscriptionModel(selectedModel);
-      }
+      // Save using the transcription model API
+      await window.electronAPI.setTranscriptionModel(selectedModel);
     } catch (err) {
       console.error('Error saving transcription model:', err);
     } finally {

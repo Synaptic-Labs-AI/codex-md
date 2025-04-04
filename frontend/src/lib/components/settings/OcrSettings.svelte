@@ -20,17 +20,15 @@
   }
   
   onMount(() => {
-    // Initialize from electron settings if available
-    if (window?.electronAPI?.getSetting) {
-      window.electronAPI.getSetting('ocr.enabled')
-        .then(value => {
-          if (value !== undefined) {
-            ocrEnabled = value;
-            setOcrEnabled(value);
-          }
-        })
-        .catch(err => console.error('Error loading OCR settings:', err));
-    }
+    // Initialize from electron settings
+    window.electronAPI.getSetting('ocr.enabled')
+      .then(value => {
+        if (value !== undefined) {
+          ocrEnabled = value;
+          setOcrEnabled(value);
+        }
+      })
+      .catch(err => console.error('Error loading OCR settings:', err));
     
     return () => {
       unsubscribe();

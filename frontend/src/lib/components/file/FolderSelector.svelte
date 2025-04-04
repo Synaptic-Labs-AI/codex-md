@@ -29,7 +29,6 @@
   export let acceptedTypes = []; // File extensions to filter when browsing
   
   // Internal state
-  let isElectron = false;
   let isSelecting = false;
   let selectedPath = '';
   let folderContents = [];
@@ -37,19 +36,11 @@
   
   const dispatch = createEventDispatcher();
   
-  // Check if we're running in Electron
-  $: {
-    isElectron = electronClient.isRunningInElectron();
-    if (!isElectron) {
-      console.warn('FolderSelector: Not running in Electron environment');
-    }
-  }
-  
   /**
    * Opens the native folder selection dialog
    */
   async function openFolderDialog() {
-    if (!isElectron || isSelecting || disabled) {
+    if (isSelecting || disabled) {
       return;
     }
     
@@ -186,11 +177,11 @@
 </script>
 
 <div class="folder-selector" in:fade={{ duration: 200 }}>
-  <Button
+<Button
     variant={buttonVariant}
     size={buttonSize}
     fullWidth={fullWidth}
-    disabled={disabled || isSelecting || !isElectron}
+    disabled={disabled || isSelecting}
     on:click={openFolderDialog}
     data-testid="folder-selector"
   >
@@ -245,11 +236,6 @@
     {/if}
   {/if}
   
-  {#if !isElectron}
-    <div class="electron-warning">
-      Folder selection requires Electron
-    </div>
-  {/if}
 </div>
 
 <style>

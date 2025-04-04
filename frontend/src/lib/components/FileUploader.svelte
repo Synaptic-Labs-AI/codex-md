@@ -23,12 +23,6 @@
   const SUPPORTED_FILES = fileCategories;
   const SUPPORTED_EXTENSIONS = Object.values(SUPPORTED_FILES).flat();
 
-  // Check if we're running in Electron
-  let isElectron = false;
-  $: {
-    isElectron = electronClient.isRunningInElectron();
-  }
-
   $: showFileList = $files.length > 0;
   $: needsApiKey = $files.some(file => requiresApiKey(file));
 

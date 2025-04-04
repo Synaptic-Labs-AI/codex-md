@@ -8,21 +8,13 @@
   import { conversionStatus, currentFile } from '$lib/stores/conversionStatus.js';
   import { websiteProgress, Phase } from '$lib/stores/websiteProgressStore.js';
   import { conversionResult } from '$lib/stores/conversionResult.js';
-  import { triggerDownload } from '$lib/utils/conversionManager.js';
-  import electronClient from '$lib/api/electron';
-  import fileSystemOperations from '$lib/api/electron/fileSystem.js';
+  import { clearFiles, downloadHandler, storeManager } from '$lib/utils/conversion';
   import { files } from '$lib/stores/files.js';
 
   const dispatch = createEventDispatcher();
   
   // Reference to ConversionProgress component
   let conversionProgressComponent;
-
-  // Check if we're running in Electron
-  let isElectron = false;
-  $: {
-    isElectron = electronClient.isRunningInElectron();
-  }
 
   // Local state for persistent completion
   let persistentCompletion = false;
@@ -56,7 +48,7 @@
     // Track completion state in a way that persists
     const statusCompleted = $conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp !== null;
     const resultCompleted = $conversionResult && $conversionResult.success;
-    const hasValidResult = isElectron && $conversionResult?.outputPath;
+    const hasValidResult = $conversionResult?.outputPath != null;
     
     if (statusCompleted || resultCompleted || hasValidResult) {
       persistentCompletion = true;
@@ -74,14 +66,9 @@
   /**
    * Opens the output folder directly in the file explorer
    */
-  async function showInFolder() {
-    if (!isElectron || !$conversionResult?.outputPath) return;
-    
-    try {
-      await fileSystemOperations.openFolder($conversionResult.outputPath);
-    } catch (error) {
-      console.error('Error opening folder:', error);
-    }
+  function showInFolder() {
+    if (!$conversionResult?.outputPath) return;
+    downloadHandler.showInFolder($conversionResult.outputPath);
   }
   
   /**
@@ -90,17 +77,14 @@
    */
   function handleConvertMore() {
     try {
-      // Reset all stores to their initial state
-      files.clearFiles();
-      conversionStatus.reset();
-      conversionResult.clearResult();
-
+      // Use storeManager to reset all stores
+      storeManager.resetStores();
+      
       // Ensure proper website progress cleanup
-      if (isWebsiteConversion) {
+      if (isWebsiteConversion && typeof conversionTimer !== 'undefined') {
         websiteProgress.setPhase(Phase.PREPARE);
         conversionTimer.stop();
       }
-      websiteProgress.reset();
 
       // Reset local state
       persistentCompletion = false;
@@ -139,8 +123,8 @@
       {#if isCompleted}
         <div class="action-section">
           <div class="button-container">
-            {#if $conversionResult && isElectron && hasNativeResult}
-              <!-- Electron-specific button for native file system -->
+            {#if hasNativeResult}
+              <!-- Button for native file system -->
               <Button 
                 variant="secondary"
                 size="large"
