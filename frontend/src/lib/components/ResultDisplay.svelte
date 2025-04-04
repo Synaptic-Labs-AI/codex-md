@@ -5,8 +5,7 @@
   import Container from './common/Container.svelte';
   import ConversionProgress from './ConversionProgress.svelte';
   import WebsiteProgressDisplay from './WebsiteProgressDisplay.svelte';
-  import { conversionStatus, currentFile } from '$lib/stores/conversionStatus.js';
-  import { websiteProgress, Phase } from '$lib/stores/websiteProgressStore.js';
+  import { unifiedConversion, ConversionState, currentFile, websiteProgress } from '$lib/stores/unifiedConversion.js';
   import { conversionResult } from '$lib/stores/conversionResult.js';
   import { clearFiles, downloadHandler, storeManager } from '$lib/utils/conversion';
   import { files } from '$lib/stores/files.js';
@@ -22,31 +21,32 @@
 
   // Reactive declarations for status
   $: isConverting = !persistentCompletion && [
-    'preparing', 
-    'converting', 
-    'selecting_output', 
-    'initializing', 
-    'initializing_workers', 
-    'cleaning_up',
-    // Website-specific states
+    ConversionState.STATUS.PREPARING, 
+    ConversionState.STATUS.CONVERTING, 
+    'selecting_output', // Legacy status
+    ConversionState.STATUS.INITIALIZING, 
+    'initializing_workers', // Legacy status
+    ConversionState.STATUS.CLEANING_UP,
+    // Website-specific states (legacy)
     'finding_sitemap',
     'parsing_sitemap',
     'crawling_pages',
     'processing_pages',
     'generating_index'
-  ].includes($conversionStatus.status);
+  ].includes($unifiedConversion.status);
   
   // Check if this is a website conversion
-  $: isWebsiteConversion = [
-    'finding_sitemap',
-    'parsing_sitemap',
-    'crawling_pages',
-    'processing_pages',
-    'generating_index'
-  ].includes($conversionStatus.status) || $websiteProgress.phase !== Phase.PREPARE;
+  $: isWebsiteConversion = $unifiedConversion.type === ConversionState.TYPE.WEBSITE || 
+    [
+      'finding_sitemap',
+      'parsing_sitemap',
+      'crawling_pages',
+      'processing_pages',
+      'generating_index'
+    ].includes($unifiedConversion.status);
   $: {
     // Track completion state in a way that persists
-    const statusCompleted = $conversionStatus.status === 'completed' || $conversionStatus.completionTimestamp !== null;
+    const statusCompleted = $unifiedConversion.status === ConversionState.STATUS.COMPLETED || $unifiedConversion.completionTime !== null;
     const resultCompleted = $conversionResult && $conversionResult.success;
     const hasValidResult = $conversionResult?.outputPath != null;
     
@@ -58,7 +58,7 @@
   
   // Use the persistent completion flag for completed state
   $: isCompleted = persistentCompletion;
-  $: hasError = $conversionStatus.error !== null;
+  $: hasError = $unifiedConversion.error !== null;
   
   // Check if we have a native file path result
   $: hasNativeResult = $conversionResult && $conversionResult.isNative && $conversionResult.outputPath;
@@ -82,7 +82,7 @@
       
       // Ensure proper website progress cleanup
       if (isWebsiteConversion && typeof conversionTimer !== 'undefined') {
-        websiteProgress.setPhase(Phase.PREPARE);
+        // No need to reset websiteProgress separately as it's now part of unifiedConversion
         conversionTimer.stop();
       }
 

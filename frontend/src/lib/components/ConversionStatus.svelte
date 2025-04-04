@@ -7,16 +7,16 @@
   import { files } from '$lib/stores/files.js';
   import { apiKey } from '$lib/stores/apiKey.js';
   import { requiresApiKey } from '$lib/utils/fileUtils.js';
-  import { conversionStatus } from '$lib/stores/conversionStatus.js';
+  import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
 
   import ApiKeyInput from './ApiKeyInput.svelte';
   import ConversionProgress from './ConversionProgress.svelte';
 
   const dispatch = createEventDispatcher();
 
-  // Subscribe to conversionStatus store for basic state
-  let status = 'idle';
-  const unsub = conversionStatus.subscribe(value => {
+  // Subscribe to unifiedConversion store for basic state
+  let status = ConversionState.STATUS.IDLE;
+  const unsub = unifiedConversion.subscribe(value => {
     status = value.status;
   });
 
@@ -30,16 +30,10 @@
   $: showApiKeyInput = needsApiKey && !hasApiKey;
 
   // Are we converting?
-  $: isConverting = (status === 'converting');
+  $: isConverting = (status === ConversionState.STATUS.CONVERTING);
   
   // Is this a website conversion?
-  $: isWebsiteConversion = [
-    'finding_sitemap',
-    'parsing_sitemap',
-    'crawling_pages',
-    'processing_pages',
-    'generating_index'
-  ].includes(status);
+  $: isWebsiteConversion = $unifiedConversion.type === ConversionState.TYPE.WEBSITE;
 
   // If user can convert
   $: canConvert = !needsApiKey || hasApiKey;
@@ -71,11 +65,11 @@
         on:apiKeySet={handleApiKeySet}
       />
     </div>
-  {:else if status !== 'idle' && status !== 'cancelled'}
+  {:else if status !== ConversionState.STATUS.IDLE && status !== ConversionState.STATUS.CANCELLED}
     <!-- 2) Show conversion progress -->
     <div class="progress-section" in:fly={{ y: 20, duration: 300 }}>
       <ConversionProgress />
-      {#if ['converting', 'preparing'].includes(status) || isWebsiteConversion}
+      {#if [ConversionState.STATUS.CONVERTING, ConversionState.STATUS.PREPARING].includes(status) || isWebsiteConversion}
         <button
           class="cancel-button"
           on:click={handleCancelConversion}

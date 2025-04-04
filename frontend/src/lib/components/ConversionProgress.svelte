@@ -5,7 +5,7 @@
   import ChatBubble from './common/ChatBubble.svelte';
   import Timer from './common/Timer.svelte';
   import { conversionTimer } from '$lib/stores/conversionTimer';
-  import { conversionStatus } from '$lib/stores/conversionStatus';
+  import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion';
   
   // Debug mode flag
   let debugMode = false;
@@ -26,7 +26,7 @@
   let finalElapsedTime = '';
 
   // Subscribe to stores
-  let status = 'idle';
+  let status = ConversionState.STATUS.IDLE;
   let progress = 0;
   let currentFile = null;
   let processedCount = 0;
@@ -59,7 +59,7 @@
     finalElapsedTime = '';
   }
 
-  const unsubStatus = conversionStatus.subscribe(value => {
+  const unsubStatus = unifiedConversion.subscribe(value => {
     console.log('[ConversionProgress] Received store update:', {
       newStatus: value.status,
       currentStatus: status,
@@ -72,7 +72,7 @@
     });
 
     // Don't update status if we're persistently completed unless it's explicitly reset
-    if (!isPersistentlyCompleted || value.status === 'ready') {
+    if (!isPersistentlyCompleted || value.status === ConversionState.STATUS.IDLE) {
       // Update status and other properties
       status = value.status;
       progress = value.progress || 0;
@@ -93,14 +93,19 @@
 
       // Manage timer based on status
       const activeStates = [
-        'initializing', 
-        'initializing_workers', 
-        'selecting_output', 
-        'preparing', 
-        'converting', 
-        'cleaning_up'
+        ConversionState.STATUS.INITIALIZING, 
+        'initializing_workers', // Legacy status
+        'selecting_output', // Legacy status
+        ConversionState.STATUS.PREPARING, 
+        ConversionState.STATUS.CONVERTING, 
+        ConversionState.STATUS.CLEANING_UP
       ];
-      const completedStates = ['completed', 'error', 'stopped', 'cancelled'];
+      const completedStates = [
+        ConversionState.STATUS.COMPLETED, 
+        ConversionState.STATUS.ERROR, 
+        'stopped', // Legacy status
+        ConversionState.STATUS.CANCELLED
+      ];
       
       if (activeStates.includes(status) && !$conversionTimer.isRunning) {
         console.log('[ConversionProgress] Starting timer for status:', status);
@@ -116,7 +121,7 @@
         }
 
         // Capture completion state when status becomes 'completed'
-        if (status === 'completed') {
+        if (status === ConversionState.STATUS.COMPLETED) {
           captureCompletionState();
         }
       }
@@ -137,7 +142,7 @@
     }
   });
 
-  $: showChunkingProgress = (status === 'preparing' || status === 'converting') && chunkProgress > 0 && chunkProgress < 100;
+  $: showChunkingProgress = (status === ConversionState.STATUS.PREPARING || status === ConversionState.STATUS.CONVERTING) && chunkProgress > 0 && chunkProgress < 100;
 
   // Enable debug mode with keyboard shortcut (Ctrl+Shift+D)
   function handleKeyDown(event) {
@@ -162,7 +167,7 @@
   });
 </script>
 
-{#if status !== 'idle' && status !== 'cancelled'}
+{#if status !== ConversionState.STATUS.IDLE && status !== ConversionState.STATUS.CANCELLED}
   <div class="conversion-progress" in:fade>
     <!-- Timer -->
     <div in:fade>
@@ -170,7 +175,7 @@
     </div>
 
     <!-- Stage-based chat bubbles -->
-    {#if status === 'initializing'}
+    {#if status === ConversionState.STATUS.INITIALIZING}
       <ChatBubble
         name="Codex"
         avatar="📖"
@@ -191,7 +196,7 @@
         message="Please select an output location..."
         avatarPosition={togglePosition()}
       />
-    {:else if status === 'preparing'}
+    {:else if status === ConversionState.STATUS.PREPARING}
       <ChatBubble
         name="Codex"
         avatar="📖"
@@ -207,7 +212,7 @@
           avatarPosition={togglePosition()}
         />
       {/if}
-    {:else if status === 'converting'}
+    {:else if status === ConversionState.STATUS.CONVERTING}
       <ChatBubble
         name="Codex"
         avatar="📖"
@@ -241,32 +246,32 @@
           avatarPosition={togglePosition()}
         />
       {/if}
-    {:else if status === 'cleaning_up'}
+    {:else if status === ConversionState.STATUS.CLEANING_UP}
       <ChatBubble
         name="Codex"
         avatar="📖"
         message="Cleaning up temporary files..."
         avatarPosition={togglePosition()}
       />
-    {:else if status === 'completed' || isPersistentlyCompleted}
+    {:else if status === ConversionState.STATUS.COMPLETED || isPersistentlyCompleted}
       <ChatBubble
         name="Codex"
         avatar="📖"
         message={isPersistentlyCompleted ? completionMessage : `Successfully converted all ${totalCount} files! 🎉<br>Time taken: ${$conversionTimer.elapsedTime}`}
         avatarPosition={togglePosition()}
       />
-    {:else if status === 'error'}
+    {:else if status === ConversionState.STATUS.ERROR}
       <ChatBubble
         name="Codex"
         avatar="📖"
         message="Encountered an error during conversion. Please try again."
         avatarPosition={togglePosition()}
       />
-    {:else if status === 'stopped' || status === 'cancelled'}
+    {:else if status === 'stopped' || status === ConversionState.STATUS.CANCELLED}
       <ChatBubble
         name="Codex"
         avatar="📖"
-        message="Conversion {status === 'cancelled' ? 'cancelled' : 'stopped'}. Processed {processedCount} of {totalCount} files."
+        message="Conversion {status === ConversionState.STATUS.CANCELLED ? 'cancelled' : 'stopped'}. Processed {processedCount} of {totalCount} files."
         avatarPosition={togglePosition()}
       />
     {/if}

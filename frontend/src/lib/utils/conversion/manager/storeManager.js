@@ -6,18 +6,36 @@
  * for updating conversion status, results, and progress.
  * 
  * Related files:
- * - frontend/src/lib/stores/conversionStatus.js
+ * - frontend/src/lib/stores/unifiedConversion.js
  * - frontend/src/lib/stores/conversionResult.js
- * - frontend/src/lib/stores/websiteProgressStore.js
  * - frontend/src/lib/stores/files.js
  */
 
 import { get } from 'svelte/store';
-import { conversionStatus } from '$lib/stores/conversionStatus.js';
+import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
 import { conversionResult } from '$lib/stores/conversionResult.js';
-import { websiteProgress, Phase } from '$lib/stores/websiteProgressStore.js';
 import { files } from '$lib/stores/files.js';
-import { CONVERSION_STATUSES } from '../constants';
+import { CONVERSION_STATUSES, FILE_TYPES } from '../constants';
+
+// Map old status constants to new ones for backward compatibility
+const statusMap = {
+  [CONVERSION_STATUSES.IDLE]: ConversionState.STATUS.IDLE,
+  [CONVERSION_STATUSES.INITIALIZING]: ConversionState.STATUS.INITIALIZING,
+  [CONVERSION_STATUSES.PREPARING]: ConversionState.STATUS.PREPARING,
+  [CONVERSION_STATUSES.SELECTING_OUTPUT]: ConversionState.STATUS.PREPARING,
+  [CONVERSION_STATUSES.CONVERTING]: ConversionState.STATUS.CONVERTING,
+  [CONVERSION_STATUSES.PROCESSING]: ConversionState.STATUS.CONVERTING,
+  [CONVERSION_STATUSES.COMPLETED]: ConversionState.STATUS.COMPLETED,
+  [CONVERSION_STATUSES.ERROR]: ConversionState.STATUS.ERROR,
+  [CONVERSION_STATUSES.CANCELLED]: ConversionState.STATUS.CANCELLED
+};
+
+// Map old phase constants to new status constants
+const phaseMap = {
+  'prepare': ConversionState.STATUS.PREPARING,
+  'converting': ConversionState.STATUS.CONVERTING,
+  'complete': ConversionState.STATUS.COMPLETED
+};
 
 /**
  * Manages all store updates related to conversion process
@@ -32,9 +50,12 @@ class StoreManager {
             return;
         }
 
-        conversionStatus.setStatus(status);
+        // Map old status to new status
+        const newStatus = statusMap[status] || status;
+        unifiedConversion.setStatus(newStatus);
+        
         if (typeof progress === 'number') {
-            conversionStatus.setProgress(progress);
+            unifiedConversion.setProgress(progress);
         }
     }
 
@@ -46,7 +67,7 @@ class StoreManager {
             console.warn('No filename provided for current file update');
             return;
         }
-        conversionStatus.setCurrentFile(filename);
+        unifiedConversion.setCurrentFile(filename);
     }
 
     /**
@@ -54,8 +75,7 @@ class StoreManager {
      */
     setError(error) {
         const errorMessage = error?.message || error || 'An unknown error occurred';
-        conversionStatus.setError(errorMessage);
-        conversionStatus.setStatus(CONVERSION_STATUSES.ERROR);
+        unifiedConversion.setError(errorMessage);
         console.error('[StoreManager] Error:', errorMessage);
     }
 
@@ -63,11 +83,20 @@ class StoreManager {
      * Updates website conversion progress
      */
     updateWebsiteProgress(phase, message) {
-        if (!Object.values(Phase).includes(phase)) {
+        // Map old phase to new status
+        const status = phaseMap[phase] || phase;
+        
+        if (!status) {
             console.warn(`Invalid website conversion phase: ${phase}`);
             return;
         }
-        websiteProgress.setPhase(phase, message);
+        
+        unifiedConversion.setStatus(status);
+        
+        // If there's additional data, update it
+        if (message) {
+            unifiedConversion.batchUpdate({ message });
+        }
     }
 
     /**
@@ -128,14 +157,15 @@ class StoreManager {
      * Handles conversion completion
      */
     completeConversion() {
-        this.updateConversionStatus(CONVERSION_STATUSES.COMPLETED, 100);
+        unifiedConversion.completeConversion();
     }
 
     /**
      * Cancels the ongoing conversion
      */
     cancelConversion() {
-        this.updateConversionStatus(CONVERSION_STATUSES.CANCELLED, 0);
+        unifiedConversion.setStatus(ConversionState.STATUS.CANCELLED);
+        unifiedConversion.setProgress(0);
         
         const currentFiles = get(files);
         currentFiles.forEach(file => {
@@ -147,7 +177,8 @@ class StoreManager {
         // Update website progress if it's a website conversion
         const firstFile = currentFiles[0];
         if (firstFile?.type === FILE_TYPES.PARENT) {
-            this.updateWebsiteProgress(Phase.COMPLETE, 'Website conversion cancelled');
+            unifiedConversion.setStatus(ConversionState.STATUS.CANCELLED);
+            unifiedConversion.batchUpdate({ message: 'Website conversion cancelled' });
         }
     }
 
@@ -155,8 +186,7 @@ class StoreManager {
      * Resets all conversion-related stores
      */
     resetStores() {
-        conversionStatus.reset();
-        websiteProgress.reset();
+        unifiedConversion.reset();
         files.clearFiles().catch(error => {
             console.warn('Failed to clear files store:', error);
         });

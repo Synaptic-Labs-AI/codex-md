@@ -9,8 +9,15 @@
   import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
   import ChatBubble from './common/ChatBubble.svelte';
-  import { websiteProgress, Phase } from '../stores/websiteProgressStore';
+  import { websiteProgress, ConversionState } from '../stores/unifiedConversion';
   import { conversionTimer } from '../stores/conversionTimer';
+
+  // Map ConversionState to Phase for backward compatibility
+  const Phase = {
+    PREPARE: ConversionState.STATUS.PREPARING,
+    CONVERTING: ConversionState.STATUS.CONVERTING,
+    COMPLETE: ConversionState.STATUS.COMPLETED
+  };
 
   // State tracking
   let bubblePosition = 'left';
@@ -59,7 +66,7 @@
   function getPhaseMessage(phase, state) {
     switch(phase) {
       case Phase.PREPARE:
-        return state.currentActivity || 'Please select a directory to save the converted files...';
+        return state.message || 'Please select a directory to save the converted files...';
       case Phase.CONVERTING:
         if (!state.currentUrl) return currentMessage;
         const progressInfo = state.totalUrls 
@@ -67,7 +74,7 @@
           : `(${state.percentComplete}%)`;
         return `Converting ${state.currentUrl} ${progressInfo}`;
       case Phase.COMPLETE:
-        return state.success
+        return state.error === null
           ? `Successfully converted ${state.processedUrls} pages in ${$conversionTimer.elapsedTime}! 🎉`
           : `Error: ${state.error || 'Conversion failed'}`;
       default:
@@ -78,28 +85,28 @@
   // Watch for state changes
   $: {
     const phase = $websiteProgress.phase;
-    const {currentActivity, currentUrl, percentComplete} = $websiteProgress;
+    const {message, currentUrl, percentComplete} = $websiteProgress;
 
     // Phase changes
     if (phase !== lastPhase) {
       lastPhase = phase;
       bubblePosition = phase === Phase.PREPARE ? 'left' : bubblePosition;
 
-      let message;
+      let newMessage;
       switch(phase) {
         case Phase.PREPARE:
-          message = currentActivity || 'Analyzing website...';
+          newMessage = message || 'Analyzing website...';
           break;
         case Phase.CONVERTING:
-          message = getPhaseMessage(Phase.CONVERTING, $websiteProgress);
+          newMessage = getPhaseMessage(Phase.CONVERTING, $websiteProgress);
           break;
         case Phase.COMPLETE:
-          message = getPhaseMessage(Phase.COMPLETE, $websiteProgress);
+          newMessage = getPhaseMessage(Phase.COMPLETE, $websiteProgress);
           break;
       }
       
-      if (message) {
-        updateMessage(message, phase === Phase.PREPARE);
+      if (newMessage) {
+        updateMessage(newMessage, phase === Phase.PREPARE);
       }
     }
     // URL changes
@@ -112,9 +119,9 @@
       lastProgress = percentComplete;
       updateMessage(getPhaseMessage(Phase.CONVERTING, $websiteProgress));
     }
-    // Activity updates
-    else if (currentActivity && currentActivity !== currentMessage) {
-      updateMessage(currentActivity);
+    // Message updates
+    else if (message && message !== currentMessage) {
+      updateMessage(message);
     }
   }
 
@@ -131,7 +138,7 @@
   onMount(() => {
     // Set initial message based on current phase
     if ($websiteProgress.phase === Phase.PREPARE) {
-      const message = $websiteProgress.currentActivity || 'Analyzing website...';
+      const message = $websiteProgress.message || 'Analyzing website...';
       updateMessage(message, true);
     }
   });
@@ -148,8 +155,8 @@
     <div class="chat-container" in:fade={{ duration: 200 }} out:fade={{ duration: 100 }}>
       <ChatBubble
         name="Codex"
-        avatar={$websiteProgress.phase === Phase.COMPLETE && $websiteProgress.success ? "✅" : 
-               $websiteProgress.phase === Phase.COMPLETE && !$websiteProgress.success ? "❌" :
+        avatar={$websiteProgress.phase === Phase.COMPLETE && !$websiteProgress.error ? "✅" : 
+               $websiteProgress.phase === Phase.COMPLETE && $websiteProgress.error ? "❌" :
                $websiteProgress.phase === Phase.CONVERTING ? "⚙️" : "🔍"}
         message={currentMessage}
         avatarPosition={togglePosition()}
