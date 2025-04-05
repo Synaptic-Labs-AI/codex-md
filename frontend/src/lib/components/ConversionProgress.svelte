@@ -12,13 +12,13 @@
 <script>
   import { onDestroy, onMount } from 'svelte';
   import ChatBubble from './common/ChatBubble.svelte';
-  import NeuralNetwork from './common/NeuralNetwork.svelte';
+  import KnowledgeGraph from './common/KnowledgeGraph.svelte';
   import { conversionTimer } from '$lib/stores/conversionTimer';
   import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion';
   import { conversionMessages, getRandomMessage } from '$lib/utils/conversionMessages';
   
   // Component references
-  let neuralNetwork;
+  let knowledgeGraph;
   
   // Track bubble position to alternate
   let bubblePosition = 'left';
@@ -213,10 +213,10 @@
     }
   });
 
-  // Update neural network when seconds count changes, unless completed
-  $: if (neuralNetwork && $conversionTimer.secondsCount > 0 && 
+  // Update knowledge graph when seconds count changes, unless completed
+  $: if (knowledgeGraph && $conversionTimer.secondsCount > 0 && 
          status !== ConversionState.STATUS.COMPLETED) {
-    neuralNetwork.updateNetwork($conversionTimer.secondsCount);
+    knowledgeGraph.updateGraph($conversionTimer.secondsCount);
   }
 
   onDestroy(() => {
@@ -264,11 +264,11 @@
       {/if}
     </div>
 
-    <!-- Neural Network Visualization -->
-    <div class="neural-network-container" class:fade-in={status !== ConversionState.STATUS.IDLE}>
-      <NeuralNetwork 
+    <!-- Knowledge Graph Visualization -->
+    <div class="knowledge-graph-container" class:fade-in={status !== ConversionState.STATUS.IDLE}>
+      <KnowledgeGraph 
         secondsCount={$conversionTimer.secondsCount}
-        bind:this={neuralNetwork}
+        bind:this={knowledgeGraph}
         keepAlive={status === ConversionState.STATUS.COMPLETED}
       />
     </div>
@@ -289,7 +289,7 @@
     margin-bottom: 0;
   }
   
-  .neural-network-container {
+  .knowledge-graph-container {
     margin: 0;
   }
 

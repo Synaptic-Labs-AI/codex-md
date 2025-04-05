@@ -1,38 +1,29 @@
 /**
  * EntityManager.js
  * 
- * Manages the creation, updates, and disposal of neurons and their connections.
- * Handles the visual representation and state management of the neural network.
+ * Manages the creation and rendering of nodes and edges in a knowledge graph visualization.
+ * Handles the visual representation and state management of the graph structure.
  */
 
 import * as THREE from 'three';
 
-// Performance and network limits
-const NETWORK_LIMITS = {
-  maxNeurons: 50,
-  maxConnectionsPerNeuron: 3,
-  crossConnectionChance: 0.25, // 25% chance
-  updateInterval: 50 // Milliseconds between position updates
+// Graph visualization limits
+const GRAPH_LIMITS = {
+  maxNodes: 50,
+  maxConnectionsPerNode: 2,
+  connectionChance: 0.5, // 50% chance to connect to another random node
+  additionInterval: 3000 // Milliseconds between node additions
 };
 
-// Default configurations for visual elements
-const DEFAULT_NEURON_CONFIG = {
-  minSize: 1.5,      // Even smaller neurons
-  maxSize: 2.5,      // Even smaller neurons
-  segments: 6,       // Keep reduced segments for performance
-  baseEmissive: 0.1,  // Base glow
-  activeEmissive: 0.5, // Active glow
-  initialSize: 3,    // Smaller initial neuron
-  actionPotentialThreshold: 0.7,
-  actionPotentialDecay: 0.98,
-  burstSize: 2,
-  burstDelay: 2000
+// Visual configurations
+const NODE_CONFIG = {
+  size: 2.0,      // Fixed size for all nodes
+  segments: 16    // Smoother spheres
 };
 
-const DEFAULT_CONNECTION_CONFIG = {
-  thickness: 1,
-  baseEmissive: 0.05,   // Base glow intensity
-  activeEmissive: 0.3   // Active glow intensity
+const EDGE_CONFIG = {
+  radius: 0.2,    // Tube radius
+  segments: 8     // Tube segments
 };
 
 export class EntityManager {
@@ -41,33 +32,36 @@ export class EntityManager {
     this.neurons = new Map();
     this.connections = new Map();
     this.nextNeuronId = 0;
-    this.groups = new Map(); // Track neuron groups
+    this.groups = new Map(); // Track node groups
     this.nextGroupId = 0;
     this.lastUpdateTime = 0; // Track last position update
 
-    // Shared geometries and materials for performance
-    this.neuronGeometry = new THREE.SphereGeometry(
-      1, // Base radius (will be scaled)
-      DEFAULT_NEURON_CONFIG.segments,
-      DEFAULT_NEURON_CONFIG.segments
+    // Create shared geometries
+    this.nodeGeometry = new THREE.SphereGeometry(
+      NODE_CONFIG.size,
+      NODE_CONFIG.segments,
+      NODE_CONFIG.segments
     );
 
-    // Initialize shared materials
-    this.neuronMaterial = new THREE.MeshLambertMaterial({
-      transparent: false, // No transparency
-      color: new THREE.Color(0x444444),
-      emissive: new THREE.Color(0x444444),
-      emissiveIntensity: DEFAULT_NEURON_CONFIG.baseEmissive
-    });
-
-    this.connectionMaterial = new THREE.LineBasicMaterial({
+    // Create shared materials using MeshBasicMaterial for bright solid colors
+    this.nodeMaterial = new THREE.MeshBasicMaterial({
       transparent: false,
-      linewidth: DEFAULT_CONNECTION_CONFIG.thickness, // Note: linewidth only works in WebGL2
-      emissive: new THREE.Color(0x222222),
-      emissiveIntensity: DEFAULT_CONNECTION_CONFIG.baseEmissive
+      color: new THREE.Color(0x444444)
     });
 
-    // Vibrant theme colors
+    // Initialize tube geometry for edges
+    this.edgeGeometry = new THREE.TubeGeometry(
+      new THREE.LineCurve3(
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(1, 0, 0)
+      ),
+      1,
+      EDGE_CONFIG.radius,
+      EDGE_CONFIG.segments,
+      false
+    );
+
+    // Keep vibrant color scheme
     this.colors = [
       new THREE.Color('#00FFC8'),  // Bright Cyan
       new THREE.Color('#FF00E6'),  // Bright Magenta
@@ -75,155 +69,131 @@ export class EntityManager {
       new THREE.Color('#00B4FF'),  // Bright Blue
       new THREE.Color('#FF4040'),  // Bright Red
     ];
+    
+    this.lastNodeTime = 0;
   }
 
   /**
-   * Add a new neuron, optionally connected to an existing parent
+   * Add a new node to the knowledge graph
    */
-  addNeuron(parentId) {
-    // Check network size limits
-    if (this.neurons.size >= NETWORK_LIMITS.maxNeurons) {
-      console.log('Network size limit reached');
+  addNode(parentId) {
+    // Check size limit
+    if (this.neurons.size >= GRAPH_LIMITS.maxNodes) {
+      console.log('Graph size limit reached');
       return null;
-    }
-
-    // For non-initial neurons, check parent's connection limit
-    if (parentId !== undefined) {
-      const parent = this.neurons.get(parentId);
-      if (parent && parent.connections.length >= NETWORK_LIMITS.maxConnectionsPerNeuron) {
-        console.log('Parent connection limit reached');
-        return null;
-      }
     }
 
     const id = this.nextNeuronId++;
     const color = this.colors[Math.floor(Math.random() * this.colors.length)];
 
-    // Create material instance for this neuron
-    const material = this.neuronMaterial.clone();
+    // Create material instance for the node
+    const material = this.nodeMaterial.clone();
     material.color = color;
-    material.emissiveIntensity = DEFAULT_NEURON_CONFIG.baseEmissive;
 
-    // Create mesh for the neuron
-    const size = THREE.MathUtils.lerp(
-      DEFAULT_NEURON_CONFIG.minSize,
-      DEFAULT_NEURON_CONFIG.maxSize,
-      Math.random()
+    // Create mesh for the node
+    const mesh = new THREE.Mesh(this.nodeGeometry, material);
+
+    // Position the node randomly within a sphere except for first node
+    const radius = this.neurons.size === 0 ? 0 : Math.random() * 15 + 5; // Random radius (5-20), center for first node
+    const phi = Math.random() * Math.PI * 2; // Random angle in XY plane
+    const theta = Math.acos((Math.random() * 2) - 1); // Random angle in XZ plane
+    
+    const position = new THREE.Vector3(
+      radius * Math.sin(theta) * Math.cos(phi),
+      radius * Math.sin(theta) * Math.sin(phi),
+      radius * Math.cos(theta)
     );
-    const mesh = new THREE.Mesh(this.neuronGeometry, material);
-    mesh.scale.setScalar(size);
-
-    // Initial position - if parent exists, start near them
-    const position = new THREE.Vector3();
-    if (parentId !== undefined) {
-      const parent = this.neurons.get(parentId);
-      if (parent) {
-        position.copy(parent.position);
-        // Add small random offset
-        position.add(new THREE.Vector3(
-          (Math.random() - 0.5) * 2,
-          (Math.random() - 0.5) * 2,
-          (Math.random() - 0.5) * 2
-        ));
-      }
-    }
     mesh.position.copy(position);
 
-    // Create neuron object
-    const neuron = {
+    // Center camera on first node
+    if (this.neurons.size === 0) {
+      this.scene.position.set(0, 0, 0);
+      if (this.scene.camera) {
+        this.scene.camera.position.set(0, 15, 30);
+        this.scene.camera.lookAt(0, 0, 0);
+      }
+    }
+
+    // Create node object
+    const node = {
       id,
       position: mesh.position,
-      velocity: new THREE.Vector3(),
       mesh,
       color,
-      radius: id === 0 ? DEFAULT_NEURON_CONFIG.initialSize : size,
       connections: [],
-      active: false,
-      actionPotential: 0,
-      pulseCount: 0,
-      refractoryPeriod: false,
       groupId: parentId !== undefined ? this.neurons.get(parentId)?.groupId : this.nextGroupId++,
-      zDepth: (Math.random() - 0.5) * 20,
       createdAt: Date.now()
     };
 
-    // Track neuron in its group
-    if (!this.groups.has(neuron.groupId)) {
-      this.groups.set(neuron.groupId, new Set());
-    }
-    this.groups.get(neuron.groupId).add(neuron);
-
     // Add to scene and tracking
     this.scene.add(mesh);
-    this.neurons.set(id, neuron);
+    this.neurons.set(id, node);
 
     // If parent specified, create connection
     if (parentId !== undefined) {
       const parent = this.neurons.get(parentId);
       if (parent) {
-        this.createConnection(parent, neuron);
+        this.createConnection(parent, node);
       }
     }
     
-    // Create cross-connections with probability check and connection limit
-    if (this.neurons.size > 3 && 
-        Math.random() < NETWORK_LIMITS.crossConnectionChance && 
-        neuron.connections.length < NETWORK_LIMITS.maxConnectionsPerNeuron) {
-      this.createRandomCrossConnection();
+    // Random connections
+    if (this.neurons.size > 1 && 
+        Math.random() < GRAPH_LIMITS.connectionChance && 
+        node.connections.length < GRAPH_LIMITS.maxConnectionsPerNode) {
+      this.createRandomConnection(node);
     }
 
-    return neuron;
+    return node;
   }
 
   /**
-   * Create a connection between two neurons
+   * Create an edge between two nodes
    */
   createConnection(from, to) {
     // Check connection limits
-    if (from.connections.length >= NETWORK_LIMITS.maxConnectionsPerNeuron) {
-      console.log('Source neuron connection limit reached');
-      return null;
-    }
-    if (to.connections.length >= NETWORK_LIMITS.maxConnectionsPerNeuron) {
-      console.log('Target neuron connection limit reached');
+    if (from.connections.length >= GRAPH_LIMITS.maxConnectionsPerNode ||
+        to.connections.length >= GRAPH_LIMITS.maxConnectionsPerNode) {
       return null;
     }
 
     // Check if connection already exists
     const connectionId = `${from.id}-${to.id}`;
     if (this.connections.has(connectionId)) {
-      console.log('Connection already exists');
       return null;
     }
 
     try {
-      // Create simple line for connection
-      const points = [from.position, to.position];
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      // Create path for tube geometry
+      const curve = new THREE.LineCurve3(from.position, to.position);
+      const tubeGeometry = new THREE.TubeGeometry(
+        curve,
+        1, // segments
+        EDGE_CONFIG.radius,
+        EDGE_CONFIG.segments,
+        false
+      );
 
-      // Create material with simple properties
-      const material = this.connectionMaterial.clone();
-      material.color = from.color;
+      // Create material with solid color
+      const material = new THREE.MeshBasicMaterial({
+        color: from.color,
+        transparent: false
+      });
 
-      const line = new THREE.Line(geometry, material);
-      
-      // Create line with variable strength
-      const strength = Math.random() * 0.3 + 0.7; // Higher base strength (0.7-1.0)
-      material.emissiveIntensity = DEFAULT_CONNECTION_CONFIG.baseEmissive * strength;
-      this.scene.add(line);
+      const tube = new THREE.Mesh(tubeGeometry, material);
+      this.scene.add(tube);
 
       const connection = {
-        id: `${from.id}-${to.id}`,
+        id: connectionId,
         from,
         to,
-        mesh: line,
-        strength,
-        active: false,
+        mesh: tube,
+        curve,
         createdAt: Date.now()
       };
 
       // Track connection
-      this.connections.set(connection.id, connection);
+      this.connections.set(connectionId, connection);
       from.connections.push(connection);
       to.connections.push(connection);
 
@@ -235,280 +205,82 @@ export class EntityManager {
   }
 
   /**
-   * Create a random cross-group connection
+   * Create a random connection from a node to another existing node
    */
-  createRandomCrossConnection() {
-    // Only create cross connections if we have multiple groups
-    if (this.groups.size <= 1) return;
+  createRandomConnection(sourceNode) {
+    const availableNodes = Array.from(this.neurons.values()).filter(n => 
+      n !== sourceNode && 
+      !sourceNode.connections.some(c => c.to === n || c.from === n) &&
+      n.connections.length < GRAPH_LIMITS.maxConnectionsPerNode
+    );
     
-    // 35% chance of creating a cross connection
-    if (Math.random() > 0.35) return;
-
-    // Get random groups
-    const groupIds = Array.from(this.groups.keys());
-    const group1Id = groupIds[Math.floor(Math.random() * groupIds.length)];
-    let group2Id;
-    do {
-      group2Id = groupIds[Math.floor(Math.random() * groupIds.length)];
-    } while (group2Id === group1Id);
-
-    // Get random neurons from each group
-    const group1Neurons = Array.from(this.groups.get(group1Id));
-    const group2Neurons = Array.from(this.groups.get(group2Id));
-    
-    const fromNeuron = group1Neurons[Math.floor(Math.random() * group1Neurons.length)];
-    const toNeuron = group2Neurons[Math.floor(Math.random() * group2Neurons.length)];
-
-    // Create the cross connection
-    this.createConnection(fromNeuron, toNeuron);
+    if (availableNodes.length > 0) {
+      const targetNode = availableNodes[Math.floor(Math.random() * availableNodes.length)];
+      this.createConnection(sourceNode, targetNode);
+    }
   }
 
   /**
-   * Update visual state of all entities
+   * Update connections to follow node positions
    */
-  update(deltaTime) {
+  update() {
     const time = Date.now();
-    const timeInSeconds = time * 0.001; // Convert to seconds for animations
     
-    // Throttle position updates based on update interval
-    const shouldUpdatePositions = time - this.lastUpdateTime >= NETWORK_LIMITS.updateInterval;
-    
-    // Update connection geometries and materials
-    for (const connection of this.connections.values()) {
-      // Only update positions at interval
-      if (shouldUpdatePositions) {
-        const positions = connection.mesh.geometry.attributes.position;
-        positions.setXYZ(0, connection.from.position.x, connection.from.position.y, connection.from.position.z);
-        positions.setXYZ(1, connection.to.position.x, connection.to.position.y, connection.to.position.z);
-        positions.needsUpdate = true;
-      }
-
-      // Animate connection opacity and glow based on activity
-      if (connection.active) {
-        const pulseIntensity = Math.sin(timeInSeconds * 5) * 0.5 + 0.5;
-          // Only animate emissive intensity
-          connection.mesh.material.emissiveIntensity = DEFAULT_CONNECTION_CONFIG.baseEmissive + 
-            (pulseIntensity * DEFAULT_CONNECTION_CONFIG.activeEmissive);
-      }
-    }
-
-    if (shouldUpdatePositions) {
+    // Only update if enough time has passed
+    if (time - this.lastUpdateTime >= GRAPH_LIMITS.additionInterval) {
       this.lastUpdateTime = time;
-    }
-
-    // Update neuron visuals with more dynamic pulsing
-    for (const neuron of this.neurons.values()) {
-      if (neuron.active) {
-        // Combine multiple sine waves for more organic pulsing
-        const fastPulse = Math.sin(timeInSeconds * 8) * 0.3;
-        const slowPulse = Math.sin(timeInSeconds * 2) * 0.2;
-        const scale = neuron.radius * (1 + fastPulse + slowPulse);
-        neuron.mesh.scale.setScalar(scale);
-
-        // Animate opacity for pulsing effect
-        if (neuron.mesh.material instanceof THREE.Material) {
-          neuron.mesh.material.emissiveIntensity = DEFAULT_NEURON_CONFIG.baseEmissive + 
-            (Math.sin(timeInSeconds * 4) * DEFAULT_NEURON_CONFIG.activeEmissive);
-        }
-      }
-    }
-  }
-
-  /**
-   * Trigger a pulse through the network
-   */
-  triggerPulse() {
-    // Get center neuron (first created)
-    const centerNeuron = this.neurons.get(0);
-    if (!centerNeuron) return;
-
-    // Start pulse from center
-    this.pulsateNeuron(centerNeuron);
-  }
-
-  /**
-   * Recursively pulse through connected neurons
-   */
-  pulsateNeuron(neuron, delay = 0) {
-    if (neuron.refractoryPeriod) return;
-
-    setTimeout(() => {
-      // Increment action potential and pulse count
-      neuron.actionPotential += 0.2;
-      neuron.pulseCount++;
-
-      // Activate neuron with intensity based on action potential
-      neuron.active = true;
-      const intensity = Math.min(1, neuron.actionPotential);
-      if (neuron.mesh.material instanceof THREE.Material) {
-        neuron.mesh.material.emissiveIntensity = DEFAULT_NEURON_CONFIG.baseEmissive + 
-          (intensity * DEFAULT_NEURON_CONFIG.activeEmissive);
-      }
       
-      // Initial node burst behavior
-      if (neuron.id === 0 && neuron.pulseCount === 3) {
-        this.initialBurst();
-        return;
-      }
-
-      // Check for action potential threshold
-      if (neuron.actionPotential >= DEFAULT_NEURON_CONFIG.actionPotentialThreshold) {
-        this.neuronFire(neuron);
-        return;
-      }
-
-      // Pulse connections with intensity
-      neuron.connections.forEach(conn => {
-        conn.active = true;
-        if (conn.mesh.material instanceof THREE.Material) {
-          // Scale pulse intensity by connection strength
-          const pulseIntensity = intensity * conn.strength;
-          conn.mesh.material.emissiveIntensity = DEFAULT_CONNECTION_CONFIG.baseEmissive + 
-            (pulseIntensity * DEFAULT_CONNECTION_CONFIG.activeEmissive * conn.strength);
-          // Scale line thickness during pulse
-          conn.mesh.scale.setScalar(conn.strength * (1 + pulseIntensity * 0.5));
-        }
-      });
-
-      // Reset after duration
-      setTimeout(() => {
-        // Decay action potential
-        neuron.actionPotential *= DEFAULT_NEURON_CONFIG.actionPotentialDecay;
+      // Update tube geometries to match node positions
+      for (const connection of this.connections.values()) {
+        const curve = new THREE.LineCurve3(
+          connection.from.position,
+          connection.to.position
+        );
         
-        neuron.active = false;
-        if (neuron.mesh.material instanceof THREE.Material) {
-          neuron.mesh.material.emissiveIntensity = DEFAULT_NEURON_CONFIG.baseEmissive;
-        }
+        const tubeGeometry = new THREE.TubeGeometry(
+          curve,
+          1,
+          EDGE_CONFIG.radius,
+          EDGE_CONFIG.segments,
+          false
+        );
         
-        neuron.connections.forEach(conn => {
-          conn.active = false;
-          if (conn.mesh.material instanceof THREE.Material) {
-          conn.mesh.material.emissiveIntensity = DEFAULT_CONNECTION_CONFIG.baseEmissive * conn.strength;
-            conn.mesh.scale.setScalar(conn.strength); // Reset to base thickness
-          }
-
-          // Pulse connected neurons with probability based on connection strength
-          const nextNeuron = conn.to === neuron ? conn.from : conn.to;
-          if (!nextNeuron.active && Math.random() < (0.8 * conn.strength)) {
-            // Stronger connections transmit pulses faster
-            const delay = 100 * (1.5 - conn.strength);
-            this.pulsateNeuron(nextNeuron, delay);
-          }
-        });
-      }, 300);
-    }, delay);
+        connection.mesh.geometry.dispose();
+        connection.mesh.geometry = tubeGeometry;
+      }
+    }
   }
 
   /**
    * Clean up resources
    */
   dispose() {
-    // Clean up geometries
-    this.neuronGeometry.dispose();
+    this.nodeGeometry.dispose();
+    this.nodeMaterial.dispose();
+    this.edgeGeometry.dispose();
 
-    // Clean up shared materials
-    this.neuronMaterial.dispose();
-    this.connectionMaterial.dispose();
-
-    // Clean up individual entities
-    this.neurons.forEach(neuron => {
-      if (neuron.mesh.material instanceof THREE.Material) {
-        neuron.mesh.material.dispose();
-      }
-      this.scene.remove(neuron.mesh);
+    this.neurons.forEach(node => {
+      node.mesh.geometry.dispose();
+      node.mesh.material.dispose();
+      this.scene.remove(node.mesh);
     });
 
     this.connections.forEach(conn => {
       conn.mesh.geometry.dispose();
-      if (conn.mesh.material instanceof THREE.Material) {
-        conn.mesh.material.dispose();
-      }
+      conn.mesh.material.dispose();
       this.scene.remove(conn.mesh);
     });
 
-    // Clear collections
     this.neurons.clear();
     this.connections.clear();
   }
 
-  // Getters for physics system
-  getNeurons() {
+  // Helpers for external use
+  getNodes() {
     return Array.from(this.neurons.values());
   }
 
-  getConnections() {
+  getEdges() {
     return Array.from(this.connections.values());
-  }
-
-  /**
-   * Handle neuron firing when action potential threshold is reached
-   */
-  neuronFire(neuron) {
-    neuron.refractoryPeriod = true;
-    neuron.actionPotential = 0;
-
-    // Create intense burst effect with glow
-    if (neuron.mesh.material instanceof THREE.Material) {
-      neuron.mesh.material.emissiveIntensity = DEFAULT_NEURON_CONFIG.activeEmissive; // Intense glow during burst
-      neuron.mesh.scale.multiplyScalar(1.5);
-    }
-
-
-    // Check connection limits before creating new connections
-    if (neuron.connections.length < NETWORK_LIMITS.maxConnectionsPerNeuron) {
-      const nearbyNeurons = this.getNeurons().filter(n => 
-        n !== neuron && 
-        !neuron.connections.some(c => c.to === n || c.from === n) &&
-        n.connections.length < NETWORK_LIMITS.maxConnectionsPerNeuron
-      );
-      
-      if (nearbyNeurons.length > 0) {
-        const target = nearbyNeurons[Math.floor(Math.random() * nearbyNeurons.length)];
-        this.createConnection(neuron, target);
-      }
-    }
-
-    // Reset after refractory period
-    setTimeout(() => {
-      neuron.refractoryPeriod = false;
-      if (neuron.mesh.material instanceof THREE.Material) {
-        neuron.mesh.material.emissiveIntensity = DEFAULT_NEURON_CONFIG.baseEmissive; // Reset glow
-        neuron.mesh.scale.setScalar(neuron.radius);
-      }
-    }, 1000);
-  }
-
-  /**
-   * Initial burst of neurons from center
-   */
-  initialBurst() {
-    const centerNeuron = this.neurons.get(0);
-    if (!centerNeuron) return;
-
-
-    // Create 2-3 new neurons in a burst
-    const burstCount = DEFAULT_NEURON_CONFIG.burstSize;
-    const angleStep = (Math.PI * 2) / burstCount;
-
-    for (let i = 0; i < burstCount; i++) {
-      const angle = angleStep * i;
-      const distance = 10;
-      const position = new THREE.Vector3(
-        Math.cos(angle) * distance,
-        Math.sin(angle) * distance,
-        (Math.random() - 0.5) * distance
-      );
-
-      // Create neuron with more velocity
-      const neuron = this.addNeuron(0);
-      neuron.position.copy(position);
-      neuron.velocity.copy(position).normalize().multiplyScalar(2);
-      
-      // Connect to center
-      this.createConnection(centerNeuron, neuron);
-    }
-
-    // Create cross connections between burst neurons
-    this.createRandomCrossConnection();
   }
 }
