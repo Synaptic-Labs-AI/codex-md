@@ -70,10 +70,9 @@
       // Use storeManager to reset all stores
       storeManager.resetStores();
       
-      // Ensure proper website progress cleanup
-      if (isWebsiteConversion && typeof conversionTimer !== 'undefined') {
-        // No need to reset websiteProgress separately as it's now part of unifiedConversion
-        conversionTimer.stop();
+      // Always reset the timer when converting more files
+      if (typeof conversionTimer !== 'undefined') {
+        conversionTimer.reset();
       }
 
       // Reset local state
