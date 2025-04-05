@@ -12,13 +12,10 @@
 <script>
   import { onDestroy, onMount } from 'svelte';
   import ChatBubble from './common/ChatBubble.svelte';
-  import KnowledgeGraph from './common/KnowledgeGraph.svelte';
+  import Timer from './common/Timer.svelte';
   import { conversionTimer } from '$lib/stores/conversionTimer';
   import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion';
-  import { conversionMessages, getRandomMessage } from '$lib/utils/conversionMessages';
-  
-  // Component references
-  let knowledgeGraph;
+  import { getRandomMessage } from '$lib/utils/conversionMessages';
   
   // Track bubble position to alternate
   let bubblePosition = 'left';
@@ -37,12 +34,12 @@
   let displayedMessage = '';
   let isTyping = true;
   let showMessage = true;
-  let isAnimating = false; // Flag to track if animation is in progress
+  let isAnimating = false;
   
   // Animation configuration
   const typingSpeed = 40; // milliseconds per character
-  const messageDisplayTime = 4000; // Time to display a message before showing the next one
-  const typingIndicatorTime = 800; // Time to show typing indicator before starting to type
+  const messageDisplayTime = 4000; // Time to display message
+  const typingIndicatorTime = 800; // Time to show typing indicator
 
   // Persistent state for completion
   let isPersistentlyCompleted = false;
@@ -61,8 +58,6 @@
     finalTotalCount = totalCount;
     finalElapsedTime = $conversionTimer.elapsedTime;
     completionMessage = `Successfully converted ${finalTotalCount > 0 ? `all ${finalTotalCount} files` : 'your content'}! 🎉<br>Time taken: ${finalElapsedTime}`;
-    
-    // Stop message animation
     stopMessageAnimation();
   }
 
@@ -72,11 +67,8 @@
     completionMessage = '';
     finalTotalCount = 0;
     finalElapsedTime = '';
-    
-    // Reset message animation
     stopMessageAnimation();
     
-    // Start a new animation if needed
     if (status !== ConversionState.STATUS.IDLE && 
         status !== ConversionState.STATUS.COMPLETED && 
         status !== ConversionState.STATUS.ERROR &&
@@ -85,32 +77,18 @@
     }
   }
 
-  /**
-   * Manages the complete animation sequence for a message:
-   * 1. Show typing indicator
-   * 2. Type out the message
-   * 3. Pause to let user read
-   * 4. Move to next message
-   */
   function animateMessage() {
-    // If already animating, don't start a new animation
     if (isAnimating) return;
     
     isAnimating = true;
-    
-    // Get a random message
     currentMessage = getRandomMessage();
     displayedMessage = '';
-    
-    // Step 1: Show typing indicator
     isTyping = true;
     showMessage = true;
     
-    // Step 2: After delay, hide indicator and start typing
     typingTimeout = setTimeout(() => {
       isTyping = false;
       
-      // Type out the message character by character
       let charIndex = 0;
       let fullMessage = currentMessage;
       
@@ -119,26 +97,20 @@
           displayedMessage = fullMessage.substring(0, charIndex + 1);
           charIndex++;
         } else {
-          // Typing complete, clear interval
           clearInterval(typingInterval);
           typingInterval = null;
           
-          // Step 3: Pause to let user read the message
           typingTimeout = setTimeout(() => {
-            // Step 4: Schedule next message
             messageTimeout = setTimeout(() => {
               isAnimating = false;
               animateMessage();
-            }, 100); // Small delay before starting next animation
+            }, 100);
           }, messageDisplayTime);
         }
       }, typingSpeed);
     }, typingIndicatorTime);
   }
 
-  /**
-   * Stops all animations and clears all timers
-   */
   function stopMessageAnimation() {
     isAnimating = false;
     
@@ -160,12 +132,10 @@
 
   // Subscription to conversion state
   const unsubStatus = unifiedConversion.subscribe(value => {
-    // Update minimal set of properties
     status = value.status;
     totalCount = value.totalCount || 0;
     error = value.error;
 
-    // Start timer and message animation as soon as conversion starts
     if (status !== ConversionState.STATUS.IDLE && 
         status !== ConversionState.STATUS.COMPLETED && 
         status !== ConversionState.STATUS.ERROR &&
@@ -173,19 +143,16 @@
         !$conversionTimer.isRunning) {
       conversionTimer.start();
       
-      // Start message animation if not already running
       if (!isAnimating) {
         animateMessage();
       }
     }
     
-    // Handle completion
     if (status === ConversionState.STATUS.COMPLETED && !isPersistentlyCompleted) {
       conversionTimer.stop();
       captureCompletionState();
     }
     
-    // Handle error
     if (status === ConversionState.STATUS.ERROR || 
         status === ConversionState.STATUS.CANCELLED) {
       conversionTimer.stop();
@@ -194,36 +161,25 @@
   });
 
   onMount(() => {
-    // Start message animation immediately if conversion is active
     if (status !== ConversionState.STATUS.IDLE && 
         status !== ConversionState.STATUS.COMPLETED && 
         status !== ConversionState.STATUS.ERROR &&
         status !== ConversionState.STATUS.CANCELLED &&
         !isPersistentlyCompleted) {
       
-      // Start message animation if not already running
       if (!isAnimating) {
         animateMessage();
       }
       
-      // Start timer if not already running
       if (!$conversionTimer.isRunning) {
         conversionTimer.start();
       }
     }
   });
 
-  // Update knowledge graph when seconds count changes, unless completed
-  $: if (knowledgeGraph && $conversionTimer.secondsCount > 0 && 
-         status !== ConversionState.STATUS.COMPLETED) {
-    knowledgeGraph.updateGraph($conversionTimer.secondsCount);
-  }
-
   onDestroy(() => {
     unsubStatus();
     stopMessageAnimation();
-    // Don't reset the timer on component destroy
-    // This ensures the timer continues across different phases
   });
 </script>
 
@@ -264,14 +220,8 @@
       {/if}
     </div>
 
-    <!-- Knowledge Graph Visualization -->
-    <div class="knowledge-graph-container" class:fade-in={status !== ConversionState.STATUS.IDLE}>
-      <KnowledgeGraph 
-        secondsCount={$conversionTimer.secondsCount}
-        bind:this={knowledgeGraph}
-        keepAlive={status === ConversionState.STATUS.COMPLETED}
-      />
-    </div>
+    <!-- Conversion Timer -->
+    <Timer time={$conversionTimer.elapsedTime} />
   </div>
 {/if}
 
@@ -279,18 +229,16 @@
   .conversion-progress {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1rem;
     padding: 1rem;
     max-width: 900px;
     margin: 0 auto;
+    align-items: center;
   }
   
   .chat-container {
     margin-bottom: 0;
-  }
-  
-  .knowledge-graph-container {
-    margin: 0;
+    width: 100%;
   }
 
   .fade-in {

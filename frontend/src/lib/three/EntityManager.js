@@ -9,21 +9,23 @@ import * as THREE from 'three';
 
 // Physics configuration
 const PHYSICS_CONFIG = {
-  repelStrength: 15,     // Increased same-color repulsion
-  attractStrength: 8,    // Increased different-color attraction
-  springStrength: 0.3,   // Stronger spring connections
-  springLength: 10,      // Longer rest length for more spacing
-  damping: 0.9,         // Higher damping for smoother motion
-  maxVelocity: 1.5,     // Slower maximum velocity
-  minDistance: 3        // Larger minimum distance
+  repelStrength: 80,      // Even stronger repulsion for more dynamic movement
+  attractStrength: 50,    // Stronger attraction to balance repulsion
+  collisionDistance: 6.0, // Slightly larger connection range
+  postConnectRepel: 90,   // Much stronger repulsion after connection
+  springLength: 12,       // Slightly shorter springs for tighter clusters
+  springStrength: 2.0,    // Much stronger spring force for bouncier behavior
+  damping: 0.92,         // Less damping for more dynamic motion
+  maxVelocity: 8.0,      // Higher speed cap for more energetic movement
+  minDistance: 3.5       // Slightly smaller minimum distance
 };
 
 // Graph visualization limits
 const GRAPH_LIMITS = {
   maxNodes: 50,
-  maxConnectionsPerNode: 4,
-  proximityThreshold: 4, // Shorter distance for connections to keep graph sparse
-  additionInterval: 3000 // Milliseconds between node additions
+  maxConnectionsPerNode: 4,     // Allow more connections
+  proximityThreshold: 6.0,      // Larger connection formation range
+  additionInterval: 3000        // Keep same timing
 };
 
 // Visual configurations
@@ -65,7 +67,7 @@ export class EntityManager {
     // Create shared materials using MeshPhysicalMaterial for glow effects
     this.nodeMaterial = new THREE.MeshPhysicalMaterial({
       transparent: true,
-      color: new THREE.Color(0x222222),
+      color: new THREE.Color(0x888888),
       emissive: new THREE.Color(0xffffff),
       emissiveIntensity: 0.5,
       opacity: 0.95,
@@ -99,7 +101,13 @@ export class EntityManager {
     this.lastNodeTime = 0;
   }
 
-  // Helper method to calculate force between two nodes
+  // Helper to check if nodes are connected
+  isConnected(node1, node2) {
+    return this.connections.has(`${node1.id}-${node2.id}`) || 
+           this.connections.has(`${node2.id}-${node1.id}`);
+  }
+
+  // Calculate force between nodes
   calculateForce(node1, node2) {
     const dx = node2.position.x - node1.position.x;
     const dy = node2.position.y - node1.position.y;
@@ -108,14 +116,26 @@ export class EntityManager {
     const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
     if (distance === 0) return new THREE.Vector3();
     
-    // Calculate force magnitude
+    const direction = new THREE.Vector3(dx, dy, dz).normalize();
     let forceMagnitude;
-    if (node1.color.equals(node2.color)) {
-      // Repulsion for same color
-      forceMagnitude = -PHYSICS_CONFIG.repelStrength / Math.pow(distance, 2);
+
+    // Check if nodes are connected
+    if (this.isConnected(node1, node2)) {
+      // Connected nodes repel
+      forceMagnitude = -PHYSICS_CONFIG.postConnectRepel / (distance * distance);
     } else {
-      // Attraction for different colors
-      forceMagnitude = PHYSICS_CONFIG.attractStrength / Math.pow(distance, 2);
+      // Unconnected nodes: attract if different color, repel if same
+      if (node1.color.equals(node2.color)) {
+        forceMagnitude = -PHYSICS_CONFIG.repelStrength / (distance * distance);
+      } else {
+        forceMagnitude = PHYSICS_CONFIG.attractStrength / (distance * distance);
+      }
+
+      // Check for new connection formation
+      if (distance <= PHYSICS_CONFIG.collisionDistance && 
+          !node1.color.equals(node2.color)) {
+        this.createConnection(node1, node2);
+      }
     }
     
     // Prevent extreme forces at very close distances
@@ -123,23 +143,7 @@ export class EntityManager {
       forceMagnitude *= (distance / PHYSICS_CONFIG.minDistance);
     }
     
-    // Create force vector
-    return new THREE.Vector3(dx, dy, dz).normalize().multiplyScalar(forceMagnitude);
-  }
-
-  // Helper method to calculate spring forces for connections
-  calculateSpringForce(connection) {
-    const dx = connection.to.position.x - connection.from.position.x;
-    const dy = connection.to.position.y - connection.from.position.y;
-    const dz = connection.to.position.z - connection.from.position.z;
-    
-    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    if (distance === 0) return new THREE.Vector3();
-    
-    const displacement = distance - PHYSICS_CONFIG.springLength;
-    const forceMagnitude = PHYSICS_CONFIG.springStrength * displacement;
-    
-    return new THREE.Vector3(dx, dy, dz).normalize().multiplyScalar(forceMagnitude);
+    return direction.multiplyScalar(forceMagnitude);
   }
 
   /**
@@ -155,28 +159,38 @@ export class EntityManager {
     const id = this.nextNeuronId++;
     const color = this.colors[Math.floor(Math.random() * this.colors.length)];
 
-    // Create material instance for the node
+    // Create material instance for the node with proper color handling
     const material = this.nodeMaterial.clone();
-    material.color = color;
-    material.emissive = color;
+    material.color.copy(color);
+    material.emissive.copy(color);
+    material.emissiveIntensity = 0.6;
 
     // Create mesh for the node
     const mesh = new THREE.Mesh(this.nodeGeometry, material);
 
-    // Position the node randomly within a sphere except for first node
-    const radius = this.neurons.size === 0 ? 0 : Math.random() * 15 + 5;
-    const phi = Math.random() * Math.PI * 2;
-    const theta = Math.acos((Math.random() * 2) - 1);
+    // Position node in a spiral pattern with some randomness
+    const spiralAngle = this.neurons.size * 0.5; // Create spiral pattern
+    const heightOffset = Math.cos(spiralAngle) * 5; // Oscillating height
+    const radius = this.neurons.size === 0 ? 0 : 20 + (Math.random() * 15) + (this.neurons.size * 0.5);
     
     const position = new THREE.Vector3(
-      radius * Math.sin(theta) * Math.cos(phi),
-      radius * Math.sin(theta) * Math.sin(phi),
-      radius * Math.cos(theta)
+      radius * Math.cos(spiralAngle),
+      heightOffset + Math.random() * 5, // Add random height variation
+      radius * Math.sin(spiralAngle)
     );
     mesh.position.copy(position);
 
-    // Initialize physics properties
-    const velocity = new THREE.Vector3();
+    // Initialize velocity tangential to the spiral
+    const tangentAngle = spiralAngle + Math.PI / 2; // 90 degrees offset for tangential motion
+    const upwardBias = Math.random() * 0.5; // Add slight upward tendency
+    
+    const speed = PHYSICS_CONFIG.maxVelocity * (0.4 + Math.random() * 0.4); // 40-80% of max speed
+    const velocity = new THREE.Vector3(
+      Math.cos(tangentAngle) * speed,     // Tangential X component
+      upwardBias * speed,                 // Upward drift
+      Math.sin(tangentAngle) * speed      // Tangential Z component
+    );
+    
     const force = new THREE.Vector3();
     this.velocities.set(id, velocity);
     this.forces.set(id, force);
@@ -332,21 +346,46 @@ export class EntityManager {
       force.set(0, 0, 0);
     }
     
-    // Calculate forces between all nodes
-    const nodeArray = Array.from(this.neurons.values());
-    for (let i = 0; i < nodeArray.length; i++) {
-      for (let j = i + 1; j < nodeArray.length; j++) {
-        const force = this.calculateForce(nodeArray[i], nodeArray[j]);
-        this.forces.get(nodeArray[i].id).add(force);
-        this.forces.get(nodeArray[j].id).sub(force);
+    // Calculate physics in fixed time steps for stability
+    const fixedDt = 1/60; // 60 Hz physics update
+    const iterations = Math.ceil(deltaTime / fixedDt);
+    const iterationDt = deltaTime / iterations;
+
+    for (let step = 0; step < iterations; step++) {
+      // Calculate inter-node forces
+      const nodeArray = Array.from(this.neurons.values());
+      for (let i = 0; i < nodeArray.length; i++) {
+        for (let j = i + 1; j < nodeArray.length; j++) {
+          // Calculate base force
+          const force = this.calculateForce(nodeArray[i], nodeArray[j]);
+          
+          // Apply to nodes (using iterationDt for stable integration)
+          const nodeForce = force.clone().multiplyScalar(iterationDt);
+          this.forces.get(nodeArray[i].id).add(nodeForce);
+          this.forces.get(nodeArray[j].id).sub(nodeForce);
+        }
       }
-    }
-    
-    // Calculate spring forces for connections
-    for (const connection of this.connections.values()) {
-      const springForce = this.calculateSpringForce(connection);
-      this.forces.get(connection.from.id).sub(springForce);
-      this.forces.get(connection.to.id).add(springForce);
+      
+      // Handle spring forces between connections
+      for (const connection of this.connections.values()) {
+        const dx = connection.to.position.x - connection.from.position.x;
+        const dy = connection.to.position.y - connection.from.position.y;
+        const dz = connection.to.position.z - connection.from.position.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        const direction = new THREE.Vector3(dx, dy, dz).normalize();
+        
+        // Combined spring and repulsion force
+        const repelForce = PHYSICS_CONFIG.postConnectRepel / (distance * distance);
+        const springForce = PHYSICS_CONFIG.springStrength * (PHYSICS_CONFIG.springLength - distance);
+        const totalForce = springForce - repelForce;
+        
+        const force = direction.multiplyScalar(totalForce * iterationDt);
+      
+        // Apply to both nodes
+        this.forces.get(connection.from.id).sub(force);
+        this.forces.get(connection.to.id).add(force);
+      }
     }
     
     // Update velocities and positions
@@ -354,18 +393,31 @@ export class EntityManager {
       const velocity = this.velocities.get(node.id);
       const force = this.forces.get(node.id);
       
-      // Update velocity with force and damping
-      velocity.add(force.multiplyScalar(deltaTime));
+      // Apply accumulated forces with proper time scaling
+      force.add(new THREE.Vector3(0, -2, 0)); // Add gravity
+      const scaledForce = force.clone().multiplyScalar(deltaTime);
+      velocity.add(scaledForce);
       velocity.multiplyScalar(PHYSICS_CONFIG.damping);
       
-      // Cap maximum velocity
-      if (velocity.length() > PHYSICS_CONFIG.maxVelocity) {
-        velocity.normalize().multiplyScalar(PHYSICS_CONFIG.maxVelocity);
+      // Apply velocity limit
+      const speed = velocity.length();
+      if (speed > PHYSICS_CONFIG.maxVelocity) {
+        velocity.multiplyScalar(PHYSICS_CONFIG.maxVelocity / speed);
+      }
+
+      // Add slight inward pull to keep nodes from drifting too far
+      const distanceFromCenter = node.position.length();
+      if (distanceFromCenter > 30) {
+        const pullStrength = (distanceFromCenter - 30) * 0.1;
+        velocity.sub(node.position.clone().normalize().multiplyScalar(pullStrength * deltaTime));
       }
       
       // Update position
       node.position.add(velocity.clone().multiplyScalar(deltaTime));
       node.mesh.position.copy(node.position);
+      
+      // Reset force accumulator
+      force.set(0, 0, 0);
     }
     
     // Check for new connections based on proximity
@@ -379,10 +431,10 @@ export class EntityManager {
     for (const node of this.neurons.values()) {
       const nodePhase = this.pulsePhase + node.phaseOffset;
       if (node.mesh.material) {
-        // More dramatic glow variation
-        node.mesh.material.emissiveIntensity = 0.6 + 1.0 * Math.sin(nodePhase);
-        // Minimal scale change
-        node.mesh.scale.setScalar(1.0 + Math.sin(nodePhase) * this.pulseStrength);
+        // Subtle glow variation (0.4 to 0.8 range)
+        node.mesh.material.emissiveIntensity = 0.4 + 0.4 * Math.sin(nodePhase);
+        // Very minimal scale change
+        node.mesh.scale.setScalar(1.0 + Math.sin(nodePhase) * 0.01);
       }
     }
 
@@ -405,15 +457,19 @@ export class EntityManager {
       connection.mesh.geometry.dispose();
       connection.mesh.geometry = tubeGeometry;
 
-      // Update connection material
+      // Update connection visual state
       if (connection.mesh.material) {
         const fromPhase = this.pulsePhase + connection.from.phaseOffset;
         const toPhase = this.pulsePhase + connection.to.phaseOffset;
         const connPhase = (fromPhase + toPhase) / 2;
         
-        // Match node glow intensity for connections
-        connection.mesh.material.emissiveIntensity = 0.4 + 0.8 * Math.sin(connPhase);
-        connection.mesh.material.opacity = 0.4 + 0.4 * Math.sin(connPhase);
+        // Base glow and opacity
+        let emissiveBase = 0.4;
+        let opacityBase = 0.4;
+        
+        // Subtle connection glow variation
+        connection.mesh.material.emissiveIntensity = 0.3 + 0.3 * Math.sin(connPhase);
+        connection.mesh.material.opacity = 0.5 + 0.2 * Math.sin(connPhase);
       }
     }
   }

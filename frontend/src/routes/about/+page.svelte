@@ -63,64 +63,64 @@
     </p>
     
     <div class="bento-grid services-grid">
-      <a href="https://synapticlabs.ai/services/ai-integration" class="bento-card ai-card" target="_blank" rel="noopener noreferrer">
+      <a href="https://www.synapticlabs.ai/agents" class="bento-card ai-card" target="_blank" rel="noopener noreferrer">
         <div class="card-emoji">🤖</div>
-        <h3>AI Integration</h3>
-        <p>Custom AI solutions for businesses and organizations</p>
+        <h3>AI Agents</h3>
+        <p>Custom AI agents and automation solutions</p>
       </a>
       
-      <a href="https://synapticlabs.ai/services/flow-products" class="bento-card flow-card" target="_blank" rel="noopener noreferrer">
+      <a href="https://www.synapticlabs.ai/flows" class="bento-card flow-card" target="_blank" rel="noopener noreferrer">
         <div class="card-emoji">🔄</div>
         <h3>Flow Products</h3>
-        <p>Guided workflows for specific use cases</p>
+        <p>Guided knowledge workflows</p>
       </a>
       
-      <a href="https://synapticlabs.ai/services/agent-development" class="bento-card agent-card" target="_blank" rel="noopener noreferrer">
-        <div class="card-emoji">🧠</div>
-        <h3>Agent Development</h3>
-        <p>Custom AI agents with knowledge bases and automation capabilities</p>
+      <a href="https://www.synapticlabs.ai/bootcamps" class="bento-card bootcamp-card" target="_blank" rel="noopener noreferrer">
+        <div class="card-emoji">🎓</div>
+        <h3>Bootcamps</h3>
+        <p>Level up your skills with expert training</p>
       </a>
       
-      <a href="https://synapticlabs.ai/services/knowledge-management" class="bento-card knowledge-card" target="_blank" rel="noopener noreferrer">
-        <div class="card-emoji">📚</div>
-        <h3>Knowledge Management</h3>
-        <p>Solutions like <span class="codex-md-brand">codex.md</span>, Obsidian vault packages, and integration tools</p>
+      <a href="https://blog.synapticlabs.ai" class="bento-card blog-card" target="_blank" rel="noopener noreferrer">
+        <div class="card-emoji">📖</div>
+        <h3>Blog</h3>
+        <p>Latest insights and knowledge management tips</p>
       </a>
     </div>
 
     <h2>Connect With Us</h2>
     <div class="bento-container">
       <div class="contact-grid">
-        <a href="https://synapticlabs.ai" class="contact-card website" target="_blank" rel="noopener noreferrer">
+        <a href="https://www.synapticlabs.ai/about" class="contact-card website" target="_blank" rel="noopener noreferrer">
           <span class="contact-emoji">🌐</span>
-          <span class="contact-name">Website</span>
+          <span class="contact-name">About Us</span>
         </a>
         
-        <a href="mailto:profsynapse@synapticlabs.ai" class="contact-card contact" target="_blank" rel="noopener noreferrer">
+        <a href="https://www.synapticlabs.ai/contact-us" class="contact-card contact" target="_blank" rel="noopener noreferrer">
           <span class="contact-emoji">📧</span>
           <span class="contact-name">Contact Us</span>
         </a>
       </div>
       
       <div class="social-grid">
-        <a href="https://www.linkedin.com/company/synapticlabs/" class="social-card linkedin" target="_blank" rel="noopener noreferrer">
-          <span class="social-emoji">💼</span>
-          <span class="social-name">LinkedIn</span>
-        </a>
-        
-        <a href="https://www.instagram.com/synapticlabs" class="social-card instagram" target="_blank" rel="noopener noreferrer">
-          <span class="social-emoji">📸</span>
-          <span class="social-name">Instagram</span>
-        </a>
-        
-        <a href="https://discord.gg/synapticlabs" class="social-card discord" target="_blank" rel="noopener noreferrer">
+        <a href="https://discord.gg/z5DgD5ZHNJ" class="social-card discord" target="_blank" rel="noopener noreferrer">
           <span class="social-emoji">💬</span>
           <span class="social-name">Discord</span>
         </a>
         
+        <a href="https://blog.synapticlabs.ai" class="social-card blog" target="_blank" rel="noopener noreferrer">
+          <span class="social-emoji">📖</span>
+          <span class="social-name">Blog</span>
+        </a>
+        
         <a href="https://www.youtube.com/@SynapticLabs" class="social-card youtube" target="_blank" rel="noopener noreferrer">
-          <span class="social-emoji">🎬</span>
+          <span class="social-emoji">🎥</span>
           <span class="social-name">YouTube</span>
+        </a>
+        
+        <a href="https://www.synapticlabs.ai/bootcamps" class="social-card bootcamps" target="_blank" rel="noopener noreferrer">
+          <span class="social-emoji">🎓</span>
+          <span class="social-name">Bootcamps</span>
         </a>
       </div>
     </div>
