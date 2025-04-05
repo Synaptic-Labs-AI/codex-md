@@ -11,28 +11,9 @@
     function handleRemove() {
       dispatch('remove', { id: file.id });
     }
-  
-    function handleSelect() {
-      dispatch('select', { 
-        id: file.id, 
-        selected: !file.selected 
-      });
-    }
 </script>
   
-<div 
-  class="file-card"
-  class:is-selected={file.selected}
->
-  <div class="select-area">
-      <input
-          type="checkbox"
-          checked={file.selected}
-          on:change={handleSelect}
-          aria-label={`Select ${file.name}`}
-          class="select-checkbox"
-      />
-  </div>
+<div class="file-card">
 
   <div class="file-info">
       <span class="icon" aria-hidden="true">
@@ -71,44 +52,6 @@
       box-shadow: var(--shadow-md);
   }
 
-  .file-card.is-selected {
-      background: rgba(var(--color-prime-rgb), 0.1);
-      box-shadow: var(--shadow-md);
-  }
-
-  .select-area {
-      display: flex;
-      align-items: center;
-  }
-
-  .select-checkbox {
-      width: 18px;
-      height: 18px;
-      cursor: pointer;
-      border-radius: var(--rounded-sm);
-      border: 2px solid var(--color-border);
-      transition: all 0.2s ease;
-      position: relative;
-      appearance: none;
-      -webkit-appearance: none;
-      background: var(--color-surface);
-  }
-
-  .select-checkbox:checked {
-      background: linear-gradient(135deg, var(--color-prime), var(--color-fourth));
-      border-color: transparent;
-  }
-
-  .select-checkbox:checked::after {
-      content: "✓";
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      font-size: 12px;
-      line-height: 1;
-  }
 
   .file-info {
       display: flex;
@@ -151,9 +94,6 @@
 
   /* High Contrast Mode */
   @media (prefers-contrast: high) {
-      .select-checkbox {
-          border-width: 3px;
-      }
 
       .file-card {
           box-shadow: var(--shadow-lg);

@@ -1,10 +1,13 @@
 /**
  * Electron Client Entry Point
- * 
+ *
  * Main entry point for the Electron client implementation. This module ties together
  * all the individual components and provides a clean interface for the application
  * to interact with Electron functionality.
- * 
+ *
+ * TEMPORARILY MODIFIED: Batch processing functionality has been disabled to simplify
+ * the application to only handle one item at a time.
+ *
  * Related files:
  * - ../errors.js: Custom error definitions
  * - eventHandlers.js: Event registration and handling
@@ -56,8 +59,14 @@ class ElectronClient {
    * @param {Function} onProgress Progress callback
    * @param {Function} onItemComplete Callback for individual file completion
    * @returns {Promise<Object>} Conversion result
+   *
+   * TEMPORARILY MODIFIED: Batch processing is disabled, this will only process the first item
    */
   async convertBatch(filePaths, options = {}, onProgress = null, onItemComplete = null) {
+    // Warn about batch processing being disabled
+    if (Array.isArray(filePaths) && filePaths.length > 1) {
+      console.warn(`Batch processing is disabled. Only the first of ${filePaths.length} items will be processed.`);
+    }
     return convertBatch(filePaths, options, onProgress, onItemComplete);
   }
 

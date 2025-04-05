@@ -31,6 +31,10 @@
     $: activeType = $uploadStore.activeTab;
     $: currentConfig = URL_TYPES[activeType] || URL_TYPES.single;
     $: isValidFormat = inputValue && couldBeValidUrl(inputValue);
+    
+    // Check if there are any files in the store (to disable URL input if a file exists)
+    $: hasFiles = $files.length > 0 && !$files[0].url;
+    $: isDisabled = hasFiles || loading;
 
     function couldBeValidUrl(input) {
         try {
@@ -124,20 +128,20 @@
         <input
             type="text"
             class="url-input"
-            placeholder={currentConfig.placeholder}
+            placeholder={hasFiles ? "Please remove file to add URL" : currentConfig.placeholder}
             bind:value={inputValue}
             on:input={handleInput}
             on:keypress={handleKeyPress}
             on:paste={handlePaste}
-            disabled={loading}
-            aria-label={currentConfig.placeholder}
+            disabled={isDisabled}
+            aria-label={hasFiles ? "URL input disabled while file is present" : currentConfig.placeholder}
             aria-describedby="url-error"
         />
 
         <button 
             class="submit-button"
             on:click={handleSubmit}
-            disabled={!isValidFormat || loading}
+            disabled={!isValidFormat || isDisabled}
             aria-label="Add URL to queue"
             on:mouseenter={() => showTooltip = true}
             on:mouseleave={() => showTooltip = false}
@@ -170,6 +174,16 @@
             in:fade={{ duration: 200 }}
         >
             The URL format looks incorrect.
+        </div>
+    {/if}
+
+    {#if hasFiles}
+        <div
+            class="info-message"
+            role="status"
+            in:fade={{ duration: 200 }}
+        >
+            Remove the file first to add a URL instead.
         </div>
     {/if}
 </div>
@@ -306,6 +320,15 @@
         border-radius: var(--rounded-md);
         position: relative;
         background: rgba(var(--color-error-rgb), 0.1);
+    }
+
+    .info-message {
+        color: var(--color-info);
+        font-size: var(--font-size-sm);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border-radius: var(--rounded-md);
+        position: relative;
+        background: rgba(var(--color-info-rgb), 0.1);
     }
 
     /* Mobile Responsiveness */

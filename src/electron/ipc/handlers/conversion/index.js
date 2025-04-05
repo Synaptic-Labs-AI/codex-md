@@ -1,11 +1,14 @@
 /**
  * Conversion IPC Handlers
  * Implements handlers for document conversion operations.
- * 
+ *
  * These handlers expose the ElectronConversionService functionality to the
  * renderer process through secure IPC channels. They manage file selection,
  * conversion processes, and progress tracking.
- * 
+ *
+ * TEMPORARILY MODIFIED: Batch processing functionality has been disabled to simplify
+ * the application to only handle one item at a time.
+ *
  * Related files:
  * - services/ElectronConversionService.js: Core conversion functionality
  * - services/FileSystemService.js: File system operations
@@ -18,7 +21,6 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { IPCChannels } = require('../../types');
 const ElectronConversionService = require('../../../services/ElectronConversionService');
-const ProgressService = require('../../../services/ProgressService');
 
 /**
  * Registers all conversion-related IPC handlers
@@ -37,26 +39,9 @@ function registerConversionHandlers() {
     const jobId = uuidv4();
     
     try {
-      // Register job with ProgressService
-      ProgressService.registerJob(jobId, {
-        type: 'file',
-        path: request.path,
-        filename: path.basename(request.path)
-      });
-      
       const result = await ElectronConversionService.convert(request.path, {
-        ...request.options,
-        onProgress: (progress) => {
-          // Update progress via ProgressService
-          ProgressService.updateProgress(jobId, progress, {
-            file: request.path,
-            status: progress < 100 ? 'converting' : 'complete'
-          });
-        }
+        ...request.options
       });
-      
-      // Mark job as complete
-      ProgressService.completeJob(jobId, result);
       
       // Show notification on successful conversion
       if (result.success && global.notificationManager) {
@@ -68,8 +53,6 @@ function registerConversionHandlers() {
         jobId // Return jobId to client for reference
       };
     } catch (error) {
-      // Mark job as failed
-      ProgressService.failJob(jobId, error);
       
       // Show notification on conversion error
       if (global.notificationManager) {
@@ -84,12 +67,12 @@ function registerConversionHandlers() {
     }
   });
 
-  // Convert multiple files
+  // Convert multiple files (TEMPORARILY MODIFIED: only processes the first item)
   ipcMain.handle(IPCChannels.CONVERT_BATCH, async (event, request) => {
-    if (!request?.paths || !Array.isArray(request.paths)) {
-      return { 
-        success: false, 
-        error: 'Invalid request: file paths array is required' 
+    if (!request?.items || !Array.isArray(request.items)) {
+      return {
+        success: false,
+        error: 'Invalid request: items array is required'
       };
     }
 
@@ -97,44 +80,32 @@ function registerConversionHandlers() {
     const jobId = uuidv4();
     
     try {
-      // Register job with ProgressService
-      ProgressService.registerJob(jobId, {
-        type: 'batch',
-        paths: request.paths,
-        count: request.paths.length
+      console.log(`Starting conversion of first item (batch processing disabled)`);
+      
+      // Warn about batch processing being disabled
+      if (request.items.length > 1) {
+        console.warn(`Batch processing is disabled. Only the first of ${request.items.length} items will be processed.`);
+      }
+      
+      // Process items
+      const result = await ElectronConversionService.convertBatch(request.items, {
+        ...request.options
       });
       
-      const result = await ElectronConversionService.convertBatch(request.paths, {
-        ...request.options,
-        onProgress: (progressInfo) => {
-          // Update progress via ProgressService
-          ProgressService.updateProgress(jobId, progressInfo.progress, {
-            file: progressInfo.file,
-            index: progressInfo.index,
-            total: request.paths.length,
-            status: 'converting'
-          });
-        }
-      });
-      
-      // Mark job as complete
-      ProgressService.completeJob(jobId, result);
-      
-      // Show notification on successful batch conversion
+      // Show notification on successful conversion
       if (result.success && global.notificationManager) {
-        global.notificationManager.showBatchConversionComplete(
-          result.results.length, 
-          result.outputDir
+        global.notificationManager.showConversionComplete(
+          request.items[0].path || request.items[0].url || 'Single item',
+          result.outputPath
         );
       }
       
       return {
         ...result,
-        jobId // Return jobId to client for reference
+        jobId
       };
     } catch (error) {
-      // Mark job as failed
-      ProgressService.failJob(jobId, error);
+      console.error('Batch conversion error:', error);
       
       // Show notification on batch conversion error
       if (global.notificationManager) {
@@ -152,7 +123,7 @@ function registerConversionHandlers() {
   // Select files for conversion
   ipcMain.handle(IPCChannels.SELECT_FILES, async () => {
     const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'multiSelections'],
+      properties: ['openFile'], // TEMPORARILY MODIFIED: removed 'multiSelections'
       filters: [
         { name: 'Documents', extensions: ['pdf', 'docx', 'doc', 'pptx', 'xlsx'] },
         { name: 'Audio/Video', extensions: ['mp3', 'mp4', 'wav', 'avi'] },
@@ -202,25 +173,9 @@ function registerConversionHandlers() {
     const jobId = uuidv4();
     
     try {
-      // Register job with ProgressService
-      ProgressService.registerJob(jobId, {
-        type: 'url',
-        url: request.url
-      });
-      
       const result = await ElectronConversionService.convertUrl(request.url, {
-        ...request.options,
-        onProgress: (progress) => {
-          // Update progress via ProgressService
-          ProgressService.updateProgress(jobId, progress, {
-            file: request.url,
-            status: progress < 100 ? 'converting' : 'complete'
-          });
-        }
+        ...request.options
       });
-      
-      // Mark job as complete
-      ProgressService.completeJob(jobId, result);
       
       // Show notification on successful URL conversion
       if (result.success && global.notificationManager) {
@@ -232,8 +187,6 @@ function registerConversionHandlers() {
         jobId // Return jobId to client for reference
       };
     } catch (error) {
-      // Mark job as failed
-      ProgressService.failJob(jobId, error);
       
       // Show notification on URL conversion error
       if (global.notificationManager) {
@@ -261,24 +214,9 @@ function registerConversionHandlers() {
     const jobId = uuidv4();
     
     try {
-      // Register job with ProgressService
-      ProgressService.registerJob(jobId, {
-        type: 'parent-url',
-        url: request.url
-      });
-      
       const result = await ElectronConversionService.convertParentUrl(request.url, {
-        ...request.options,
-        onProgress: (progress) => {
-          // Update progress via ProgressService without auto-setting status
-          ProgressService.updateProgress(jobId, progress, {
-            file: request.url
-          });
-        }
+        ...request.options
       });
-      
-      // Mark job as complete
-      ProgressService.completeJob(jobId, result);
       
       // Show notification on successful parent URL conversion
       if (result.success && global.notificationManager) {
@@ -290,8 +228,6 @@ function registerConversionHandlers() {
         jobId // Return jobId to client for reference
       };
     } catch (error) {
-      // Mark job as failed
-      ProgressService.failJob(jobId, error);
       
       // Show notification on parent URL conversion error
       if (global.notificationManager) {
@@ -319,25 +255,9 @@ function registerConversionHandlers() {
     const jobId = uuidv4();
     
     try {
-      // Register job with ProgressService
-      ProgressService.registerJob(jobId, {
-        type: 'youtube',
-        url: request.url
-      });
-      
       const result = await ElectronConversionService.convertYoutube(request.url, {
-        ...request.options,
-        onProgress: (progress) => {
-          // Update progress via ProgressService
-          ProgressService.updateProgress(jobId, progress, {
-            file: request.url,
-            status: progress < 100 ? 'converting' : 'complete'
-          });
-        }
+        ...request.options
       });
-      
-      // Mark job as complete
-      ProgressService.completeJob(jobId, result);
       
       // Show notification on successful YouTube conversion
       if (result.success && global.notificationManager) {
@@ -349,8 +269,6 @@ function registerConversionHandlers() {
         jobId // Return jobId to client for reference
       };
     } catch (error) {
-      // Mark job as failed
-      ProgressService.failJob(jobId, error);
       
       // Show notification on YouTube conversion error
       if (global.notificationManager) {
@@ -416,7 +334,8 @@ function registerConversionHandlers() {
     }
     
     try {
-      ProgressService.cancelJob(request.id);
+      // Simple cancellation - we don't have a way to cancel in-progress conversions
+      // in the simplified sequential model
       return { success: true };
     } catch (error) {
       return {

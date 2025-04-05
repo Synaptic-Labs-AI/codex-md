@@ -31,6 +31,11 @@ export const {
   validateAndNormalizeItem
 } = utils;
 
+// Explicitly export getFileCategory to fix import issues
+export function getFileCategory(fileType) {
+  return utils.getFileCategory(fileType);
+}
+
 // Re-export converters for direct access
 export { convertFile, convertBatch, getResult } from './converters/fileConverter.js';
 export { convertUrl, convertParentUrl, convertYoutube } from './converters/urlConverter.js';

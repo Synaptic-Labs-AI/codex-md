@@ -15,6 +15,8 @@
 const BaseModuleAdapter = require('./BaseModuleAdapter');
 const ApiKeyService = require('../services/ApiKeyService');
 const PageMarkerService = require('../services/PageMarkerService');
+const path = require('path');
+const fs = require('fs');
 
 // Create the audio converter adapter
 class AudioConverterAdapter extends BaseModuleAdapter {
@@ -40,26 +42,32 @@ class AudioConverterAdapter extends BaseModuleAdapter {
   
   /**
    * Convert audio to Markdown with page markers
-   * @param {Buffer} input - Audio file buffer
-   * @param {string} originalName - Original filename
+   * @param {string} filePath - Path to the audio file
+   * @param {Object} options - Conversion options
+   * @param {string} options.name - Original filename
+   * @param {string} options.apiKey - OpenAI API key
    * @returns {Promise<{content: string, images: Array, pageCount: number}>}
    */
-  async convertAudioToMarkdown(input, originalName) {
+  async convertAudioToMarkdown(filePath, options = {}) {
+    const originalName = options.name || path.basename(filePath);
     try {
       // Initialize converter if not already done
       if (!this.converterInstance) {
         await this.initializeConverter();
       }
 
-      console.log('🔑 [AudioConverterAdapter] Retrieving API key from secure storage');
+      // Use provided API key or get from secure storage
+      let apiKey = options.apiKey;
       
-      // Get API key from secure storage
-      const apiKey = await ApiKeyService.getApiKey("openai");
-      
-      console.log('🔑 [AudioConverterAdapter] API key status:', {
-        hasKey: !!apiKey,
-        keyLength: apiKey?.length || 0
-      });
+      if (!apiKey) {
+        console.log('🔑 [AudioConverterAdapter] Retrieving API key from secure storage');
+        apiKey = await ApiKeyService.getApiKey("openai");
+        
+        console.log('🔑 [AudioConverterAdapter] API key status:', {
+          hasKey: !!apiKey,
+          keyLength: apiKey?.length || 0
+        });
+      }
       
       if (!apiKey) {
         console.error('❌ [AudioConverterAdapter] Missing OpenAI API key');
@@ -67,9 +75,8 @@ class AudioConverterAdapter extends BaseModuleAdapter {
       }
       
       console.log(`🎵 [AudioConverterAdapter] Converting audio file:`, {
-        name: originalName,
-        inputSize: input?.length || 0,
-        inputType: input ? typeof input : 'none'
+        path: filePath,
+        name: originalName
       });
       
       // Determine MIME type from file extension
@@ -77,6 +84,9 @@ class AudioConverterAdapter extends BaseModuleAdapter {
       const mimeType = `audio/${fileExt}`;
       
       console.log('🚀 [AudioConverterAdapter] Executing backend conversion method');
+      
+      // Read the file from disk
+      const input = fs.readFileSync(filePath);
       
       // Call the convertToMarkdown method on the converter instance
       const result = await this.converterInstance.convertToMarkdown(input, {

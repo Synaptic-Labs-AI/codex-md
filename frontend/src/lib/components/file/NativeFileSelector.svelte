@@ -19,9 +19,9 @@
   import electronClient from '../../api/electron';
   
   // Props
-  export let label = 'Select Files';
+  export let label = 'Select File';
   export let directoryMode = false;
-  export let multiple = true;
+  export let multiple = false; // Changed to false to enforce single file selection
   export let acceptedTypes = [];
   export let buttonVariant = 'primary';
   export let buttonSize = 'md';
