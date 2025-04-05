@@ -15,6 +15,7 @@ import { get } from 'svelte/store';
 import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
 import { conversionResult } from '$lib/stores/conversionResult.js';
 import { files } from '$lib/stores/files.js';
+import { conversionTimer } from '$lib/stores/conversionTimer.js';
 import { CONVERSION_STATUSES, FILE_TYPES } from '../constants';
 
 // Map old status constants to new ones for backward compatibility
@@ -187,6 +188,8 @@ class StoreManager {
      */
     resetStores() {
         unifiedConversion.reset();
+        conversionTimer.reset();
+        conversionResult.clearResult();
         files.clearFiles().catch(error => {
             console.warn('Failed to clear files store:', error);
         });

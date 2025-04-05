@@ -56,7 +56,11 @@
   function captureCompletionState() {
     isPersistentlyCompleted = true;
     finalTotalCount = totalCount;
+    
+    // Use the timer's captureAndStop method to ensure we get the final time
+    conversionTimer.captureAndStop();
     finalElapsedTime = $conversionTimer.elapsedTime;
+    
     completionMessage = `Successfully converted ${finalTotalCount > 0 ? `all ${finalTotalCount} files` : 'your content'}! 🎉<br>Time taken: ${finalElapsedTime}`;
     stopMessageAnimation();
   }
@@ -69,6 +73,10 @@
     finalElapsedTime = '';
     stopMessageAnimation();
     
+    // Always reset the timer when state is reset
+    conversionTimer.reset();
+    
+    // Only start animation if we're in an active conversion state
     if (status !== ConversionState.STATUS.IDLE && 
         status !== ConversionState.STATUS.COMPLETED && 
         status !== ConversionState.STATUS.ERROR &&
@@ -149,13 +157,13 @@
     }
     
     if (status === ConversionState.STATUS.COMPLETED && !isPersistentlyCompleted) {
-      conversionTimer.stop();
+      // Don't just stop the timer, capture the final time
       captureCompletionState();
     }
     
     if (status === ConversionState.STATUS.ERROR || 
         status === ConversionState.STATUS.CANCELLED) {
-      conversionTimer.stop();
+      conversionTimer.captureAndStop();
       stopMessageAnimation();
     }
   });
