@@ -296,6 +296,31 @@
     border-radius: 3px;
   }
 
+  .message :global(em) {
+    color: var(--color-text);
+    font-style: italic;
+    opacity: 0.9;
+  }
+
+  .message :global(h3) {
+    color: var(--color-prime);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    margin: var(--spacing-xs) 0;
+    line-height: 1.3;
+    background: linear-gradient(90deg,
+      var(--color-prime) 0%,
+      var(--color-fourth) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .message :global(p) {
+    margin: var(--spacing-xs) 0;
+  }
+
   @media (max-width: 640px) {
     .chat-bubble-container {
       margin-bottom: 30px;

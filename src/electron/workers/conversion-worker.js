@@ -184,6 +184,7 @@ function convertToBuffer(content, type) {
 let urlConverterAdapter;
 let pptxConverterAdapter;
 let pdfConverterAdapter;
+let audioConverterAdapter;
 
 // Dynamically import specialized adapters
 async function importSpecializedAdapters() {
@@ -205,6 +206,11 @@ async function importSpecializedAdapters() {
     pdfConverterAdapter = require(pdfAdapterPath);
     console.log(`✅ [Worker] Imported PDF converter adapter`);
     
+    // Import Audio converter adapter
+    const audioAdapterPath = path.resolve(__dirname, '../adapters/audioConverterAdapter.js');
+    audioConverterAdapter = require(audioAdapterPath);
+    console.log(`✅ [Worker] Imported Audio converter adapter`);
+
     console.log(`✅ [Worker] All specialized adapters imported successfully`);
   } catch (error) {
     console.error(`❌ [Worker] Error importing specialized adapters:`, error);
@@ -286,6 +292,9 @@ async function handleConversion(task) {
     } else if (type === 'pdf' && pdfConverterAdapter) {
       console.log(`🔄 [Worker] Using specialized PDF converter adapter`);
       result = await handlePdfConversion(task.item.content, task.item.name, task.item.apiKey, options);
+    } else if (type === 'audio' && audioConverterAdapter && task.item.filePath) {
+      console.log(`🔄 [Worker] Using specialized Audio converter adapter`);
+      result = await handleAudioConversion(task.item.filePath, task.item.name, task.item.apiKey, options);
     } else {
       console.log(`🔄 [Worker] Using ConversionService for type: ${type}`);
       
@@ -502,6 +511,39 @@ async function handlePdfConversion(content, name, apiKey, options) {
   } catch (error) {
     console.error(`❌ [Worker] PDF conversion error:`, error);
     throw new Error(`PDF conversion failed: ${error.message}`);
+  }
+}
+
+/**
+ * Handle Audio conversion using specialized adapter
+ */
+async function handleAudioConversion(filePath, name, apiKey, options) {
+  console.log(`🔄 [Worker] Converting Audio: ${name}`);
+  
+  try {
+    if (!filePath) {
+      throw new Error('Invalid Audio: File path is required');
+    }
+    
+  // Use the convertAudioToMarkdown function from the adapter with correct options
+    const result = await audioConverterAdapter.convertAudioToMarkdown(filePath, {
+      name: name,
+      apiKey: apiKey
+    });
+    
+    if (!result) {
+      throw new Error('Audio conversion returned null or undefined result');
+    }
+    
+    return {
+      ...result,
+      success: true,
+      type: 'audio',
+      name
+    };
+  } catch (error) {
+    console.error(`❌ [Worker] Audio conversion error:`, error);
+    throw new Error(`Audio conversion failed: ${error.message}`);
   }
 }
 

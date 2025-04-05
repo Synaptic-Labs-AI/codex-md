@@ -718,9 +718,23 @@ class ElectronConversionService {
             // Get file details
             const fileName = path.basename(item.path);
             const fileType = path.extname(fileName).slice(1).toLowerCase();
+
+            // Special handling for audio files
+            if (['mp3', 'wav', 'm4a', 'ogg'].includes(fileType.toLowerCase())) {
+              return {
+                id: item.id || uuidv4(),
+                type: 'audio',
+                filePath: item.path, // Keep original file path for audio processing
+                name: fileName,
+                options: {
+                  ...options,
+                  ...item.options
+                }
+              };
+            }
             
-            // Read file content
-            const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'wav']
+            // For non-audio files, read content as before
+            const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif']
               .includes(fileType.toLowerCase());
             
             const fileContent = await this.fileSystem.readFile(item.path, isBinaryFile ? null : undefined);
