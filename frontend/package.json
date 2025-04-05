@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@sveltejs/adapter-auto": "^6.0.0",
     "@sveltejs/kit": "^2.20.2",
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
     "@types/node": "^22.10.5",
@@ -19,6 +20,8 @@
     "uuid": "^11.0.4"
   },
   "dependencies": {
-    "skeleton-elements": "^4.0.1"
+    "@types/three": "^0.175.0",
+    "skeleton-elements": "^4.0.1",
+    "three": "^0.175.0"
   }
 }
