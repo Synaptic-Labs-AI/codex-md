@@ -1,13 +1,15 @@
 /**
  * Main process entry point for the Electron application.
  * Handles window management, IPC communication, and native system integration.
- * 
+ *
  * Related files:
  * - preload.js: Bridges main and renderer processes securely
  * - ipc/handlers.js: IPC main process handlers
  * - ipc/types.js: TypeScript definitions for IPC messages
  * - features/tray.js: System tray integration
  * - features/notifications.js: Native notifications
+ *
+ * Note: Hardware acceleration is explicitly enabled for WebGL support
  */
 
 const { app, BrowserWindow } = require('electron');
@@ -49,7 +51,10 @@ function createWindow() {
       contextIsolation: true, // Required for security
       nodeIntegration: false, // Disabled for security
       sandbox: true, // Enable sandbox for additional security
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      // Enable WebGL and hardware acceleration
+      webgl: true,
+      webSecurity: true
     }
   });
 
@@ -65,6 +70,11 @@ function createWindow() {
 
   return mainWindow;
 }
+
+// Enable hardware acceleration for WebGL
+app.commandLine.appendSwitch('enable-accelerated-2d-canvas', 'true');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
 
 // Initialize app when ready
 app.whenReady().then(async () => {
