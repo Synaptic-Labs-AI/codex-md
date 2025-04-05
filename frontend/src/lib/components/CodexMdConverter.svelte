@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import WelcomeChat from './common/WelcomeChat.svelte';
   import FileUploader from './FileUploader.svelte';
-  import Button from './common/Button.svelte';
   import Container from './common/Container.svelte';
   import { files } from '$lib/stores/files.js';
   import { startConversion } from '$lib/utils/conversion';
@@ -90,19 +89,10 @@
       />
     {:else if mode === 'upload'}
       <div class="main-content">
-        <FileUploader />
-        {#if $files.length > 0}
-          <div class="button-container">
-            <Button
-              variant="primary"
-              size="large"
-              fullWidth
-              on:click={handleStartConversion}
-            >
-              Start Conversion
-            </Button>
-          </div>
-        {/if}
+        <FileUploader
+          showConversionButton={$files.length > 0}
+          onStartConversion={handleStartConversion}
+        />
       </div>
     {:else if mode === 'converting'}
       <ResultDisplay 
@@ -144,12 +134,6 @@
     gap: var(--spacing-md);
     padding: var(--spacing-sm);
   }
-
-  .button-container {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    padding: var(--spacing-2xs) 0;
-    margin-top: var(--spacing-md);
-  }
+  
+  /* Button container styling moved to FileList.svelte */
 </style>

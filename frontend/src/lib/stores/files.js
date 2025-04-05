@@ -1,4 +1,11 @@
 // src/lib/stores/files.js
+/**
+ * Files Store
+ *
+ * Manages the state of files in the application.
+ * Modified to support single file conversion only.
+ * Multi-selection functionality has been commented out.
+ */
 
 import { writable, derived } from 'svelte/store';
 import { v4 as uuidv4 } from 'uuid';
@@ -163,49 +170,55 @@ function createFilesStore() {
         /**
          * Adds a file to the store
          */
+        /**
+         * Adds a file to the store
+         * Modified to only allow one item at a time (either file OR URL)
+         */
         addFile: createAction('addFile', (file) => {
             const newFile = FileUtils.createFileObject(file);
             console.log('[filesStore] Attempting to add file:', newFile);
             
             return updateFiles(files => {
-            // Special handling for parent URLs - check if it exists as a single URL
-            if (newFile.type === 'parent') {
-                const existingFile = files.find(f => 
-                    f.url === newFile.url && f.type === 'url'
-                );
-                if (existingFile) {
-                    console.log('[filesStore] Converting single URL to parent:', existingFile.name);
-                    const updatedFiles = files.map(f => 
-                        f.id === existingFile.id 
-                            ? {...f, type: 'parent', name: `${f.name} (Parent)`}
-                            : f
+                // If there are existing files, clear them before adding the new one
+                if (files.length > 0) {
+                    console.log('[filesStore] Clearing existing files before adding new one');
+                    // We could add additional logic here to check if the existing item is a URL or file
+                    // and provide more specific messaging, but for now we'll just replace it
+                }
+
+                // Special handling for parent URLs - this is kept for future use but will rarely be triggered
+                // since we're now enforcing single item limit
+                if (newFile.type === 'parent') {
+                    const existingFile = files.find(f =>
+                        f.url === newFile.url && f.type === 'url'
                     );
+                    if (existingFile) {
+                        console.log('[filesStore] Converting single URL to parent:', existingFile.name);
+                        return {
+                            files: [{...existingFile, type: 'parent', name: `${existingFile.name} (Parent)`}],
+                            result: FileUtils.createResult(true,
+                                'URL converted to parent successfully'
+                            )
+                        };
+                    }
+                }
+
+                // Handle duplicates silently
+                if (FileUtils.isDuplicate(files, newFile)) {
+                    console.log('[filesStore] Duplicate URL detected - ignoring:', newFile.name);
                     return {
-                        files: updatedFiles,
-                        result: FileUtils.createResult(true, 
-                            'URL converted to parent successfully'
+                        files,
+                        result: FileUtils.createResult(true,
+                            'URL processed successfully'
                         )
                     };
                 }
-            }
-
-            // Handle duplicates silently
-            if (FileUtils.isDuplicate(files, newFile)) {
-                console.log('[filesStore] Duplicate URL detected - ignoring:', newFile.name);
-                return {
-                    files,
-                    result: FileUtils.createResult(true, 
-                        'URL processed successfully'
-                    )
-                };
-            }
 
                 console.log('[filesStore] Adding file:', newFile);
-                console.log('[filesStore] Current file count:', files.length);
                 return {
-                    files: [...files, newFile],
-                    result: FileUtils.createResult(true, 
-                        `Added "${newFile.name}" successfully`, 
+                    files: [newFile], // Replace all files with just the new one
+                    result: FileUtils.createResult(true,
+                        `Added "${newFile.name}" successfully`,
                         newFile
                     )
                 };
@@ -275,8 +288,12 @@ function createFilesStore() {
         }),
 
         /**
-         * Selects or deselects a file
+         * File selection methods have been commented out since we no longer need multi-selection
+         * functionality in the single file conversion mode.
          */
+        
+        /*
+        // Commented out: No longer needed for single file conversion
         toggleSelect: createAction('toggleSelect', (id) => {
             console.log('[filesStore] Toggling selection for file ID:', id);
             return updateFiles(files => {
@@ -298,17 +315,15 @@ function createFilesStore() {
                 console.log('[filesStore] Toggled selection for file:', updatedFiles[index]);
                 return {
                     files: updatedFiles,
-                    result: FileUtils.createResult(true, 
-                        'Selection toggled successfully', 
+                    result: FileUtils.createResult(true,
+                        'Selection toggled successfully',
                         updatedFiles[index]
                     )
                 };
             });
         }),
 
-        /**
-         * Selects or deselects all files
-         */
+        // Commented out: No longer needed for single file conversion
         selectAll: createAction('selectAll', (select = true) => {
             console.log('[filesStore] Selecting all files:', select);
             let count = 0;
@@ -336,9 +351,7 @@ function createFilesStore() {
             });
         }),
 
-        /**
-         * Retrieves currently selected files
-         */
+        // Commented out: No longer needed for single file conversion
         getSelectedFiles() {
             console.log('[filesStore] Retrieving selected files');
             let selected = [];
@@ -349,6 +362,7 @@ function createFilesStore() {
             });
             return selected;
         },
+        */
 
         /**
          * Clears all files from the store

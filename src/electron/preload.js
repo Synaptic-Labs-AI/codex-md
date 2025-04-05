@@ -2,7 +2,10 @@
  * Preload script that runs in a privileged context before the renderer process.
  * Provides secure bridge between main and renderer processes via contextBridge.
  * Exposes only specifically allowed APIs to the renderer.
- * 
+ *
+ * TEMPORARILY MODIFIED: Batch processing functionality has been disabled to simplify
+ * the application to only handle one item at a time.
+ *
  * Related files:
  * - main.js: Main process entry point
  * - ipc/types.js: TypeScript definitions for IPC messages
@@ -81,7 +84,8 @@ contextBridge.exposeInMainWorld(
   {
     // Conversion operations
     convertFile: (path, options) => ipcRenderer.invoke('mdcode:convert:file', { path, options }),
-    convertBatch: (paths, options) => ipcRenderer.invoke('mdcode:convert:batch', { paths, options }),
+    // TEMPORARILY MODIFIED: Batch processing is disabled, this will only process the first item
+    convertBatch: (items, options) => ipcRenderer.invoke('mdcode:convert:batch', { items, options }),
     convertUrl: (url, options) => ipcRenderer.invoke('mdcode:convert:url', { url, options }),
     convertParentUrl: (url, options) => ipcRenderer.invoke('mdcode:convert:parent-url', { url, options }),
     convertYoutube: (url, options) => ipcRenderer.invoke('mdcode:convert:youtube', { url, options }),
@@ -213,7 +217,7 @@ contextBridge.exposeInMainWorld(
 /**
  * @typedef {Object} ElectronAPI
  * @property {(path: string, options?: Object) => Promise<ConversionResult>} convertFile
- * @property {(paths: string[], options?: Object) => Promise<{success: boolean, results: ConversionResult[]}>} convertBatch
+ * @property {(items: Array<Object>, options?: Object) => Promise<{success: boolean, results: ConversionResult[]}>} convertBatch - TEMPORARILY MODIFIED: Only processes the first item
  * @property {() => Promise<{success: boolean, paths?: string[]}>} selectFiles
  * @property {() => Promise<{success: boolean, path?: string}>} selectOutput
  * @property {(path: string) => Promise<{success: boolean, content?: string, metadata?: Object}>} getResult

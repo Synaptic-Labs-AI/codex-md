@@ -1,3 +1,4 @@
+<!-- src/lib/components/FileUploader.svelte -->
 <script>
   import { createEventDispatcher } from 'svelte';
   import { files } from '$lib/stores/files.js';
@@ -16,6 +17,12 @@
   import ApiKeyInput from './ApiKeyInput.svelte';
   import NativeFileSelector from './file/NativeFileSelector.svelte';
   import FolderSelector from './file/FolderSelector.svelte';
+  import Button from './common/Button.svelte';
+  
+  // Add prop to control when to show the conversion button
+  export let showConversionButton = false;
+  // Add prop for the conversion handler
+  export let onStartConversion = () => {};
 
   const dispatch = createEventDispatcher();
 
@@ -23,8 +30,13 @@
   const SUPPORTED_FILES = fileCategories;
   const SUPPORTED_EXTENSIONS = Object.values(SUPPORTED_FILES).flat();
 
+  // Reactive declarations for UI state
   $: showFileList = $files.length > 0;
   $: needsApiKey = $files.some(file => requiresApiKey(file));
+  
+  // Check if there's a URL in the files store (to disable file uploader if a URL exists)
+  $: hasUrl = $files.length > 0 && $files[0].url;
+  $: fileUploaderDisabled = hasUrl;
 
   function showFeedback(message, type = 'info') {
     if (type !== 'success') {
@@ -63,41 +75,50 @@
     return 'unknown';
   }
 
+  /**
+   * Handles files added to the uploader
+   * Modified to only process the first file if multiple are provided
+   */
   function handleFilesAdded(newFiles) {
     uploadStore.clearMessage();
-    newFiles.forEach(file => {
-      const validation = validateFile(file);
-      if (!validation.valid) {
-        showFeedback(validation.message, 'error');
-        return;
-      }
+    
+    // Only process the first file if multiple are provided
+    if (newFiles.length === 0) return;
+    
+    // Take only the first file
+    const file = newFiles[0];
+    
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      showFeedback(validation.message, 'error');
+      return;
+    }
 
-      // Handle file path (string) from Electron or File object from web
-      const isFilePath = typeof file === 'string';
-      const fileName = isFilePath ? file.split(/[/\\]/).pop() : file.name;
-      const extension = fileName.split('.').pop().toLowerCase();
-      const requiresKey = requiresApiKey(isFilePath ? { type: extension } : file);
+    // Handle file path (string) from Electron or File object from web
+    const isFilePath = typeof file === 'string';
+    const fileName = isFilePath ? file.split(/[/\\]/).pop() : file.name;
+    const extension = fileName.split('.').pop().toLowerCase();
+    const requiresKey = requiresApiKey(isFilePath ? { type: extension } : file);
 
-      const newFile = {
-        id: generateId(),
-        name: fileName,
-        file: file, // This will be either a File object or a file path string
-        path: isFilePath ? file : null, // Store the full path if it's from Electron
-        type: extension,
-        status: 'Ready',
-        progress: 0,
-        selected: false,
-        requiresApiKey: requiresKey,
-        isNative: isFilePath // Flag to indicate if this is a native file path
-      };
+    const newFile = {
+      id: generateId(),
+      name: fileName,
+      file: file, // This will be either a File object or a file path string
+      path: isFilePath ? file : null, // Store the full path if it's from Electron
+      type: extension,
+      status: 'Ready',
+      progress: 0,
+      selected: false,
+      requiresApiKey: requiresKey,
+      isNative: isFilePath // Flag to indicate if this is a native file path
+    };
 
-      const result = files.addFile(newFile);
-      if (result.success) {
-        dispatch('filesAdded', { files: [newFile] });
-      } else {
-        showFeedback(result.message, 'error');
-      }
-    });
+    const result = files.addFile(newFile);
+    if (result.success) {
+      dispatch('filesAdded', { files: [newFile] });
+    } else {
+      showFeedback(result.message, 'error');
+    }
   }
 
   /**
@@ -106,7 +127,8 @@
   function handleNativeFilesSelected(event) {
     const { paths } = event.detail;
     if (paths && paths.length > 0) {
-      handleFilesAdded(paths);
+      // Only pass the first path if multiple are selected
+      handleFilesAdded([paths[0]]);
     }
   }
 
@@ -140,7 +162,8 @@
           .map(item => item.path);
         
         if (supportedFiles.length > 0) {
-          handleFilesAdded(supportedFiles);
+          // Only pass the first supported file
+          handleFilesAdded([supportedFiles[0]]);
         } else {
           showFeedback('No supported files found in the selected folder', 'warning');
         }
@@ -160,16 +183,19 @@
 
   async function handleFileUpload(event) {
     const uploadedFiles = Array.from(event.target.files || []);
-    handleFilesAdded(uploadedFiles);
-
-    const needsKey = uploadedFiles.some(file => requiresApiKey(file));
-    if (needsKey && !$apiKey) {
-      setTimeout(() => {
-        const apiKeySection = document.querySelector('.api-key-input-section');
-        apiKeySection?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 300);
-    } else if (uploadedFiles.length > 0) {
-      dispatch('startConversion');
+    // Only pass the first file if multiple are somehow selected
+    if (uploadedFiles.length > 0) {
+      handleFilesAdded([uploadedFiles[0]]);
+      
+      const needsKey = requiresApiKey(uploadedFiles[0]);
+      if (needsKey && !$apiKey) {
+        setTimeout(() => {
+          const apiKeySection = document.querySelector('.api-key-input-section');
+          apiKeySection?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+      } else {
+        dispatch('startConversion');
+      }
     }
   }
 </script>
@@ -177,21 +203,25 @@
 <div class="file-uploader" in:fade={{ duration: 200 }}>
   <Container>
     <div class="uploader-content">
-      <!-- URL Input Section -->
-      <div class="section">
-        <TabNavigation />
-        <UrlInput />
-      </div>
+      <!-- Only show input options when no file/URL is present -->
+      {#if !showFileList}
+        <!-- URL Input Section -->
+        <div class="section">
+          <TabNavigation />
+          <UrlInput />
+        </div>
 
-      <div class="section-divider"></div>
+        <div class="section-divider"></div>
 
-      <!-- File Upload Section -->
-      <div class="section">
-        <DropZone 
-          acceptedTypes={SUPPORTED_EXTENSIONS}
-          on:filesDropped={(event) => handleFilesAdded(event.detail.files)}
-          on:filesSelected={(event) => handleFilesAdded(event.detail.files)}
-        />
+        <!-- File Upload Section -->
+        <div class="section">
+          <div>
+          <DropZone
+            acceptedTypes={SUPPORTED_EXTENSIONS}
+            on:filesDropped={(event) => !fileUploaderDisabled && handleFilesAdded(event.detail.files)}
+            on:filesSelected={(event) => !fileUploaderDisabled && handleFilesAdded(event.detail.files)}
+          />
+        </div>
       </div>
       
       {#if $uploadStore.message}
@@ -200,9 +230,36 @@
         </div>
       {/if}
 
+      {/if}
+      
+      <!-- Error messages and file list always shown when needed -->
+      {#if $uploadStore.message}
+        <div class="section">
+          <ErrorMessage />
+        </div>
+      {/if}
+
       {#if showFileList}
         <div class="section">
-          <FileList />
+          <FileList
+            showConversionButton={showConversionButton}
+            on:fileRemoved={() => {
+              // This will be called when a file is removed
+              // The reactive variable showFileList will automatically update
+              // based on $files.length, which will re-reveal the input options
+            }}
+          >
+            <div slot="conversion-button">
+              <Button
+                variant="primary"
+                size="large"
+                fullWidth
+                on:click={onStartConversion}
+              >
+                Start Conversion
+              </Button>
+            </div>
+          </FileList>
         </div>
       {/if}
 
@@ -238,6 +295,25 @@
     height: 1px;
     background: linear-gradient(90deg, var(--color-prime), var(--color-fourth));
     opacity: 0.3;
+  }
+  
+  .disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    position: relative;
+  }
+  
+  .disabled-message {
+    text-align: center;
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    background: rgba(var(--color-info-rgb), 0.1);
+    border-radius: var(--rounded-md);
+    color: var(--color-info);
+  }
+  
+  .disabled-message p {
+    margin: var(--spacing-xs) 0;
   }
 
   /* Mobile Adjustments */

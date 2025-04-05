@@ -17,8 +17,9 @@
       dragCounter = 0;
       
       const files = Array.from(event.dataTransfer.files);
-      // Size validation removed - no file size limits
-      dispatch('filesDropped', { files });
+      // Only take the first file if multiple are dropped
+      const singleFile = files.length > 0 ? [files[0]] : [];
+      dispatch('filesDropped', { files: singleFile });
     }
   
     function handleDragEnter(event) {
@@ -37,8 +38,9 @@
   
     function handleFileSelect(event) {
       const files = Array.from(event.target.files);
-      // Size validation removed - no file size limits
-      dispatch('filesSelected', { files });
+      // Only take the first file if multiple are somehow selected
+      const singleFile = files.length > 0 ? [files[0]] : [];
+      dispatch('filesSelected', { files: singleFile });
       event.target.value = ''; // Reset input
     }
   
@@ -62,7 +64,6 @@
   >
     <input
       type="file"
-      multiple
       accept={acceptedTypes.map(ext => `.${ext}`).join(',')}
       class="file-input"
       bind:this={fileInput}
@@ -76,7 +77,7 @@
           <span class="icon">📂</span>
         </div>
         <div class="text-content">
-          <p class="primary-text">Drag and drop files or folders here</p>
+          <p class="primary-text">Drag and drop a file here</p>
           <p class="secondary-text">or click to browse your computer</p>
           <p class="file-types">
             <b>Supported formats:</b> {displayTypes}
@@ -87,7 +88,7 @@
         <div class="icon-container" in:scale={{ duration: 200 }}>
           <span class="icon">📥</span>
         </div>
-        <p class="primary-text">Drop files to convert!</p>
+        <p class="primary-text">Drop file to convert!</p>
       {/if}
     </div>
   </div>

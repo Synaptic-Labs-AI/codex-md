@@ -6,6 +6,9 @@
  * This service has been refactored to better leverage existing backend functionality
  * while maintaining the same interface for Electron-specific concerns.
  * 
+ * TEMPORARILY MODIFIED: Batch processing functionality has been disabled to simplify
+ * the application to only handle one item at a time.
+ * 
  * Related files:
  * - src/electron/services/ConversionResultManager.js: Handles saving conversion results
  * - src/electron/services/FileSystemService.js: Handles file system operations
@@ -23,7 +26,6 @@ const { textConverterFactory } = require('../adapters/textConverterFactoryAdapte
 const { getFileCategory } = require('../adapters/fileTypeUtilsAdapter');
 const ProgressTracker = require('../utils/progressTracker');
 const conversionServiceAdapter = require('../adapters/conversionServiceAdapter');
-const WorkerManager = require('./WorkerManager');
 
 /**
  * Helper function to clean temporary filenames
@@ -535,136 +537,49 @@ class ElectronConversionService {
    * @param {Array<Object>} items - Array of items to convert
    * @param {Object} options - Conversion options
    * @returns {Promise<Object>} - Batch conversion result
+   * 
+   * TEMPORARILY DISABLED: Batch processing functionality has been disabled
    */
   async convertBatch(items, options = {}) {
-    const startTime = Date.now();
-    const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
-    progressTracker.update(5);
+    // TEMPORARILY DISABLED: Batch processing functionality has been disabled
+    console.warn('Batch conversion is temporarily disabled');
     
-    try {
-      // Set up output directory
-      const outputDir = options.outputDir || this.defaultOutputDir;
-      const batchName = options.batchName || `Batch_${new Date().toISOString().replace(/:/g, '-')}`;
-      const batchOutputPath = path.join(outputDir, batchName);
+    // Only process the first item if multiple are provided
+    if (items && items.length > 0) {
+      const item = items[0];
       
-      await this.fileSystem.createDirectory(batchOutputPath);
-      progressTracker.update(10);
-      
-      // Prepare items for conversion
-      const preparedItems = await this._prepareBatchItems(items, {
-        ...options,
-        outputDir: batchOutputPath
-      });
-      
-      progressTracker.update(20);
-      
-      // Filter out items that failed preparation
-      const validItems = preparedItems.filter(item => !item.error);
-      const failedItems = preparedItems.filter(item => item.error);
-      
-      console.log(`🔄 Batch conversion: ${validItems.length} valid items, ${failedItems.length} failed preparation`);
-      
-      // Process batch using worker manager
-      let batchResult;
-      if (validItems.length > 0) {
-        try {
-          // Create worker manager with maximum 4 workers
-          const workerManager = new WorkerManager({
-            maxWorkers: 4
-          });
-          
-          // Add progress tracking to options
-          const workerOptions = {
-            ...options,
-            onProgress: (progress) => {
-              // Update overall progress
-              progressTracker.updateScaled(progress.progress || 0, 20, 90);
-              
-              // Forward individual file progress if callback exists
-              if (options.onProgress && progress.id) {
-                options.onProgress({
-                  id: progress.id,
-                  file: progress.file,
-                  progress: progress.progress || 0
-                });
-              }
-            }
-          };
-          
-          // Process batch using worker manager
-          batchResult = await workerManager.processBatch(validItems, workerOptions);
-          
-          // Process the results and write files to the batch output directory
-          if (batchResult.results && batchResult.results.length > 0) {
-            await this._writeBatchResults(batchResult.results, batchOutputPath);
+      try {
+        console.log(`Converting single item instead of batch:`, {
+          type: item.type,
+          path: item.path,
+          url: item.url
+        });
+        
+        // Process based on item type
+        if (item.path) {
+          return await this.convert(item.path, options);
+        } else if (item.url) {
+          if (item.type === 'parenturl') {
+            return await this.convertParentUrl(item.url, options);
+          } else {
+            return await this.convertUrl(item.url, options);
           }
-        } catch (error) {
-          console.error(`❌ Worker-based batch conversion error:`, error);
-          
-          // Fallback to adapter-based conversion as a last resort
-          console.log(`⚠️ Falling back to adapter-based batch conversion`);
-          
-          try {
-            batchResult = await conversionServiceAdapter.convertBatch(validItems);
-            
-            // Process the results
-            if (batchResult.results && batchResult.results.length > 0) {
-              await this._writeBatchResults(batchResult.results, batchOutputPath);
-            }
-          } catch (fallbackError) {
-            console.error(`❌ Fallback batch conversion also failed:`, fallbackError);
-            batchResult = {
-              success: false,
-              error: `Worker-based conversion failed: ${error.message}. Fallback also failed: ${fallbackError.message}`,
-              results: []
-            };
-          }
+        } else {
+          throw new Error('Item has neither path nor URL');
         }
-      } else {
-        batchResult = {
-          success: true,
-          results: []
+      } catch (error) {
+        console.error('Single item conversion failed:', error);
+        return {
+          success: false,
+          error: error.message
         };
       }
-      
-      progressTracker.update(90);
-      
-      // Combine results with failed preparation items
-      const results = this._combineBatchResults(batchResult, failedItems, items);
-      
-      progressTracker.update(100);
-      
-      console.log(`✅ Batch conversion completed in ${Date.now() - startTime}ms:`, {
-        totalItems: results.length,
-        successfulItems: results.filter(r => r.success).length,
-        failedItems: results.filter(r => !r.success).length,
-        outputPath: batchOutputPath
-      });
-      
-      return {
-        success: true,
-        outputPath: batchOutputPath,
-        results,
-        stats: {
-          total: results.length,
-          successful: results.filter(r => r.success).length,
-          failed: results.filter(r => !r.success).length,
-          duration: Date.now() - startTime
-        }
-      };
-      
-    } catch (error) {
-      console.error('❌ Batch conversion failed:', {
-        error: error.message,
-        stack: error.stack
-      });
-      
-      return {
-        success: false,
-        error: error.message,
-        results: []
-      };
     }
+    
+    return {
+      success: false,
+      error: 'No items provided for conversion'
+    };
   }
   
   /**
@@ -673,103 +588,19 @@ class ElectronConversionService {
    * @param {Object} options - Preparation options
    * @returns {Promise<Array<Object>>} - Array of prepared items
    * @private
+   * 
+   * TEMPORARILY DISABLED: Batch processing functionality has been disabled
    */
   async _prepareBatchItems(items, options = {}) {
-    return await Promise.all(items.map(async (item) => {
-      try {
-        switch(item.type) {
-          case 'url':
-          case 'parent':
-            // Extract path filter from URL if it's a parent URL
-            let pathFilter = null;
-            if (item.type === 'parent') {
-              try {
-                const urlObj = new URL(item.url.startsWith('http') ? item.url : `https://${item.url}`);
-                if (urlObj.pathname && urlObj.pathname !== '/') {
-                  pathFilter = urlObj.pathname;
-                  console.log(`Detected path filter from batch URL: ${pathFilter}`);
-                }
-              } catch (error) {
-                console.warn('Failed to extract path filter from batch URL:', error.message);
-              }
-            }
-            
-            return {
-              id: item.id || uuidv4(),
-              type: item.type === 'parent' ? 'parenturl' : 'url',
-              content: item.url,
-              name: new URL(item.url).hostname,
-              options: {
-                ...options,
-                ...item.options,
-                pathFilter: pathFilter || item.options?.pathFilter, // Use detected path filter or provided one
-                includeImages: true,
-                includeMeta: true
-              }
-            };
-            
-          case 'file':
-            // Validate file exists
-            const fileStats = await this.fileSystem.getStats(item.path);
-            if (!fileStats.success) {
-              throw new Error(`File not found or inaccessible: ${item.path}`);
-            }
-            
-            // Get file details
-            const fileName = path.basename(item.path);
-            const fileType = path.extname(fileName).slice(1).toLowerCase();
-
-            // Special handling for audio files
-            if (['mp3', 'wav', 'm4a', 'ogg'].includes(fileType.toLowerCase())) {
-              return {
-                id: item.id || uuidv4(),
-                type: 'audio',
-                filePath: item.path, // Keep original file path for audio processing
-                name: fileName,
-                options: {
-                  ...options,
-                  ...item.options
-                }
-              };
-            }
-            
-            // For non-audio files, read content as before
-            const isBinaryFile = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'jpeg', 'png', 'gif']
-              .includes(fileType.toLowerCase());
-            
-            const fileContent = await this.fileSystem.readFile(item.path, isBinaryFile ? null : undefined);
-            
-            if (!fileContent.success) {
-              throw new Error(`Failed to read file: ${fileContent.error}`);
-            }
-            
-            return {
-              id: item.id || uuidv4(),
-              type: fileType,
-              content: fileContent.data,
-              name: fileName,
-              options: {
-                ...options,
-                ...item.options
-              }
-            };
-            
-          default:
-            throw new Error(`Unsupported item type: ${item.type}`);
-        }
-      } catch (error) {
-        console.error(`❌ Failed to prepare item for batch conversion:`, {
-          item,
-          error: error.message
-        });
-        
-        return {
-          id: item.id || uuidv4(),
-          error: error.message,
-          originalItem: item
-        };
-      }
-    }));
+    // TEMPORARILY DISABLED: Batch processing functionality has been disabled
+    console.warn('Batch item preparation is temporarily disabled');
+    
+    // Only process the first item if multiple are provided
+    if (items && items.length > 0) {
+      return [items[0]];
+    }
+    
+    return [];
   }
   
   /**
@@ -778,72 +609,13 @@ class ElectronConversionService {
    * @param {string} batchOutputPath - Path to batch output directory
    * @returns {Promise<void>}
    * @private
+   * 
+   * TEMPORARILY DISABLED: Batch processing functionality has been disabled
    */
   async _writeBatchResults(results, batchOutputPath) {
-    console.log(`📁 Writing ${results.length} files to batch output directory`);
-    
-    for (const result of results) {
-      try {
-        if (!result || !result.content) continue;
-        
-        // Generate filename - clean any temporary filename patterns
-        const cleanedName = cleanTemporaryFilename(result.name);
-        const baseName = path.basename(cleanedName, path.extname(cleanedName));
-        const fileType = result.type || 'markdown';
-        
-        // Determine file category
-        let fileCategory = 'text';
-        try {
-          fileCategory = getFileCategory(fileType, fileType) || 'text';
-        } catch (error) {
-          console.warn(`⚠️ Error determining file category:`, error);
-        }
-        
-        // Check if result has images
-        const hasImages = result.images && Array.isArray(result.images) && result.images.length > 0;
-        console.log(`🖼️ Result "${baseName}" has ${hasImages ? result.images.length : 0} images`);
-        
-        if (hasImages) {
-          // Use ConversionResultManager to save both content and images
-          console.log(`💾 Saving result with ${result.images.length} images using ConversionResultManager`);
-          
-          try {
-            // Save the conversion result using the ConversionResultManager
-            const savedResult = await this.resultManager.saveConversionResult({
-              content: result.content,
-              metadata: {
-                originalFile: cleanedName,
-                type: fileType,
-                category: fileCategory,
-                ...(result.metadata || {})
-              },
-              images: result.images,
-              name: baseName,
-              type: fileType,
-              outputDir: batchOutputPath,
-              options: {
-                createSubdirectory: false // Don't create another subdirectory
-              }
-            });
-            
-            console.log(`✅ Wrote file with images: ${savedResult.mainFile}`);
-          } catch (saveError) {
-            console.error(`❌ Error saving result with images:`, saveError);
-            
-            // Fallback to just writing the content file if saving with images fails
-            await this._writeContentFileOnly(result, baseName, batchOutputPath);
-          }
-        } else {
-          // No images, just write the content file
-          await this._writeContentFileOnly(result, baseName, batchOutputPath);
-        }
-      } catch (fileError) {
-        console.error(`❌ Error writing result file:`, {
-          name: result.name,
-          error: fileError.message
-        });
-      }
-    }
+    // TEMPORARILY DISABLED: Batch processing functionality has been disabled
+    console.warn('Batch result writing is temporarily disabled');
+    return;
   }
   
   /**
@@ -853,24 +625,13 @@ class ElectronConversionService {
    * @param {string} outputPath - Output directory path
    * @returns {Promise<string>} - Path to the written file
    * @private
+   * 
+   * TEMPORARILY DISABLED: Batch processing functionality has been disabled
    */
   async _writeContentFileOnly(result, baseName, outputPath) {
-    // Handle potential filename collisions
-    let counter = 0;
-    let outputFile = path.join(outputPath, `${baseName}.md`);
-    let stats = await this.fileSystem.getStats(outputFile);
-    
-    while (stats.success) {
-      counter++;
-      outputFile = path.join(outputPath, `${baseName}-${counter}.md`);
-      stats = await this.fileSystem.getStats(outputFile);
-    }
-    
-    // Write the file
-    await this.fileSystem.writeFile(outputFile, result.content);
-    console.log(`✅ Wrote content file: ${outputFile}`);
-    
-    return outputFile;
+    // TEMPORARILY DISABLED: Batch processing functionality has been disabled
+    console.warn('Content file writing is temporarily disabled');
+    return '';
   }
   
   /**
@@ -880,23 +641,12 @@ class ElectronConversionService {
    * @param {Array<Object>} originalItems - Original items array
    * @returns {Array<Object>} - Combined results array
    * @private
+   * 
+   * TEMPORARILY DISABLED: Batch processing functionality has been disabled
    */
   _combineBatchResults(batchResult, failedItems, originalItems) {
-    return [
-      ...(batchResult.results || []).map(result => ({
-        ...result,
-        itemId: result.id,
-        itemType: result.type,
-        originalItem: originalItems.find(item => item.id === result.id)
-      })),
-      ...failedItems.map(item => ({
-        success: false,
-        itemId: item.id,
-        itemType: item.originalItem?.type,
-        error: item.error,
-        originalItem: item.originalItem
-      }))
-    ];
+    // TEMPORARILY DISABLED: Batch processing functionality has been disabled
+    return [];
   }
   
   /**
@@ -906,62 +656,13 @@ class ElectronConversionService {
    * @param {number} startTime - Batch start time
    * @returns {Promise<Object>} - Summary result
    * @private
+   * 
+   * TEMPORARILY DISABLED: Batch processing functionality has been disabled
    */
   async _createBatchSummary(results, batchOutputPath, startTime) {
-    // Create summary content
-    const summaryContent = [
-      '# Batch Conversion Summary',
-      '',
-      `- **Date:** ${new Date().toISOString()}`,
-      `- **Total Items:** ${results.length}`,
-      `- **Successfully Converted:** ${results.filter(r => r.success).length}`,
-      `- **Failed:** ${results.filter(r => !r.success).length}`,
-      `- **Duration:** ${Math.round((Date.now() - startTime)/1000)} seconds`,
-      '',
-      '## Items',
-      '',
-      ...results.map((result) => {
-        const item = result.originalItem;
-        const status = result.success ? '✅ Success' : `❌ Failed: ${result.error || 'Unknown error'}`;
-        let itemDescription;
-        
-        switch(item?.type) {
-          case 'url':
-            itemDescription = `URL: ${item.url}`;
-            break;
-          case 'parent':
-            itemDescription = `Website: ${item.url}`;
-            break;
-          case 'file':
-            itemDescription = `File: ${item.isTemporary ? '(temp) ' : ''}${path.basename(item.path)}`;
-            break;
-          default:
-            itemDescription = `Unknown type: ${item?.type || 'unknown'}`;
-        }
-        
-        return `- **${itemDescription}**: ${status}`;
-      })
-    ].join('\n');
-    
-    // Save the summary using ConversionResultManager
-    return await this.resultManager.saveConversionResult({
-      content: summaryContent,
-      metadata: {
-        type: 'batch-summary',
-        converted: new Date().toISOString(),
-        totalItems: results.length,
-        successfulItems: results.filter(r => r.success).length,
-        failedItems: results.filter(r => !r.success).length,
-        duration: Date.now() - startTime
-      },
-      images: [],
-      name: 'batch-summary',
-      type: 'markdown',
-      outputDir: batchOutputPath,
-      options: {
-        createSubdirectory: false // Don't create another subdirectory
-      }
-    });
+    // TEMPORARILY DISABLED: Batch processing functionality has been disabled
+    console.warn('Batch summary creation is temporarily disabled');
+    return { success: false };
   }
 
   /**
