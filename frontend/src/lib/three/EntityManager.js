@@ -17,12 +17,12 @@ const GRAPH_LIMITS = {
 
 // Visual configurations
 const NODE_CONFIG = {
-  size: 2.0,      // Fixed size for all nodes
+  size: 1.0,      // Smaller node size
   segments: 16    // Smoother spheres
 };
 
 const EDGE_CONFIG = {
-  radius: 0.2,    // Tube radius
+  radius: 0.1,    // Thinner tube radius
   segments: 8     // Tube segments
 };
 
@@ -35,6 +35,10 @@ export class EntityManager {
     this.groups = new Map(); // Track node groups
     this.nextGroupId = 0;
     this.lastUpdateTime = 0; // Track last position update
+    this.pulsePhase = 0; // Track pulse animation phase
+    this.pulseSpeed = 0.1; // Base pulse speed
+    this.pulseStrength = 0.05; // Very subtle scaling
+    this.generation = 0; // Track node generation
 
     // Create shared geometries
     this.nodeGeometry = new THREE.SphereGeometry(
@@ -43,10 +47,17 @@ export class EntityManager {
       NODE_CONFIG.segments
     );
 
-    // Create shared materials using MeshBasicMaterial for bright solid colors
-    this.nodeMaterial = new THREE.MeshBasicMaterial({
-      transparent: false,
-      color: new THREE.Color(0x444444)
+    // Create shared materials using MeshPhysicalMaterial for glow effects
+    this.nodeMaterial = new THREE.MeshPhysicalMaterial({
+      transparent: true,
+      color: new THREE.Color(0x444444),
+      emissive: new THREE.Color(0x444444),
+      emissiveIntensity: 0.8,
+      opacity: 0.9,
+      metalness: 0.2,
+      roughness: 0.5,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.1
     });
 
     // Initialize tube geometry for edges
@@ -114,7 +125,11 @@ export class EntityManager {
       }
     }
 
-    // Create node object
+    // Create node object with generation and phase offset
+    const parentGen = parentId !== undefined ? this.neurons.get(parentId)?.generation : -1;
+    const generation = parentGen + 1;
+    const phaseOffset = (generation * Math.PI / 4); // Offset by 45 degrees per generation
+
     const node = {
       id,
       position: mesh.position,
@@ -122,6 +137,8 @@ export class EntityManager {
       color,
       connections: [],
       groupId: parentId !== undefined ? this.neurons.get(parentId)?.groupId : this.nextGroupId++,
+      generation,
+      phaseOffset,
       createdAt: Date.now()
     };
 
@@ -174,10 +191,18 @@ export class EntityManager {
         false
       );
 
-      // Create material with solid color
-      const material = new THREE.MeshBasicMaterial({
+      // Create material with emissive color and transparency
+      const material = new THREE.MeshPhysicalMaterial({
         color: from.color,
-        transparent: false
+        emissive: from.color,
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false, // Prevents z-fighting with overlapping edges
+        metalness: 0.2,
+        roughness: 0.5,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
       });
 
       const tube = new THREE.Mesh(tubeGeometry, material);
@@ -225,29 +250,57 @@ export class EntityManager {
    */
   update() {
     const time = Date.now();
+    const deltaTime = (time - this.lastUpdateTime) / 1000;
+    this.lastUpdateTime = time;
     
-    // Only update if enough time has passed
-    if (time - this.lastUpdateTime >= GRAPH_LIMITS.additionInterval) {
-      this.lastUpdateTime = time;
-      
-      // Update tube geometries to match node positions
-      for (const connection of this.connections.values()) {
-        const curve = new THREE.LineCurve3(
-          connection.from.position,
-          connection.to.position
-        );
+    // Update pulse animation
+    this.pulsePhase = (this.pulsePhase + this.pulseSpeed) % (Math.PI * 2);
+    const pulseFactor = 1.0 + Math.sin(this.pulsePhase) * this.pulseStrength;
+    
+      // First update nodes with generation-based phase offset
+      for (const node of this.neurons.values()) {
+        const nodePhase = this.pulsePhase + node.phaseOffset;
+        const nodeScale = 1.0 + Math.sin(nodePhase) * this.pulseStrength;
         
-        const tubeGeometry = new THREE.TubeGeometry(
-          curve,
-          1,
-          EDGE_CONFIG.radius,
-          EDGE_CONFIG.segments,
-          false
-        );
+        // Minimal scale change
+        node.mesh.scale.setScalar(nodeScale);
         
-        connection.mesh.geometry.dispose();
-        connection.mesh.geometry = tubeGeometry;
+        // Enhanced glow effect
+        if (node.mesh.material) {
+          node.mesh.material.emissiveIntensity = 0.5 + 0.8 * Math.sin(nodePhase);
+        }
       }
+
+      // Then update connections to match their source node's phase
+      for (const connection of this.connections.values()) {
+        if (connection.mesh.material) {
+          const fromPhase = this.pulsePhase + connection.from.phaseOffset;
+          const toPhase = this.pulsePhase + connection.to.phaseOffset;
+          // Average the phase between connected nodes
+          const connPhase = (fromPhase + toPhase) / 2;
+          
+          connection.mesh.material.emissiveIntensity = 0.5 + 0.5 * Math.sin(connPhase);
+          connection.mesh.material.opacity = 0.5 + 0.3 * Math.sin(connPhase);
+        }
+      }
+
+    // Update tube geometries to match node positions
+    for (const connection of this.connections.values()) {
+      const curve = new THREE.LineCurve3(
+        connection.from.position,
+        connection.to.position
+      );
+      
+      const tubeGeometry = new THREE.TubeGeometry(
+        curve,
+        1,
+        EDGE_CONFIG.radius,
+        EDGE_CONFIG.segments,
+        false
+      );
+      
+      connection.mesh.geometry.dispose();
+      connection.mesh.geometry = tubeGeometry;
     }
   }
 

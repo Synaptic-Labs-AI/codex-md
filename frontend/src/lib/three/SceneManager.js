@@ -62,7 +62,7 @@ export class SceneManager {
     // Camera setup with dynamic aspect ratio
     const aspect = this.container.clientWidth / this.container.clientHeight;
     this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-    this.camera.position.set(0, 15, 30);
+    this.camera.position.set(0, 30, 60);
     this.camera.lookAt(0, 0, 0);
     
     // Make camera accessible to scene entities
