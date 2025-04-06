@@ -20,19 +20,27 @@ export class AudioChunker {
 
   /**
    * Split audio into chunks with progress tracking
-   * @param {Buffer} audioBuffer - Audio buffer to split
+   * @param {string} inputPath - Path to the audio file to split
    * @param {Object} options - Options for splitting
    * @param {Function} options.onProgress - Progress callback
-   * @returns {Promise<Array<Buffer>>} Array of chunk buffers
+   * @returns {Promise<{paths: Array<string>, cleanup: Function}>} Array of chunk file paths and cleanup function
    */
-  async splitAudio(audioBuffer, options = {}) {
-    try {
-      // Ensure temp directory exists
-      await fs.mkdir(this.tempDir, { recursive: true });
+  async splitAudio(inputPath, options = {}) {
+    // Create a unique temp directory for this chunking operation
+    const chunkDir = path.join(this.tempDir, uuidv4());
+    const chunkPaths = [];
 
-      // Write buffer to temporary file
-      const inputPath = path.join(this.tempDir, `${uuidv4()}.mp3`);
-      await fs.writeFile(inputPath, audioBuffer);
+    try {
+      // Ensure temp directories exist
+      await fs.mkdir(this.tempDir, { recursive: true });
+      await fs.mkdir(chunkDir, { recursive: true });
+
+      // Verify file exists
+      try {
+        await fs.access(inputPath);
+      } catch (error) {
+        throw new Error(`Cannot access audio file at ${inputPath}`);
+      }
 
       // Get audio duration
       const duration = await this.getAudioDuration(inputPath);
@@ -45,11 +53,10 @@ export class AudioChunker {
       const totalChunks = chunks.length;
       
       // Process chunks sequentially to track progress
-      const chunkBuffers = [];
-      
       for (const { start, duration } of chunks) {
-        const chunkBuffer = await this.extractChunk(inputPath, start, duration);
-        chunkBuffers.push(chunkBuffer);
+        const chunkPath = path.join(chunkDir, `chunk_${processedChunks + 1}.mp3`);
+        await this.extractChunkToFile(inputPath, start, duration, chunkPath);
+        chunkPaths.push(chunkPath);
         
         // Update progress
         processedChunks++;
@@ -57,18 +64,21 @@ export class AudioChunker {
         
         if (options.onProgress) {
           options.onProgress(progress);
-          
-          // Add phase information to the progress event
-          if (options.onProgress.reportPhase) {
-            options.onProgress.reportPhase('chunking');
-          }
+          options.onProgress.reportPhase?.('chunking');
         }
       }
 
-      // Cleanup
-      await fs.unlink(inputPath);
+      // Create cleanup function
+      const cleanup = async () => {
+        try {
+          await fs.rm(chunkDir, { recursive: true, force: true });
+          console.log('Cleaned up chunk directory:', chunkDir);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup chunk files:', cleanupError);
+        }
+      };
 
-      return chunkBuffers;
+      return { paths: chunkPaths, cleanup };
     } catch (error) {
       console.error('Error splitting audio:', error);
       throw error;
@@ -110,9 +120,15 @@ export class AudioChunker {
     return chunks;
   }
 
-  async extractChunk(inputPath, start, duration) {
-    const outputPath = path.join(this.tempDir, `${uuidv4()}.mp3`);
-    
+  /**
+   * Extract a chunk of audio to a file
+   * @param {string} inputPath - Path to input audio file
+   * @param {number} start - Start time in seconds
+   * @param {number} duration - Duration in seconds
+   * @param {string} outputPath - Path for the output chunk
+   * @returns {Promise<void>}
+   */
+  async extractChunkToFile(inputPath, start, duration, outputPath) {
     await new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .setStartTime(start)
@@ -122,10 +138,6 @@ export class AudioChunker {
         .on('error', reject)
         .run();
     });
-
-    const buffer = await fs.readFile(outputPath);
-    await fs.unlink(outputPath);
-    return buffer;
   }
 
   mergeTranscriptions(transcriptions) {
