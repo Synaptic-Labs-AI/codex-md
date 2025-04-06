@@ -427,9 +427,32 @@ export async function convertToMarkdown(type, content, options = {}) {
       }
     }
     
+    // Handle data file types (CSV, XLSX)
+    if (['csv', 'xlsx'].includes(normalizedType)) {
+      console.log(`🔄 [convertToMarkdown] Converting data file (${normalizedType}) with options:`, {
+        name: options.name,
+        contentType: typeof content === 'string' ? 'string' : (Buffer.isBuffer(content) ? 'buffer' : typeof content)
+      });
+      
+      // Check for convertToMarkdown method first (our preferred method)
+      if (converter.convertToMarkdown) {
+        return await converter.convertToMarkdown(content, options.name, options.apiKey);
+      }
+      
+      // Fall back to convert method if available
+      if (converter.convert) {
+        return await converter.convert(content, options.name, options.apiKey, options);
+      }
+    }
+    
     // For all other types, try to use the converter directly
     if (converter.convert) {
       return await converter.convert(content, options.name, options.apiKey, options);
+    }
+    
+    // Also check for convertToMarkdown method
+    if (converter.convertToMarkdown) {
+      return await converter.convertToMarkdown(content, options);
     }
     
     // If we have a text converter factory, try to use it

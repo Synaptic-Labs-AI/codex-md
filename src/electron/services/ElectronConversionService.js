@@ -28,6 +28,34 @@ const {
     const textConverterFactory = textConverterModule.textConverterFactory;
     registerConverterFactory('textFactory', textConverterFactory);
     
+    // Import URL converters
+    const urlConverterModule = await import('../../../backend/src/services/converter/web/urlConverter.js');
+    if (urlConverterModule.urlConverter) {
+      registerConverter('url', urlConverterModule.urlConverter);
+      console.log('✅ Registered URL converter');
+    }
+    
+    const parentUrlConverterModule = await import('../../../backend/src/services/converter/web/parentUrlConverter.js');
+    if (parentUrlConverterModule.convertParentUrlToMarkdown) {
+      registerConverter('parenturl', {
+        convertToMarkdown: parentUrlConverterModule.convertParentUrlToMarkdown
+      });
+      console.log('✅ Registered Parent URL converter');
+    }
+    
+    // Import data converters (CSV and XLSX)
+    const csvConverterModule = await import('../../../backend/src/services/converter/data/csvConverter.js');
+    if (csvConverterModule.default) {
+      registerConverter('csv', csvConverterModule.default);
+      console.log('✅ Registered CSV converter');
+    }
+    
+    const xlsxConverterModule = await import('../../../backend/src/services/converter/data/xlsxConverter.js');
+    if (xlsxConverterModule.default) {
+      registerConverter('xlsx', xlsxConverterModule.default);
+      console.log('✅ Registered XLSX converter');
+    }
+    
     // Import PDF converter
     const pdfConverterModule = await import('../../../backend/src/services/converter/pdf/PdfConverterFactory.js');
     if (pdfConverterModule.default) {
@@ -75,36 +103,47 @@ class ElectronConversionService {
     const startTime = Date.now();
     
     try {
+      // Validate output directory
+      if (!options.outputDir) {
+        console.error('❌ [ElectronConversionService] No output directory provided!');
+        throw new Error('Output directory is required for conversion');
+      }
+      
       // Create a progress tracker
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
       progressTracker.update(5);
       
-      // Determine if we're handling binary content (audio/video/pdf)
+      // Determine if we're handling binary content (audio/video/pdf/xlsx) or URLs
       const isAudioVideo = options.isTemporary && (options.type === 'audio' || options.type === 'video');
       const isPdf = options.type === 'pdf';
+      const isXlsx = options.type === 'xlsx';
+      const isUrl = options.type === 'url' || options.type === 'parenturl';
+      const isDataFile = options.type === 'csv' || options.type === 'xlsx';
       
       // Get file details based on input type
       // For binary content, use the name from options
-      const isBinaryBuffer = Buffer.isBuffer(filePath) || (options.isTemporary && (isAudioVideo || isPdf));
+      const isBinaryBuffer = Buffer.isBuffer(filePath) || (options.isTemporary && (isAudioVideo || isPdf || isXlsx));
       
-      console.log('📄 File input details:', {
+      console.log('📄 [ElectronConversionService] File input details:', {
         isBuffer: Buffer.isBuffer(filePath),
         isTemporary: options.isTemporary,
         isAudioVideo,
         isPdf,
+        isUrl,
+        isDataFile,
         isBinaryBuffer,
         originalFileName: options.originalFileName,
         name: options.name,
-        type: options.type
+        type: options.type,
+        outputDir: options.outputDir
       });
       
-      // Use options.originalFileName or options.name for binary content, otherwise extract from filePath
-      const fileName = isBinaryBuffer
-        ? (options.originalFileName || options.name || 'unnamed')
-        : path.basename(filePath);
+      // Always prioritize originalFileName if available, otherwise use name or extract from filePath
+      const fileName = options.originalFileName || options.name || 
+        (typeof filePath === 'string' ? path.basename(filePath) : 'unnamed');
       
       // Determine file type from name or options
-      const fileType = isBinaryBuffer
+      const fileType = isBinaryBuffer || isUrl
         ? (options.type || (options.originalFileName ? path.extname(options.originalFileName).slice(1).toLowerCase() : 'bin'))
         : path.extname(fileName).slice(1).toLowerCase();
       
@@ -113,12 +152,15 @@ class ElectronConversionService {
       const finalBaseName = path.basename(cleanedFileName, path.extname(cleanedFileName));
       let fileContent;
 
-      // Handle binary content (audio/video/pdf)
-      const isBinaryContent = (isAudioVideo || isPdf) && options.isTemporary;
+      // Handle binary content (audio/video/pdf/xlsx) and URLs
+      const isBinaryContent = (isAudioVideo || isPdf || isXlsx) && options.isTemporary;
       
       if (isBinaryContent) {
         console.log(`Processing binary content as ${options.type}: ${fileName}`);
         fileContent = filePath; // filePath is actually the buffer
+      } else if (isUrl) {
+        console.log(`Processing URL: ${filePath}`);
+        fileContent = filePath; // filePath is the URL string
       } else if (typeof filePath === 'string') {
         // For file paths, validate file exists and read it
         try {

@@ -18,7 +18,7 @@
         parent: {
             icon: '🗺️',
             placeholder: 'Enter parent URL to convert all linked pages',
-            type: 'parent'
+            type: 'parenturl'
         },
         single: {
             icon: '🔗',
@@ -82,7 +82,7 @@
                 name: `${urlObj.hostname}${urlObj.pathname}`,
                 type: currentConfig.type,
                 options: {
-                    ...((currentConfig.type === 'parent') && {
+                    ...((currentConfig.type === 'parenturl') && {
                         maxDepth: 3,
                         maxPages: 100,
                         includeImages: true,

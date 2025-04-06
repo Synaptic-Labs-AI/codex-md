@@ -322,6 +322,11 @@ class UnifiedConverterFactory {
       return await this.handlePdfConversion(filePath, options);
     }
     
+    // Special handling for data files (CSV, XLSX)
+    if (fileType === 'csv' || fileType === 'xlsx') {
+      return await this.handleDataFileConversion(filePath, options);
+    }
+    
     // Check if text converter factory is available
     if (!textConverterFactory) {
       console.error('Text converter factory not available');
@@ -355,6 +360,148 @@ class UnifiedConverterFactory {
       return {
         success: false,
         error: `Conversion failed: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Handle data file conversion (CSV, XLSX)
+   * @private
+   */
+  async handleDataFileConversion(filePath, options) {
+    const { progressTracker, fileType, fileName } = options;
+    
+    if (progressTracker) {
+      progressTracker.update(10, { status: `reading_${fileType}_file` });
+    }
+    
+    console.log(`🔄 [UnifiedConverterFactory] Converting data file (${fileType}):`, {
+      path: filePath,
+      fileName,
+      outputDir: options.outputDir
+    });
+    
+    // Validate output directory
+    if (!options.outputDir) {
+      console.error('❌ [UnifiedConverterFactory] No output directory provided for data file conversion!');
+      throw new Error('Output directory is required for data file conversion');
+    }
+    
+    try {
+      // Read the file
+      const fileContent = fs.readFileSync(filePath);
+      
+      if (progressTracker) {
+        progressTracker.update(20, { status: `converting_${fileType}` });
+      }
+      
+      // Try to get the converter directly from the registered converters
+      // This is the preferred approach after our updates
+      let result;
+      let converter;
+      
+      // Import the converters directly if needed
+      if (fileType === 'csv') {
+        try {
+          const csvConverterModule = await import('../../../backend/src/services/converter/data/csvConverter.js');
+          converter = csvConverterModule.default;
+          console.log('✅ [UnifiedConverterFactory] Using direct CSV converter');
+        } catch (importError) {
+          console.warn('⚠️ [UnifiedConverterFactory] Could not import CSV converter directly:', importError.message);
+        }
+      } else if (fileType === 'xlsx') {
+        try {
+          const xlsxConverterModule = await import('../../../backend/src/services/converter/data/xlsxConverter.js');
+          converter = xlsxConverterModule.default;
+          console.log('✅ [UnifiedConverterFactory] Using direct XLSX converter');
+        } catch (importError) {
+          console.warn('⚠️ [UnifiedConverterFactory] Could not import XLSX converter directly:', importError.message);
+        }
+      }
+      
+      // If we have a direct converter, use it
+      if (converter && converter.convertToMarkdown) {
+        console.log(`🔄 [UnifiedConverterFactory] Using direct ${fileType.toUpperCase()} converter`);
+        result = await converter.convertToMarkdown(fileContent, fileName, options.apiKey);
+      } 
+      // Fallback to textConverterFactory if direct converter not available
+      else if (textConverterFactory && textConverterFactory.converters && textConverterFactory.converters[fileType]) {
+        console.log(`🔄 [UnifiedConverterFactory] Using textConverterFactory for ${fileType.toUpperCase()}`);
+        converter = textConverterFactory.converters[fileType];
+        
+        if (converter.convert) {
+          result = await converter.convert(fileContent, fileName, options.apiKey);
+        } else if (converter.convertToMarkdown) {
+          result = await converter.convertToMarkdown(fileContent, fileName, options.apiKey);
+        } else {
+          throw new Error(`Converter for ${fileType} does not implement required methods`);
+        }
+      } 
+      // Last resort: use textConverterFactory.convertToMarkdown directly
+      else if (textConverterFactory && textConverterFactory.convertToMarkdown) {
+        console.log(`🔄 [UnifiedConverterFactory] Using textConverterFactory.convertToMarkdown for ${fileType.toUpperCase()}`);
+        result = await textConverterFactory.convertToMarkdown(fileType, fileContent, {
+          name: fileName,
+          apiKey: options.apiKey
+        });
+      } else {
+        throw new Error(`No converter found for ${fileType} files`);
+      }
+      
+      if (progressTracker) {
+        progressTracker.update(90, { status: `finalizing_${fileType}` });
+      }
+      
+      // Validate and enhance the result
+      if (!result) {
+        throw new Error(`No result returned from ${fileType.toUpperCase()} converter`);
+      }
+      
+      // Ensure the result has all required properties
+      if (result.success === undefined) {
+        console.warn(`⚠️ [UnifiedConverterFactory] ${fileType.toUpperCase()} conversion result missing success flag, adding it`);
+        result.success = true;
+      }
+      
+      if (!result.content) {
+        console.error(`❌ [UnifiedConverterFactory] ${fileType.toUpperCase()} conversion result missing content!`);
+        throw new Error(`${fileType.toUpperCase()} conversion failed: No content returned`);
+      }
+      
+      // Ensure type and name are set
+      if (!result.type) {
+        result.type = fileType;
+      }
+      
+      if (!result.name) {
+        result.name = fileName;
+      }
+      
+      if (!result.category) {
+        result.category = 'data';
+      }
+      
+      // Log the result structure
+      console.log(`✅ [UnifiedConverterFactory] Successfully converted ${fileType} file:`, {
+        fileName,
+        hasContent: !!result.content,
+        contentLength: result.content ? result.content.length : 0,
+        success: result.success,
+        hasType: !!result.type,
+        hasName: !!result.name,
+        hasCategory: !!result.category
+      });
+      
+      return result;
+    } catch (error) {
+      console.error(`❌ [UnifiedConverterFactory] ${fileType.toUpperCase()} conversion error:`, error);
+      return {
+        success: false,
+        error: `${fileType.toUpperCase()} conversion failed: ${error.message}`,
+        content: `# Conversion Error\n\nFailed to convert ${fileType.toUpperCase()} file: ${error.message}`,
+        type: fileType,
+        name: fileName,
+        category: 'data'
       };
     }
   }
@@ -449,7 +596,12 @@ class UnifiedConverterFactory {
         progressTracker.update(95, { status: 'finalizing' });
       }
       
-      return result;
+      // Add type and category properties to match expected structure
+      return {
+        ...result,
+        type: 'url',
+        category: 'web'
+      };
     } catch (error) {
       console.error('URL conversion error:', error);
       return {

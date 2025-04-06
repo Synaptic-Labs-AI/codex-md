@@ -119,18 +119,21 @@ class ConversionHandler {
         
         try {
             let result;
+            let fileExt = 'unknown'; // Define fileExt here with a default value
             
             if (item.isNative && item.path) {
                 // Native file path - use unified file converter
+                fileExt = item.path.split('.').pop().toLowerCase(); // Extract extension for native files
                 result = await electronClient.convertFile(item.path, options, (progress) => {
                     storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
                 });
             } else if (item.file instanceof File) {
                 // Browser File object
-                const fileExt = item.file.name.split('.').pop().toLowerCase();
+                fileExt = item.file.name.split('.').pop().toLowerCase();
                 const isAudioVideo = ['mp3', 'wav', 'm4a', 'ogg', 'mp4', 'avi', 'webm']
                     .includes(fileExt);
                 const isPdf = fileExt === 'pdf';
+                const isDataFile = ['csv', 'xlsx', 'xls'].includes(fileExt);
                 
                 if (isAudioVideo || isPdf) {
                     // For audio/video/pdf, read as buffer and pass directly
@@ -144,6 +147,34 @@ class ConversionHandler {
                     }, (progress) => {
                         storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
                     });
+                } else if (isDataFile) {
+                    // For data files (CSV, XLSX), handle specially
+                    console.log(`Processing data file: ${item.file.name} (${fileExt})`);
+                    
+                    // For CSV, we can handle as text or buffer
+                    if (fileExt === 'csv') {
+                        const text = await item.file.text();
+                        result = await electronClient.convertFile(text, {
+                            ...options,
+                            originalFileName: item.file.name,
+                            type: 'csv',
+                            content: text, // Pass the content directly
+                            isContent: true // Flag to indicate this is content, not a file path
+                        }, (progress) => {
+                            storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
+                        });
+                    } else {
+                        // For XLSX, we need to handle as buffer
+                        const buffer = await item.file.arrayBuffer();
+                        result = await electronClient.convertFile(buffer, {
+                            ...options,
+                            isTemporary: true,
+                            originalFileName: item.file.name,
+                            type: fileExt
+                        }, (progress) => {
+                            storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
+                        });
+                    }
                 } else {
                     // For other files, read as text
                     const text = await item.file.text();
@@ -154,18 +185,52 @@ class ConversionHandler {
                         storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
                     });
                 }
+            } else if ((item.type === 'url' || item.type === 'parenturl') && item.url) {
+                // For URLs, pass the URL string directly
+                fileExt = item.type; // Use the type as the extension for URLs
+                result = await electronClient.convertFile(item.url, {
+                    ...options,
+                    type: item.type  // Explicitly set the type to either 'url' or 'parenturl'
+                }, (progress) => {
+                    storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
+                });
             } else {
                 throw new Error(`Unsupported item type: ${item.type || 'unknown'}`);
             }
             
-            if (result && result.outputPath) {
-                storeManager.updateConversionStatus(CONVERSION_STATUSES.COMPLETED, 100);
-                storeManager.setConversionResult(result, [item]);
-                storeManager.updateFileStatus(item.id, CONVERSION_STATUSES.COMPLETED, result.outputPath);
-                return result;
-            } else {
+            // Validate the conversion result
+            if (!result) {
+                console.error('❌ [conversionHandler] No result returned from conversion');
+                throw new Error('Conversion failed: No result returned');
+            }
+            
+            // Log the result structure for debugging
+            console.log(`🔍 [conversionHandler] Conversion result structure:`, {
+                success: result.success,
+                hasOutputPath: !!result.outputPath,
+                hasContent: !!result.content,
+                hasError: !!result.error,
+                type: result.type,
+                fileType: fileExt
+            });
+            
+            // Check for success flag
+            if (result.success === false) {
+                console.error('❌ [conversionHandler] Conversion failed with error:', result.error);
+                throw new Error(`Conversion failed: ${result.error || 'Unknown error'}`);
+            }
+            
+            // Check for output path specifically
+            if (!result.outputPath) {
+                console.error('❌ [conversionHandler] Result missing outputPath:', result);
                 throw new Error('Conversion failed: No output path returned');
             }
+            
+            // Success path
+            storeManager.updateConversionStatus(CONVERSION_STATUSES.COMPLETED, 100);
+            storeManager.setConversionResult(result, [item]);
+            storeManager.updateFileStatus(item.id, CONVERSION_STATUSES.COMPLETED, result.outputPath);
+            return result;
         } catch (error) {
             console.error(`Error converting ${item.name || item.url}:`, error);
             
