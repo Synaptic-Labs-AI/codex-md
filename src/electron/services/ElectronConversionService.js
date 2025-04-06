@@ -12,13 +12,25 @@ const readFileAsync = promisify(fs.readFile);
 const FileSystemService = require('./FileSystemService');
 const ConversionResultManager = require('./ConversionResultManager');
 const sharedUtils = require('@codex-md/shared');
-const { getFileType, cleanTemporaryFilename } = sharedUtils.utils.files;
+const { 
+  getFileType, 
+  cleanTemporaryFilename, 
+  getFileHandlingInfo,
+  HANDLING_TYPES,
+  CONVERTER_CONFIG
+} = sharedUtils.utils.files;
 const { 
   ProgressTracker, 
   convertToMarkdown, 
   registerConverter,
   registerConverterFactory
 } = sharedUtils.utils.conversion;
+
+// Log available file handling capabilities
+console.log('📄 Initialized with file handling:', {
+  handlingTypes: HANDLING_TYPES,
+  fileConfig: CONVERTER_CONFIG
+});
 
 // Initialize backend converters
 (async function() {
@@ -27,6 +39,19 @@ const {
     const textConverterModule = await import('../../../backend/src/services/converter/textConverterFactory.js');
     const textConverterFactory = textConverterModule.textConverterFactory;
     registerConverterFactory('textFactory', textConverterFactory);
+    
+    // Import Office document converters
+    const docxConverterModule = await import('../../../backend/src/services/converter/text/docxConverter.js');
+    if (docxConverterModule.default) {
+      registerConverter('docx', docxConverterModule.default);
+      console.log('✅ Registered DOCX converter');
+    }
+    
+    const pptxConverterModule = await import('../../../backend/src/services/converter/text/pptxConverter.js');
+    if (pptxConverterModule.default) {
+      registerConverter('pptx', pptxConverterModule.default);
+      console.log('✅ Registered PPTX converter');
+    }
     
     // Import URL converters
     const urlConverterModule = await import('../../../backend/src/services/converter/web/urlConverter.js');
@@ -113,52 +138,36 @@ class ElectronConversionService {
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
       progressTracker.update(5);
       
-      // Determine if we're handling binary content (audio/video/pdf/xlsx) or URLs
-      const isAudioVideo = options.isTemporary && (options.type === 'audio' || options.type === 'video');
-      const isPdf = options.type === 'pdf';
-      const isXlsx = options.type === 'xlsx';
-      const isUrl = options.type === 'url' || options.type === 'parenturl';
-      const isDataFile = options.type === 'csv' || options.type === 'xlsx';
-      
-      // Get file details based on input type
-      // For binary content, use the name from options
-      const isBinaryBuffer = Buffer.isBuffer(filePath) || (options.isTemporary && (isAudioVideo || isPdf || isXlsx));
+      // Get file handling info from centralized system
+      const fileInfo = getFileHandlingInfo({
+        name: options.originalFileName || options.name,
+        type: options.type,
+        path: typeof filePath === 'string' ? filePath : undefined
+      });
       
       console.log('📄 [ElectronConversionService] File input details:', {
         isBuffer: Buffer.isBuffer(filePath),
         isTemporary: options.isTemporary,
-        isAudioVideo,
-        isPdf,
-        isUrl,
-        isDataFile,
-        isBinaryBuffer,
+        fileInfo,
         originalFileName: options.originalFileName,
         name: options.name,
         type: options.type,
         outputDir: options.outputDir
       });
       
-      // Always prioritize originalFileName if available, otherwise use name or extract from filePath
-      const fileName = options.originalFileName || options.name || 
-        (typeof filePath === 'string' ? path.basename(filePath) : 'unnamed');
-      
-      // Determine file type from name or options
-      const fileType = isBinaryBuffer || isUrl
-        ? (options.type || (options.originalFileName ? path.extname(options.originalFileName).slice(1).toLowerCase() : 'bin'))
-        : path.extname(fileName).slice(1).toLowerCase();
+      const fileName = fileInfo.fileName;
+      const fileType = fileInfo.fileType;
       
       console.log(`📄 Determined file details: fileName=${fileName}, fileType=${fileType}`);
       const cleanedFileName = cleanTemporaryFilename(fileName);
       const finalBaseName = path.basename(cleanedFileName, path.extname(cleanedFileName));
       let fileContent;
 
-      // Handle binary content (audio/video/pdf/xlsx) and URLs
-      const isBinaryContent = (isAudioVideo || isPdf || isXlsx) && options.isTemporary;
-      
-      if (isBinaryContent) {
-        console.log(`Processing binary content as ${options.type}: ${fileName}`);
+      // Handle content based on file type
+      if (options.isTemporary && fileInfo.isBinary) {
+        console.log(`Processing binary content as ${fileInfo.converter}: ${fileName}`);
         fileContent = filePath; // filePath is actually the buffer
-      } else if (isUrl) {
+      } else if (fileInfo.isWeb) {
         console.log(`Processing URL: ${filePath}`);
         fileContent = filePath; // filePath is the URL string
       } else if (typeof filePath === 'string') {
@@ -169,8 +178,11 @@ class ElectronConversionService {
             throw new Error(`File not found or inaccessible: ${filePath}`);
           }
           
-          // Read file asynchronously
-          fileContent = await readFileAsync(filePath);
+          // Read file based on handling type
+          fileContent = await readFileAsync(
+            filePath, 
+            fileInfo.isBinary ? undefined : 'utf8'
+          );
         } catch (error) {
           console.error(`Error reading file: ${filePath}`, error);
           throw new Error(`File not found or inaccessible: ${filePath}`);

@@ -12,6 +12,7 @@ import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversio
 import electronClient from '$lib/api/electron';
 import { storeManager } from '../manager/storeManager.js';
 import { CONVERSION_STATUSES, FILE_TYPES } from '../constants';
+import { getFileHandlingInfo } from '@codex-md/shared/utils/files';
 
 // Map old Phase constants to new ConversionState constants for backward compatibility
 const Phase = {
@@ -119,81 +120,59 @@ class ConversionHandler {
         
         try {
             let result;
-            let fileExt = 'unknown'; // Define fileExt here with a default value
+            // Get file handling info from centralized system
+            const fileInfo = getFileHandlingInfo(item.file || item);
             
+            // Prepare common conversion options
+            const conversionOptions = {
+                ...options,
+                type: fileInfo.converter,
+                isTemporary: fileInfo.isBinary,
+                originalFileName: fileInfo.fileName
+            };
+
             if (item.isNative && item.path) {
                 // Native file path - use unified file converter
-                fileExt = item.path.split('.').pop().toLowerCase(); // Extract extension for native files
-                result = await electronClient.convertFile(item.path, options, (progress) => {
-                    storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
-                });
+                result = await electronClient.convertFile(
+                    item.path,
+                    conversionOptions,
+                    progress => {
+                        storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
+                    }
+                );
             } else if (item.file instanceof File) {
                 // Browser File object
-                fileExt = item.file.name.split('.').pop().toLowerCase();
-                const isAudioVideo = ['mp3', 'wav', 'm4a', 'ogg', 'mp4', 'avi', 'webm']
-                    .includes(fileExt);
-                const isPdf = fileExt === 'pdf';
-                const isDataFile = ['csv', 'xlsx', 'xls'].includes(fileExt);
+                let content;
                 
-                if (isAudioVideo || isPdf) {
-                    // For audio/video/pdf, read as buffer and pass directly
-                    const buffer = await item.file.arrayBuffer();
-                    result = await electronClient.convertFile(buffer, {
-                        ...options,
-                        isTemporary: true,
-                        originalFileName: item.file.name,
-                        // For PDFs, explicitly set the type
-                        ...(isPdf ? { type: 'pdf' } : {})
-                    }, (progress) => {
-                        storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
-                    });
-                } else if (isDataFile) {
-                    // For data files (CSV, XLSX), handle specially
-                    console.log(`Processing data file: ${item.file.name} (${fileExt})`);
-                    
-                    // For CSV, we can handle as text or buffer
-                    if (fileExt === 'csv') {
-                        const text = await item.file.text();
-                        result = await electronClient.convertFile(text, {
-                            ...options,
-                            originalFileName: item.file.name,
-                            type: 'csv',
-                            content: text, // Pass the content directly
-                            isContent: true // Flag to indicate this is content, not a file path
-                        }, (progress) => {
-                            storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
-                        });
-                    } else {
-                        // For XLSX, we need to handle as buffer
-                        const buffer = await item.file.arrayBuffer();
-                        result = await electronClient.convertFile(buffer, {
-                            ...options,
-                            isTemporary: true,
-                            originalFileName: item.file.name,
-                            type: fileExt
-                        }, (progress) => {
-                            storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
-                        });
-                    }
+                if (fileInfo.isBinary) {
+                    // For binary files (audio/video/pdf/office/etc), read as buffer
+                    content = await item.file.arrayBuffer();
+                } else if (fileInfo.converter === 'data' && fileInfo.fileType === 'csv') {
+                    // Special case for CSV files - handle as text
+                    content = await item.file.text();
+                    conversionOptions.isContent = true;
+                    conversionOptions.content = content;
                 } else {
-                    // For other files, read as text
-                    const text = await item.file.text();
-                    result = await electronClient.convertFile(text, {
-                        ...options,
-                        originalFileName: item.file.name
-                    }, (progress) => {
-                        storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
-                    });
+                    // For text files, read as text
+                    content = await item.file.text();
                 }
-            } else if ((item.type === 'url' || item.type === 'parenturl') && item.url) {
+                
+                result = await electronClient.convertFile(
+                    content,
+                    conversionOptions,
+                    progress => {
+                        storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
+                    }
+                );
+            } else if (fileInfo.isWeb && item.url) {
                 // For URLs, pass the URL string directly
-                fileExt = item.type; // Use the type as the extension for URLs
-                result = await electronClient.convertFile(item.url, {
-                    ...options,
-                    type: item.type  // Explicitly set the type to either 'url' or 'parenturl'
-                }, (progress) => {
-                    storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
-                });
+                result = await electronClient.convertFile(
+                    item.url,
+                    conversionOptions,
+                    progress => {
+                        storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
+                    }
+                );
             } else {
                 throw new Error(`Unsupported item type: ${item.type || 'unknown'}`);
             }
@@ -211,7 +190,9 @@ class ConversionHandler {
                 hasContent: !!result.content,
                 hasError: !!result.error,
                 type: result.type,
-                fileType: fileExt
+                fileType: fileInfo.fileType,
+                category: fileInfo.category,
+                handlingType: fileInfo.handling
             });
             
             // Check for success flag
