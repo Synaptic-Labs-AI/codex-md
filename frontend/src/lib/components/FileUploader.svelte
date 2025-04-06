@@ -5,8 +5,8 @@
   import { uploadStore } from '$lib/stores/uploadStore.js';
   import { fade } from 'svelte/transition';
   import { apiKey } from '$lib/stores/apiKey.js';
-  import { requiresApiKey, validateFileSize } from '$lib/utils/fileUtils.js';
-  import { fileCategories, generateId, isSupportedFileType, normalizeUrl } from '$lib/api/electron';
+  import { requiresApiKey, isValidFileType } from '$lib/utils/fileUtils.js';
+  import { fileCategories, generateId, normalizeUrl } from '$lib/api/electron';
   import electronClient from '$lib/api/electron';
   import Container from './common/Container.svelte';
   import TabNavigation from './common/TabNavigation.svelte';
@@ -51,7 +51,7 @@
     const fileName = isFilePath ? file.split(/[/\\]/).pop() : file.name;
     const extension = fileName.split('.').pop().toLowerCase();
     
-    if (!isSupportedFileType(extension)) {
+    if (!isValidFileType(extension)) {
       return { valid: false, message: `Unsupported file type: ${fileName}` };
     }
 

@@ -55,7 +55,7 @@ export async function convertFile(filePath, options = {}, onProgress = null) {
     });
     
     // Call the IPC method
-    const result = await window.electronAPI.convertFile(filePath, options);
+    const result = await window.electron.convertFile(filePath, options);
     
     // Log result for debugging
     console.log('File conversion result:', {
@@ -148,7 +148,7 @@ export async function convertBatch(items, options = {}, onProgress = null, onIte
 export async function getResult(path) {
 
   try {
-    const result = await window.electronAPI.getResult(path);
+    const result = await window.electron.getResult(path);
 
     // Check for errors
     if (!result.success) {

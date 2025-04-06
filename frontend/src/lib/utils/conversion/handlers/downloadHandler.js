@@ -31,7 +31,7 @@ class DownloadHandler {
             return;
         }
         
-        window.electronAPI.openFile(filePath)
+        window.electron.openFile(filePath)
             .then(result => {
                 if (!result.success) {
                     console.error(`Failed to open file: ${result.error}`);
@@ -51,7 +51,7 @@ class DownloadHandler {
             return;
         }
         
-        window.electronAPI.showItemInFolder(filePath)
+        window.electron.showItemInFolder(filePath)
             .then(result => {
                 if (!result.success) {
                     console.error(`Failed to show item in folder: ${result.error}`);

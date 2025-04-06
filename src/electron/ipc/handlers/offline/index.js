@@ -18,8 +18,8 @@ const OfflineService = require('../../../services/OfflineService');
  * Registers all offline-related IPC handlers
  */
 function registerOfflineHandlers() {
-  // Get online status
-  ipcMain.handle('mdcode:offline:status', async () => {
+  // Get offline status
+  ipcMain.handle('codex:offline:status', async () => {
     return {
       online: OfflineService.getOnlineStatus(),
       apiStatus: OfflineService.getApiStatus()
@@ -27,12 +27,12 @@ function registerOfflineHandlers() {
   });
 
   // Get queued operations
-  ipcMain.handle('mdcode:offline:queued-operations', async () => {
+  ipcMain.handle('codex:offline:queued-operations', async () => {
     return OfflineService.getQueuedOperations();
   });
 
   // Queue an operation
-  ipcMain.handle('mdcode:offline:queue-operation', async (event, operation) => {
+  ipcMain.handle('codex:offline:queue-operation', async (event, operation) => {
     try {
       const operationId = OfflineService.queueOperation(operation);
       return {
@@ -49,7 +49,7 @@ function registerOfflineHandlers() {
   });
 
   // Cache data
-  ipcMain.handle('mdcode:offline:cache-data', async (event, { key, data }) => {
+  ipcMain.handle('codex:offline:cache-data', async (event, { key, data }) => {
     try {
       const success = await OfflineService.cacheData(key, data);
       return { success };
@@ -63,7 +63,7 @@ function registerOfflineHandlers() {
   });
 
   // Get cached data
-  ipcMain.handle('mdcode:offline:get-cached-data', async (event, { key, maxAge }) => {
+  ipcMain.handle('codex:offline:get-cached-data', async (event, { key, maxAge }) => {
     try {
       const data = await OfflineService.getCachedData(key, maxAge);
       return {
@@ -80,7 +80,7 @@ function registerOfflineHandlers() {
   });
 
   // Invalidate cache
-  ipcMain.handle('mdcode:offline:invalidate-cache', async (event, { key }) => {
+  ipcMain.handle('codex:offline:invalidate-cache', async (event, { key }) => {
     try {
       const success = await OfflineService.invalidateCache(key);
       return { success };
@@ -94,7 +94,7 @@ function registerOfflineHandlers() {
   });
 
   // Clear cache
-  ipcMain.handle('mdcode:offline:clear-cache', async () => {
+  ipcMain.handle('codex:offline:clear-cache', async () => {
     try {
       const success = await OfflineService.clearCache();
       return { success };
@@ -113,7 +113,7 @@ function registerOfflineHandlers() {
     const windows = require('electron').BrowserWindow.getAllWindows();
     for (const window of windows) {
       if (!window.isDestroyed()) {
-        window.webContents.send('mdcode:offline:event', event);
+        window.webContents.send('codex:offline:event', event);
       }
     }
   });

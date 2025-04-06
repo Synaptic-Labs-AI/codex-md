@@ -18,7 +18,6 @@
 
 import { storeManager } from './storeManager.js';
 import { conversionHandler } from '../handlers/conversionHandler.js';
-import { batchHandler } from '../handlers/batchHandler.js';
 import { downloadHandler } from '../handlers/downloadHandler.js';
 import { tempFileManager } from '../handlers/tempFileManager.js';
 

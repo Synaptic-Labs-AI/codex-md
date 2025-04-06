@@ -2,6 +2,7 @@ import { openaiProxy } from "../../openaiProxy.js";
 import { generateMarkdown } from "../../../utils/markdownGenerator.js";
 import { FormData } from "formdata-node";
 import { AppError } from "../../../utils/errorHandler.js";
+import { AudioChunker } from "../../../utils/audioChunker.js";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB (OpenAI's current limit)
 const SUPPORTED_FORMATS = ["mp3", "mp4", "mpeg", "mpga", "m4a", "wav", "webm"];
@@ -11,9 +12,14 @@ class AudioConverter {
     this.config = {
       name: 'Audio Converter',
       version: '1.0.0',
-      supportedFormats: ["mp3", "mp4", "mpeg", "mpga", "m4a", "wav", "webm"],
-      maxFileSize: 25 * 1024 * 1024 // 25 MB (OpenAI's current limit)
+      supportedFormats: SUPPORTED_FORMATS,
+      maxFileSize: MAX_FILE_SIZE
     };
+
+    this.chunker = new AudioChunker({
+      chunkSize: MAX_FILE_SIZE,
+      overlapSeconds: 2
+    });
   }
 
   /**
@@ -22,10 +28,11 @@ class AudioConverter {
    * @param {Object} options - Conversion options
    * @param {string} options.name - Original filename
    * @param {string} options.apiKey - OpenAI API key for transcription
+   * @param {Function} options.onProgress - Progress callback
    * @returns {Promise<Object>} Conversion result
    */
   async convertToMarkdown(input, options) {
-    const { name: originalName, apiKey } = options || {};
+    const { name: originalName, apiKey, onProgress } = options || {};
 
     try {
       console.log('🎵 [AudioConverter] Starting conversion with options:', {
@@ -63,18 +70,7 @@ class AudioConverter {
         );
       }
 
-      if (audioBuffer.length > MAX_FILE_SIZE) {
-        throw new AppError(
-          `File size exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)} MB`,
-          400,
-          {
-            maxSize: MAX_FILE_SIZE,
-            actualSize: audioBuffer.length,
-            unit: "bytes"
-          }
-        );
-      }
-
+      // Validate format
       const fileExt = originalName.split(".").pop().toLowerCase();
       if (!SUPPORTED_FORMATS.includes(fileExt)) {
         throw new AppError(
@@ -87,31 +83,98 @@ class AudioConverter {
         );
       }
 
-      // Prepare form data for OpenAI
-      const formData = new FormData();
-      formData.append("file", new Blob([audioBuffer]), originalName);
-      formData.append("model", "whisper-1");
-      formData.append("response_format", "text");
+      let transcription;
+      
+      // Handle large files by chunking
+      if (audioBuffer.length > MAX_FILE_SIZE) {
+        console.log('🔄 [AudioConverter] File exceeds size limit, splitting into chunks...');
+        
+        // Create progress callback for chunking phase (0-50%)
+        const onChunkingProgress = onProgress ? (progress) => {
+          const scaledProgress = progress * 0.5; // Scale to 0-50%
+          onProgress(scaledProgress);
+          
+          if (onProgress.reportPhase) {
+            onProgress.reportPhase('chunking');
+          }
+        } : null;
 
-      console.log('📝 [AudioConverter] Preparing OpenAI request...');
-      
-      // Get transcription
-      const transcription = await openaiProxy.makeRequest(apiKey, "audio/transcriptions", formData);
-      
-      console.log('📝 [AudioConverter] Transcription result:', {
-        hasTranscription: !!transcription,
-        transcriptionLength: transcription ? transcription.length : 0
-      });
+        // Split audio into chunks
+        const chunks = await this.chunker.splitAudio(audioBuffer, {
+          onProgress: onChunkingProgress
+        });
+
+        console.log(`📦 [AudioConverter] Created ${chunks.length} chunks for processing`);
+
+        // Process each chunk and collect transcriptions
+        const transcriptions = [];
+        for (let i = 0; i < chunks.length; i++) {
+          try {
+            // Update progress for transcription phase (50-100%)
+            if (onProgress) {
+              const progress = (i / chunks.length) * 100;
+              const scaledProgress = 50 + (progress * 0.5); // Scale to 50-100%
+              onProgress(scaledProgress);
+              
+              if (onProgress.reportPhase) {
+                onProgress.reportPhase('transcribing');
+              }
+            }
+
+            // Prepare form data for chunk
+            const formData = new FormData();
+            formData.append("file", new Blob([chunks[i]]), `chunk_${i+1}.mp3`);
+            formData.append("model", "whisper-1");
+            formData.append("response_format", "text");
+
+            // Transcribe chunk
+            const chunkTranscription = await openaiProxy.makeRequest(apiKey, "audio/transcriptions", formData);
+            transcriptions.push(chunkTranscription);
+          } catch (error) {
+            console.error(`Error transcribing chunk ${i + 1}:`, error);
+            transcriptions.push(`[Transcription failed for segment ${i + 1}]`);
+          }
+        }
+
+        // Merge transcriptions with overlap handling
+        transcription = this.chunker.mergeTranscriptions(transcriptions);
+      } else {
+        // Process single file directly
+        console.log('📝 [AudioConverter] Processing file directly...');
+        
+        if (onProgress) {
+          onProgress(50); // Mark as halfway done
+          if (onProgress.reportPhase) {
+            onProgress.reportPhase('transcribing');
+          }
+        }
+
+        // Prepare form data
+        const formData = new FormData();
+        formData.append("file", new Blob([audioBuffer]), originalName);
+        formData.append("model", "whisper-1");
+        formData.append("response_format", "text");
+
+        // Get transcription
+        transcription = await openaiProxy.makeRequest(apiKey, "audio/transcriptions", formData);
+        
+        if (onProgress) {
+          onProgress(100);
+        }
+      }
       
       if (!transcription) {
-        console.error('❌ [AudioConverter] Empty transcription received from OpenAI');
+        console.error('❌ [AudioConverter] Empty transcription received');
         throw new AppError("No transcription received", 500);
       }
+
+      console.log('📝 [AudioConverter] Transcription completed:', {
+        transcriptionLength: transcription.length
+      });
 
       // Remove temp_ prefix from title if present
       let cleanTitle = originalName;
       if (cleanTitle.startsWith("temp_")) {
-        // Extract original filename by removing 'temp_timestamp_' prefix
         cleanTitle = cleanTitle.replace(/^temp_\d+_/, "");
       }
       

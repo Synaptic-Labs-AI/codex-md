@@ -64,7 +64,7 @@ function registerFileWatcherHandlers() {
   });
 
   // Acquire a file lock
-  ipcMain.handle('mdcode:watch:lock', async (event, request) => {
+  ipcMain.handle('codex:watch:lock', async (event, request) => {
     if (!request?.path) {
       return { 
         success: false, 
@@ -79,7 +79,7 @@ function registerFileWatcherHandlers() {
   });
 
   // Release a file lock
-  ipcMain.handle('mdcode:watch:unlock', async (event, request) => {
+  ipcMain.handle('codex:watch:unlock', async (event, request) => {
     if (!request?.path) {
       return { 
         success: false, 
@@ -91,7 +91,7 @@ function registerFileWatcherHandlers() {
   });
 
   // Check if a file is locked
-  ipcMain.handle('mdcode:watch:is-locked', async (event, request) => {
+  ipcMain.handle('codex:watch:is-locked', async (event, request) => {
     if (!request?.path) {
       return { 
         success: false, 

@@ -72,7 +72,7 @@ export async function convertUrl(url, options = {}, onProgress = null) {
     });
 
     // Call the IPC method
-    const result = await window.electronAPI.convertUrl(normalizedUrl, requestData.options);
+    const result = await window.electron.convertUrl(normalizedUrl, requestData.options);
     
     // Log result for debugging
     console.log('URL conversion result:', {
@@ -144,7 +144,7 @@ export async function convertParentUrl(url, options = {}, onProgress = null) {
     });
 
     // Call the IPC method
-    const result = await window.electronAPI.convertParentUrl(normalizedUrl, requestData.options);
+    const result = await window.electron.convertParentUrl(normalizedUrl, requestData.options);
     
     // Log result for debugging
     console.log('Parent URL conversion result:', {
@@ -205,7 +205,7 @@ export async function convertYoutube(url, options = {}, onProgress = null) {
     };
 
     // Call the IPC method
-    const result = await window.electronAPI.convertYoutube(normalizedUrl, requestData.options);
+    const result = await window.electron.convertYoutube(normalizedUrl, requestData.options);
 
     // Check for errors
     if (!result.success) {

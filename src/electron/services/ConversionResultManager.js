@@ -13,10 +13,11 @@
 const path = require('path');
 const { app } = require('electron');
 const FileSystemService = require('./FileSystemService');
-const { formatMetadata } = require('../adapters/metadataExtractorAdapter');
+const { formatMetadata, cleanMetadata } = require('@codex-md/shared/utils/markdown');
+const { cleanTemporaryFilename } = require('@codex-md/shared/utils/files');
 
 /**
- * Helper function to escape special characters in strings for use in regular expressions
+ * Helper function to escape special characters in regular expressions
  * @param {string} string - The string to escape
  * @returns {string} The escaped string
  */
@@ -32,37 +33,6 @@ function escapeRegExp(string) {
   } catch (error) {
     console.error(`❌ Error in escapeRegExp:`, error);
     return '';
-  }
-}
-
-/**
- * Helper function to clean temporary filenames
- * Removes 'temp_' prefix and any numeric identifiers
- * @param {string} filename - The filename to clean
- * @returns {string} The cleaned filename
- */
-function cleanTemporaryFilename(filename) {
-  if (!filename || typeof filename !== 'string') {
-    console.warn(`⚠️ Invalid input to cleanTemporaryFilename: ${filename}`);
-    return filename || '';
-  }
-  
-  try {
-    // Extract the base name without extension
-    const extension = filename.includes('.') ? filename.substring(filename.lastIndexOf('.')) : '';
-    const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
-    
-    // Clean the base name - remove temp_ prefix and any numeric identifiers
-    let cleanedName = baseName;
-    if (baseName.startsWith('temp_')) {
-      cleanedName = baseName.replace(/^temp_\d*_?/, '');
-    }
-    
-    // Return the cleaned name with extension if it had one
-    return cleanedName + extension;
-  } catch (error) {
-    console.error(`❌ Error in cleanTemporaryFilename:`, error);
-    return filename;
   }
 }
 
@@ -295,18 +265,12 @@ class ConversionResultManager {
     // Update image references to use Obsidian format
     const updatedContent = this.updateImageReferences(content, images);
 
-    // Clean any metadata fields that might contain temporary filenames
-    const cleanedMetadata = { ...metadata };
-    if (cleanedMetadata.originalFile && typeof cleanedMetadata.originalFile === 'string') {
-      cleanedMetadata.originalFile = cleanTemporaryFilename(cleanedMetadata.originalFile);
-    }
-    
-    // Create metadata object
-    const fullMetadata = {
+    // Clean metadata fields and create metadata object
+    const fullMetadata = cleanMetadata({
       type,
       converted: new Date().toISOString(),
-      ...cleanedMetadata
-    };
+      ...metadata
+    });
 
     // Check if content already has frontmatter
     const hasFrontmatter = updatedContent.trim().startsWith('---');

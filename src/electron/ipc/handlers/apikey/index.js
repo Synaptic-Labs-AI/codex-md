@@ -17,27 +17,27 @@ const { IPCChannels } = require('../../types');
  */
 function registerApiKeyHandlers() {
   // Save API key
-  ipcMain.handle('mdcode:apikey:save', async (event, { key, provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:save', async (event, { key, provider = 'openai' }) => {
     return await apiKeyService.saveApiKey(key, provider);
   });
 
   // Check if API key exists
-  ipcMain.handle('mdcode:apikey:exists', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:exists', async (event, { provider = 'openai' }) => {
     return { exists: apiKeyService.hasApiKey(provider) };
   });
 
   // Delete API key
-  ipcMain.handle('mdcode:apikey:delete', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:delete', async (event, { provider = 'openai' }) => {
     return apiKeyService.deleteApiKey(provider);
   });
 
   // Validate API key
-  ipcMain.handle('mdcode:apikey:validate', async (event, { key, provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:validate', async (event, { key, provider = 'openai' }) => {
     return await apiKeyService.validateApiKey(key, provider);
   });
 
   // Get API key for internal use (only available to main process)
-  ipcMain.handle('mdcode:apikey:get-for-service', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:get-for-service', async (event, { provider = 'openai' }) => {
     // Security check: only allow main process to access this
     const webContents = event.sender;
     if (webContents.getType() !== 'browserWindow') {

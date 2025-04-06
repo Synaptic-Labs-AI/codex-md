@@ -1,163 +1,252 @@
 /**
- * Main process entry point for the Electron application.
- * Handles window management, IPC communication, and native system integration.
- *
- * Related files:
- * - preload.js: Bridges main and renderer processes securely
- * - ipc/handlers.js: IPC main process handlers
- * - ipc/types.js: TypeScript definitions for IPC messages
- * - features/tray.js: System tray integration
- * - features/notifications.js: Native notifications
- *
- * Note: Hardware acceleration is explicitly enabled for WebGL support
+ * Electron Main Process
+ * Entry point for the Electron application.
+ * 
+ * Handles:
+ * - Window management
+ * - IPC communication setup
+ * - Protocol registration
+ * - App lifecycle
  */
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, protocol } = require('electron');
 const path = require('path');
-const crypto = require('crypto');
-const machineId = require('node-machine-id');
-const { setupIPCHandlers } = require('./ipc/handlers');
-const { IPCChannels } = require('./ipc/types');
+const url = require('url');
+const ElectronConversionService = require('./services/ElectronConversionService');
+const { setupBasicHandlers, setupWindowHandlers, cleanupWindowHandlers } = require('./ipc/handlers');
 const TrayManager = require('./features/tray');
 const NotificationManager = require('./features/notifications');
-const BrowserService = require('./services/BrowserService');
 const { createStore } = require('./utils/storeFactory');
 
-// Generate machine-specific encryption key for the store
-const generateStoreKey = async () => {
-  const id = await machineId.machineId();
-  return crypto.createHash('sha256').update(id).digest('hex');
-};
+// Keep a global reference of objects
+let mainWindow;
+let appInitialized = false;
+let trayManager = null;
+let notificationManager = null;
 
-// Initialize store for settings persistence and managers
-let store;
-let trayManager;
-let notificationManager;
+// Initialize tray store
+const trayStore = createStore('tray-manager', {
+    encryptionKey: process.env.STORE_ENCRYPTION_KEY
+});
 
 /**
- * Creates the main application window with secure configurations
- * @returns {Electron.BrowserWindow} The created window instance
+ * Setup notifications with error handling
  */
-function createWindow() {
-  // Ensure store is initialized before creating window
-  if (!store) {
-    throw new Error('Store must be initialized before creating window');
-  }
-
-  const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      contextIsolation: true, // Required for security
-      nodeIntegration: false, // Disabled for security
-      sandbox: true, // Enable sandbox for additional security
-      preload: path.join(__dirname, 'preload.js'),
-      // Enable WebGL and hardware acceleration
-      webgl: true,
-      webSecurity: true
+function setupNotifications() {
+    try {
+        notificationManager = new NotificationManager();
+        console.log('✅ Notifications initialized');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to setup notifications:', error);
+        notificationManager = null;
+        return false;
     }
-  });
-
-  // In development, load Svelte dev server
-  // In production, load built Svelte app
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173');
-    // Open DevTools in development
-    mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../../frontend/build/index.html'));
-  }
-
-  return mainWindow;
 }
 
-// Enable hardware acceleration for WebGL
-app.commandLine.appendSwitch('enable-accelerated-2d-canvas', 'true');
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('ignore-gpu-blacklist');
-
-// Initialize app when ready
-app.whenReady().then(async () => {
-  try {
-    // First initialize the store with error handling
-    const encryptionKey = await generateStoreKey();
-    process.env.STORE_ENCRYPTION_KEY = encryptionKey;
-    store = createStore('app-settings', { encryptionKey });
-    
-    // Set up default settings if they don't exist
-    if (!store.has('tempDirectory')) {
-      // Create a temp directory in the app's user data folder
-      const tempDir = path.join(app.getPath('userData'), 'temp');
-      store.set('tempDirectory', tempDir);
-      console.log('Set default temp directory:', tempDir);
+/**
+ * Setup system tray with error handling
+ */
+function setupTray() {
+    if (!mainWindow) {
+        console.warn('⚠️ Cannot setup tray without main window');
+        return;
     }
-    
-    // Clear any Puppeteer environment variables that might interfere with proper installation
-    delete process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD;
-    delete process.env.PUPPETEER_EXECUTABLE_PATH;
 
-    // Initialize the browser service
-    console.log('Initializing browser service...');
     try {
-      await BrowserService.initialize();
-      console.log('Browser service initialized successfully');
+        trayManager = new TrayManager(mainWindow, trayStore);
+        console.log('✅ Tray initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize browser service:', error);
-      // Non-fatal error, continue app initialization but log the full error
-      console.error('Full error details:', error);
+        console.error('❌ Failed to create tray:', error);
+        // Non-fatal error, continue execution
+    }
+}
+
+/**
+ * Create and setup window with error handling
+ * @returns {Electron.BrowserWindow|null} The created window or null if failed
+ */
+async function createAndSetupWindow() {
+    try {
+        const window = createMainWindow();
+        
+        // Setup window handlers
+        await setupWindowHandlers(window);
+        console.log('✅ Window handlers registered successfully');
+        
+        return window;
+    } catch (error) {
+        console.error('❌ Failed to create and setup window:', error);
+        return null;
+    }
+}
+
+/**
+ * Initialize core application services and handlers
+ * Must complete before window creation
+ */
+async function initializeApp() {
+    try {
+        // Setup basic IPC handlers first
+        console.log('📡 Registering basic IPC handlers...');
+        setupBasicHandlers(app);
+        console.log('✅ Basic IPC handlers registered successfully');
+
+        // Initialize core services
+        await ElectronConversionService.setupOutputDirectory();
+        console.log('✅ Conversion service initialized');
+        
+        // Setup notifications (non-fatal if it fails)
+        if (!setupNotifications()) {
+            console.warn('⚠️ Notifications unavailable - continuing without notifications');
+        }
+
+        appInitialized = true;
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to initialize app:', error);
+        return false;
+    }
+}
+
+/**
+ * Create the main application window
+ * Only called after initialization is complete
+ */
+function createMainWindow() {
+    if (!appInitialized) {
+        throw new Error('Cannot create window before app initialization');
     }
 
-    // Then create the window
-    const mainWindow = createWindow();
-    
-    // Setup IPC handlers
-    setupIPCHandlers(app, mainWindow);
-    
-    // Initialize desktop features
-    trayManager = new TrayManager(mainWindow, store);
-    notificationManager = new NotificationManager();
-    
-    // Make notification manager available to IPC handlers
-    global.notificationManager = notificationManager;
-
-    // Handle window creation on macOS when clicking dock icon
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
-      }
+    mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        minWidth: 800,
+        minHeight: 600,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        }
     });
 
-    // Handle squirrel events for Windows installer
-    if (require('electron-squirrel-startup')) app.quit();
-  } catch (error) {
-    console.error('Failed to initialize app:', error);
-    app.quit();
-  }
+    // Load the app
+    if (process.env.NODE_ENV === 'development') {
+        // Dev mode - load from dev server
+        mainWindow.loadURL('http://localhost:5173');
+        mainWindow.webContents.openDevTools();
+    } else {
+        // Production - load local files
+        mainWindow.loadURL(
+            url.format({
+                pathname: path.join(__dirname, '../frontend/dist/index.html'),
+                protocol: 'file:',
+                slashes: true
+            })
+        );
+    }
+
+    // Window event handlers
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+
+    // Notify renderer process that app is ready
+    mainWindow.webContents.on('did-finish-load', () => {
+        mainWindow.webContents.send('app:ready', true);
+        console.log('✅ Sent app:ready event to renderer');
+    });
+
+    return mainWindow;
+}
+
+// App startup sequence
+app.whenReady().then(async () => {
+    try {
+        // Register protocols
+        protocol.registerFileProtocol('media', (request, callback) => {
+            const filePath = request.url.replace('media://', '');
+            callback(decodeURI(filePath));
+        });
+
+        // Initialize app before creating window
+        console.log('🚀 Starting app initialization...');
+        const success = await initializeApp();
+        if (!success) {
+            console.error('❌ App initialization failed');
+            app.quit();
+            return;
+        }
+
+        // Create and setup window
+        mainWindow = await createAndSetupWindow();
+        if (!mainWindow) {
+            console.error('❌ Failed to create main window');
+            app.quit();
+            return;
+        }
+
+        // Setup tray after window creation
+        setupTray();
+        
+        console.log('✅ Main window created and initialized');
+    } catch (error) {
+        console.error('❌ Critical startup error:', error);
+        app.quit();
+    }
 });
 
-// Quit when all windows are closed (except on macOS)
+// Handle macOS activation
+app.on('activate', async () => {
+    if (mainWindow === null && appInitialized) {
+        // Create and setup new window
+        mainWindow = await createAndSetupWindow();
+        if (!mainWindow) {
+            console.error('❌ Failed to restore window on activate');
+            return;
+        }
+        
+        // Re-setup tray with new window
+        setupTray();
+    }
+});
+
+// Handle window close
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+    // Clean up window-specific handlers
+    if (typeof cleanupWindowHandlers === 'function') {
+        cleanupWindowHandlers();
+    }
+
+    // Clean up tray
+    if (trayManager) {
+        trayManager.destroy();
+        trayManager = null;
+    }
+    
+    // Quit for non-macOS platforms
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
 });
 
-// Clean up resources when quitting
-app.on('will-quit', async () => {
-  if (trayManager) {
-    trayManager.destroy();
-  }
-  
-  // Close the browser service
-  try {
-    console.log('Closing browser service...');
-    await BrowserService.close();
-  } catch (error) {
-    console.error('Error closing browser service:', error);
-  }
+// Clean up on quit
+app.on('will-quit', () => {
+    if (trayManager) {
+        trayManager.destroy();
+        trayManager = null;
+    }
+    notificationManager = null;
 });
 
-// Handle any uncaught exceptions
+// Handle fatal errors
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+    console.error('❌ Uncaught exception:', error);
+    if (mainWindow?.webContents) {
+        try {
+            mainWindow.webContents.send('app:error', error.message);
+        } catch (sendError) {
+            console.error('❌ Failed to send error to window:', sendError);
+        }
+    }
 });

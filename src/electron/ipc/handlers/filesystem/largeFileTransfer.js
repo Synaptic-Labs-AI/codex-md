@@ -24,7 +24,7 @@ const activeTransfers = new Map();
  */
 function registerLargeFileTransferHandlers() {
   // Initialize a large file transfer
-  ipcMain.handle('mdcode:fs:init-large-file-transfer', async (event, request) => {
+  ipcMain.handle('codex:fs:init-large-file-transfer', async (event, request) => {
     try {
       if (!request?.tempFilePath || !request?.fileName || !request?.fileSize) {
         return { 
@@ -78,7 +78,7 @@ function registerLargeFileTransferHandlers() {
   });
   
   // Transfer a chunk of a large file
-  ipcMain.handle('mdcode:fs:transfer-file-chunk', async (event, request) => {
+  ipcMain.handle('codex:fs:transfer-file-chunk', async (event, request) => {
     try {
       if (!request?.transferId || request?.chunkIndex === undefined || !request?.data) {
         return { 
@@ -132,7 +132,7 @@ function registerLargeFileTransferHandlers() {
   });
   
   // Finalize a large file transfer
-  ipcMain.handle('mdcode:fs:finalize-large-file-transfer', async (event, request) => {
+  ipcMain.handle('codex:fs:finalize-large-file-transfer', async (event, request) => {
     try {
       if (!request?.transferId) {
         return { 

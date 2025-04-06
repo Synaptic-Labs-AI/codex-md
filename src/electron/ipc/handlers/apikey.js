@@ -15,27 +15,27 @@ const apiKeyService = require('../../services/ApiKeyService');
  */
 function registerApiKeyHandlers() {
   // Save API key
-  ipcMain.handle('mdcode:apikey:save', async (event, { key, provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:save', async (event, { key, provider = 'openai' }) => {
     return await apiKeyService.saveApiKey(key, provider);
   });
 
   // Check if API key exists
-  ipcMain.handle('mdcode:apikey:exists', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:exists', async (event, { provider = 'openai' }) => {
     return { exists: apiKeyService.hasApiKey(provider) };
   });
 
   // Delete API key
-  ipcMain.handle('mdcode:apikey:delete', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:delete', async (event, { provider = 'openai' }) => {
     return await apiKeyService.deleteApiKey(provider);
   });
 
   // Validate API key
-  ipcMain.handle('mdcode:apikey:validate', async (event, { key, provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:validate', async (event, { key, provider = 'openai' }) => {
     return await apiKeyService.validateApiKey(key, provider);
   });
 
   // Get API key
-  ipcMain.handle('mdcode:apikey:get', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:get', async (event, { provider = 'openai' }) => {
     const key = apiKeyService.getApiKey(provider);
     if (!key) {
       return { success: false, error: 'API key not found' };
@@ -49,11 +49,11 @@ function registerApiKeyHandlers() {
  */
 async function cleanupApiKeyHandlers() {
   // Remove all handlers
-  ipcMain.removeHandler('mdcode:apikey:save');
-  ipcMain.removeHandler('mdcode:apikey:exists');
-  ipcMain.removeHandler('mdcode:apikey:delete');
-  ipcMain.removeHandler('mdcode:apikey:validate');
-  ipcMain.removeHandler('mdcode:apikey:get');
+  ipcMain.removeHandler('codex:apikey:save');
+  ipcMain.removeHandler('codex:apikey:exists');
+  ipcMain.removeHandler('codex:apikey:delete');
+  ipcMain.removeHandler('codex:apikey:validate');
+  ipcMain.removeHandler('codex:apikey:get');
 }
 
 module.exports = {

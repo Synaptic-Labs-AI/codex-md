@@ -275,76 +275,76 @@
  */
 const IPCChannels = {
   // Conversion operations
-  CONVERT_FILE: 'mdcode:convert:file',
-  CONVERT_BATCH: 'mdcode:convert:batch',
-  CONVERT_URL: 'mdcode:convert:url',
-  CONVERT_PARENT_URL: 'mdcode:convert:parent-url',
-  CONVERT_YOUTUBE: 'mdcode:convert:youtube',
-  SELECT_FILES: 'mdcode:convert:select-files',
-  SELECT_OUTPUT: 'mdcode:convert:select-output',
-  GET_RESULT: 'mdcode:convert:get-result',
-  CONVERSION_PROGRESS: 'mdcode:convert:progress',
-  CONVERSION_STATUS: 'mdcode:convert:status',
-  CONVERSION_COMPLETE: 'mdcode:convert:complete',
-  CONVERSION_ERROR: 'mdcode:convert:error',
-  CONVERSION_CANCEL: 'mdcode:convert:cancel',
+  CONVERT_FILE: 'codex:convert:file',
+  CONVERT_BATCH: 'codex:convert:batch',
+  CONVERT_URL: 'codex:convert:url',
+  CONVERT_PARENT_URL: 'codex:convert:parent-url',
+  CONVERT_YOUTUBE: 'codex:convert:youtube',
+  SELECT_FILES: 'codex:fs:select-files',
+  SELECT_OUTPUT: 'codex:fs:select-output',
+  GET_RESULT: 'codex:convert:get-result',
+  CONVERSION_PROGRESS: 'codex:convert:progress',
+  CONVERSION_STATUS: 'codex:convert:status',
+  CONVERSION_COMPLETE: 'codex:convert:complete',
+  CONVERSION_ERROR: 'codex:convert:error',
+  CONVERSION_CANCEL: 'codex:convert:cancel',
   
   // File system operations
-  READ_FILE: 'mdcode:fs:read',
-  WRITE_FILE: 'mdcode:fs:write',
-  CREATE_DIRECTORY: 'mdcode:fs:mkdir',
-  LIST_DIRECTORY: 'mdcode:fs:list',
-  LIST_DIRECTORY_DETAILED: 'mdcode:fs:list-directory',
-  DELETE_ITEM: 'mdcode:fs:delete',
-  GET_STATS: 'mdcode:fs:stats',
-  MOVE_ITEM: 'mdcode:fs:move',
-  SELECT_DIRECTORY: 'mdcode:fs:select-directory',
-  SELECT_INPUT_DIRECTORY: 'mdcode:fs:select-input-directory',
+  READ_FILE: 'codex:fs:read',
+  WRITE_FILE: 'codex:fs:write',
+  CREATE_DIRECTORY: 'codex:fs:mkdir',
+  LIST_DIRECTORY: 'codex:fs:list',
+  LIST_DIRECTORY_DETAILED: 'codex:fs:list-directory',
+  DELETE_ITEM: 'codex:fs:delete',
+  GET_STATS: 'codex:fs:stats',
+  MOVE_ITEM: 'codex:fs:move',
+  SELECT_DIRECTORY: 'codex:fs:select-directory',
+  SELECT_INPUT_DIRECTORY: 'codex:fs:select-input-directory',
   
   // Large file transfer operations
-  INIT_LARGE_FILE_TRANSFER: 'mdcode:fs:init-large-file-transfer',
-  TRANSFER_FILE_CHUNK: 'mdcode:fs:transfer-file-chunk',
-  FINALIZE_LARGE_FILE_TRANSFER: 'mdcode:fs:finalize-large-file-transfer',
+  INIT_LARGE_FILE_TRANSFER: 'codex:fs:init-large-file-transfer',
+  TRANSFER_FILE_CHUNK: 'codex:fs:transfer-file-chunk',
+  FINALIZE_LARGE_FILE_TRANSFER: 'codex:fs:finalize-large-file-transfer',
   
   // Settings
-  GET_SETTING: 'mdcode:get-setting',
-  SET_SETTING: 'mdcode:set-setting',
+  GET_SETTING: 'codex:get-setting',
+  SET_SETTING: 'codex:set-setting',
   
   // Application
-  GET_VERSION: 'mdcode:get-version',
-  CHECK_UPDATES: 'mdcode:check-updates',
-  UPDATE_AVAILABLE: 'mdcode:update-available',
+  GET_VERSION: 'codex:get-version',
+  CHECK_UPDATES: 'codex:check-updates',
+  UPDATE_AVAILABLE: 'codex:update-available',
   
   // File watching
-  WATCH_START: 'mdcode:watch:start',
-  WATCH_STOP: 'mdcode:watch:stop',
-  WATCH_EVENT: 'mdcode:watch:event',
-  WATCH_ERROR: 'mdcode:watch:error',
+  WATCH_START: 'codex:watch:start',
+  WATCH_STOP: 'codex:watch:stop',
+  WATCH_EVENT: 'codex:watch:event',
+  WATCH_ERROR: 'codex:watch:error',
 
   // System
-  SHOW_ITEM: 'mdcode:show-item-in-folder',
-  OPEN_EXTERNAL: 'mdcode:open-external',
+  SHOW_ITEM: 'codex:show-item-in-folder',
+  OPEN_EXTERNAL: 'codex:open-external',
   
   // Offline functionality
-  OFFLINE_STATUS: 'mdcode:offline:status',
-  OFFLINE_QUEUED_OPERATIONS: 'mdcode:offline:queued-operations',
-  OFFLINE_QUEUE_OPERATION: 'mdcode:offline:queue-operation',
-  OFFLINE_CACHE_DATA: 'mdcode:offline:cache-data',
-  OFFLINE_GET_CACHED_DATA: 'mdcode:offline:get-cached-data',
-  OFFLINE_INVALIDATE_CACHE: 'mdcode:offline:invalidate-cache',
-  OFFLINE_CLEAR_CACHE: 'mdcode:offline:clear-cache',
-  OFFLINE_EVENT: 'mdcode:offline:event',
+  OFFLINE_STATUS: 'codex:offline:status',
+  OFFLINE_QUEUED_OPERATIONS: 'codex:offline:queued-operations',
+  OFFLINE_QUEUE_OPERATION: 'codex:offline:queue-operation',
+  OFFLINE_CACHE_DATA: 'codex:offline:cache-data',
+  OFFLINE_GET_CACHED_DATA: 'codex:offline:get-cached-data',
+  OFFLINE_INVALIDATE_CACHE: 'codex:offline:invalidate-cache',
+  OFFLINE_CLEAR_CACHE: 'codex:offline:clear-cache',
+  OFFLINE_EVENT: 'codex:offline:event',
   
   // API Key management
-  APIKEY_SAVE: 'mdcode:apikey:save',
-  APIKEY_EXISTS: 'mdcode:apikey:exists',
-  APIKEY_DELETE: 'mdcode:apikey:delete',
-  APIKEY_VALIDATE: 'mdcode:apikey:validate',
-  APIKEY_GET_FOR_SERVICE: 'mdcode:apikey:get-for-service',
+  APIKEY_SAVE: 'codex:apikey:save',
+  APIKEY_EXISTS: 'codex:apikey:exists',
+  APIKEY_DELETE: 'codex:apikey:delete',
+  APIKEY_VALIDATE: 'codex:apikey:validate',
+  APIKEY_GET: 'codex:apikey:get',
   
   // Transcription
-  TRANSCRIBE_AUDIO: 'mdcode:transcribe:audio',
-  TRANSCRIBE_VIDEO: 'mdcode:transcribe:video',
+  TRANSCRIBE_AUDIO: 'codex:transcribe:audio',
+  TRANSCRIBE_VIDEO: 'codex:transcribe:video',
 };
 
 module.exports = {

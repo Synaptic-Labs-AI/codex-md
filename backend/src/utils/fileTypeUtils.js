@@ -1,24 +1,19 @@
 /**
- * Utility functions for file type handling that mirror frontend config
+ * Utility functions for file type handling
+ * Imports shared utilities and adds backend-specific functions
  */
 
-const API_REQUIRED_TYPES = [
-  'mp3', 'wav', 'ogg', 'm4a', 'mpga',
-  'mp4', 'webm', 'avi', 'mov', 'mpeg'
-];
+import { FILE_CATEGORIES, API_REQUIRED_TYPES, requiresApiKey } from '@codex-md/shared/utils/files';
 
-const FILE_CATEGORIES = {
-  documents: ['pdf', 'docx', 'pptx'],
-  audio: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'wma'],
-  video: ['mp4', 'mov', 'avi', 'mkv', 'webm'],
-  data: ['csv', 'xlsx'],
-};
+// Re-export shared utilities
+export { FILE_CATEGORIES, API_REQUIRED_TYPES, requiresApiKey };
 
-export function requiresApiKey(fileType) {
-  if (!fileType) return false;
-  return API_REQUIRED_TYPES.includes(fileType.toLowerCase());
-}
-
+/**
+ * Determines the converter category for a file type
+ * @param {string} type - The file type
+ * @param {string} fileType - The file extension
+ * @returns {string} - The converter category
+ */
 export function determineCategory(type, fileType) {
   // Normalize input
   const normalizedType = type?.toLowerCase();
