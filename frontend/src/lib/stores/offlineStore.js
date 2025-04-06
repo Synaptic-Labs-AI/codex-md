@@ -1,11 +1,13 @@
 /**
  * Offline Store
- * Manages offline state for the application.
+ * Manages offline state and initialization state for the application.
  * 
  * This store handles:
  * - Online/offline status
  * - API connectivity status
  * - Offline operation tracking
+ * - Store initialization state
+ * - Periodic status checks
  * 
  * Related files:
  * - components/OfflineStatusBar.svelte: UI for offline status
@@ -13,19 +15,104 @@
  */
 
 import { writable, derived } from 'svelte/store';
+import { browser } from '$app/environment';
 
 // Create the base store
 function createOfflineStore() {
-  // Initial state
+  // Initial state with initialization tracking
   const initialState = {
     online: true,
     apiStatus: {},
     lastSync: null,
-    pendingOperations: []
+    pendingOperations: [],
+    isInitialized: false,
+    error: null
   };
   
   // Create the writable store
   const { subscribe, set, update } = writable(initialState);
+  
+  // Status check interval reference
+  let statusCheckInterval;
+  
+  // Check status with electron
+  async function checkStatus() {
+    if (!browser || !window?.electron) return;
+    
+    try {
+      const status = await window.electron.getOfflineStatus();
+      update(state => ({
+        ...state,
+        online: status.online,
+        apiStatus: status.apiStatus,
+        error: null
+      }));
+    } catch (error) {
+      console.error('Failed to get offline status:', error);
+      update(state => ({
+        ...state,
+        error: error.message
+      }));
+    }
+  }
+
+  // Initialize store
+  async function initialize() {
+    if (!browser) return;
+
+    try {
+      if (!window?.electron) {
+        update(state => ({
+          ...state,
+          isInitialized: true,
+          error: 'Electron API not available'
+        }));
+        return;
+      }
+
+      window.electron.onReady(async () => {
+        try {
+          // Get initial status
+          await checkStatus();
+          
+          // Start periodic checks
+          statusCheckInterval = setInterval(checkStatus, 30000); // Check every 30s
+          
+          update(state => ({
+            ...state,
+            isInitialized: true,
+            error: null
+          }));
+        } catch (error) {
+          console.error('Failed to initialize offline store:', error);
+          update(state => ({
+            ...state,
+            isInitialized: true,
+            error: error.message
+          }));
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize offline store:', error);
+      update(state => ({
+        ...state,
+        isInitialized: true,
+        error: error.message
+      }));
+    }
+  }
+
+  // Clean up on window unload
+  if (browser) {
+    window.addEventListener('beforeunload', () => {
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+      }
+    });
+    
+    // Initialize when in browser
+    initialize();
+  }
   
   return {
     subscribe,
@@ -33,19 +120,22 @@ function createOfflineStore() {
     // Set online status
     setOnlineStatus: (online) => update(state => ({
       ...state,
-      online
+      online,
+      error: null
     })),
     
     // Set API status
     setApiStatus: (apiStatus) => update(state => ({
       ...state,
-      apiStatus
+      apiStatus,
+      error: null
     })),
     
     // Update last sync time
     updateLastSync: () => update(state => ({
       ...state,
-      lastSync: new Date()
+      lastSync: new Date(),
+      error: null
     })),
     
     // Add pending operation
@@ -54,7 +144,8 @@ function createOfflineStore() {
       pendingOperations: [...state.pendingOperations, {
         ...operation,
         timestamp: Date.now()
-      }]
+      }],
+      error: null
     })),
     
     // Remove pending operation
@@ -70,7 +161,17 @@ function createOfflineStore() {
     })),
     
     // Reset store to initial state
-    reset: () => set(initialState)
+    reset: () => {
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+      }
+      set({
+        ...initialState,
+        isInitialized: false,
+        error: null
+      });
+      initialize();
+    }
   };
 }
 

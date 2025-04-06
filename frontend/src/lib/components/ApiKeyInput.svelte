@@ -24,31 +24,48 @@
   let saving = false;
   let error = '';
   let keyStatus = { exists: false, valid: false };
+  let isInitialized = false;
+  let isReady = false;
 
   onMount(() => {
-    // Initialize with current value from store
-    apiKeyValue = getApiKey(provider) || '';
-    
-    // Check if API key exists
-    checkApiKey();
+    if (window?.electron) {
+      window.electron.onReady(async () => {
+        try {
+          isReady = true;
+          await initializeApiKey();
+        } catch (err) {
+          console.error('Failed to initialize API key component:', err);
+          error = 'Failed to initialize: ' + (err.message || 'Unknown error');
+        }
+      });
+    } else {
+      error = 'Electron API not available';
+    }
   });
 
-  // Check if API key exists
-  async function checkApiKey() {
+  // Initialize API key state
+  async function initializeApiKey() {
     try {
-      const result = await window.electronAPI.checkApiKeyExists(provider);
+      // Initialize with current value from store
+      apiKeyValue = await getApiKey(provider) || '';
+      
+      // Check if API key exists
+      const result = await window.electron.checkApiKeyExists(provider);
       keyStatus = { exists: result.exists, valid: true };
       
       // If key exists, try to load it
       if (result.exists) {
-        const response = await window.electronAPI.getApiKey(provider);
+        const response = await window.electron.getApiKey(provider);
         if (response.success && response.key) {
           apiKeyValue = response.key;
-          setApiKey(response.key, provider);
+          await setApiKey(response.key, provider);
         }
       }
+      
+      isInitialized = true;
     } catch (err) {
-      console.error(`Error checking ${provider} API key:`, err);
+      console.error(`Error initializing ${provider} API key:`, err);
+      error = err.message || `Failed to initialize ${provider} API key`;
     }
   }
 
@@ -71,7 +88,7 @@
     error = '';
     
     try {
-      const result = await window.electronAPI.saveApiKey(apiKeyValue, provider);
+      const result = await window.electron.saveApiKey(apiKeyValue, provider);
       if (!result.success) {
         throw new Error(result.error || 'Failed to save API key');
       }
@@ -87,7 +104,7 @@
   // Delete API key
   async function deleteApiKey() {
     try {
-      await window.electronAPI.deleteApiKey(provider);
+      await window.electron.deleteApiKey(provider);
       keyStatus = { exists: false, valid: false };
       apiKeyValue = '';
       setApiKey('', provider);
@@ -97,16 +114,27 @@
   }
 </script>
 
-<div class="api-key-wrapper api-key-input-section">
-  <div class="api-key-header">
-    <h3>{title}</h3>
-    {#if keyStatus.exists}
-      <div class="key-status success">
-        <span>✓ API key is configured</span>
-        <button on:click={deleteApiKey} class="delete-btn">Remove</button>
-      </div>
-    {/if}
-  </div>
+<div class="api-key-wrapper api-key-input-section" class:loading={!isInitialized}>
+  {#if !isReady}
+    <div class="api-key-header">
+      <h3>Loading...</h3>
+    </div>
+  {:else if error}
+    <div class="api-key-header error">
+      <h3>{title}</h3>
+      <div class="error-message">{error}</div>
+    </div>
+  {:else}
+    <div class="api-key-header">
+      <h3>{title}</h3>
+      {#if keyStatus.exists}
+        <div class="key-status success">
+          <span>✓ API key is configured</span>
+          <button on:click={deleteApiKey} class="delete-btn">Remove</button>
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   {#if !keyStatus.exists}
     <div class="input-container">
@@ -308,5 +336,16 @@
       flex-direction: column;
       align-items: flex-start;
     }
+  }
+
+  .loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .error-message {
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+    margin-top: var(--spacing-xs);
   }
 </style>

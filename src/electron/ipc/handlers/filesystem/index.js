@@ -104,7 +104,7 @@ function registerFileSystemHandlers() {
   });
   
   // Select input directory
-  ipcMain.handle('mdcode:fs:select-input-directory', async (event, request) => {
+  ipcMain.handle('codex:fs:select-input-directory', async (event, request) => {
     const options = {
       properties: ['openDirectory', 'createDirectory'],
       title: 'Select Input Directory',
@@ -129,7 +129,7 @@ function registerFileSystemHandlers() {
   });
   
   // List directory with detailed information
-  ipcMain.handle('mdcode:fs:list-directory', async (event, request) => {
+  ipcMain.handle('codex:fs:list-directory', async (event, request) => {
     if (!request?.path) {
       return { success: false, error: 'Invalid request: path is required' };
     }

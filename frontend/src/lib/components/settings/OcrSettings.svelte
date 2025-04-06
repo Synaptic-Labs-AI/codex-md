@@ -21,7 +21,7 @@
   
   onMount(() => {
     // Initialize from electron settings
-    window.electronAPI.getSetting('ocr.enabled')
+    window.electron.getSetting('ocr.enabled')
       .then(value => {
         if (value !== undefined) {
           ocrEnabled = value;

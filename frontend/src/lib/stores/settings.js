@@ -44,7 +44,7 @@ const createSettingsStore = () => {
         settings.ocr.enabled = enabled;
         
         // Save to electron store
-        window.electronAPI.setSetting('ocr.enabled', enabled)
+        window.electron.setSetting('ocr.enabled', enabled)
           .catch(err => console.error('Error saving OCR setting:', err));
         
         return settings;
@@ -59,7 +59,7 @@ const createSettingsStore = () => {
       
       // Save to electron store
       Object.entries(DEFAULT_SETTINGS).forEach(([key, value]) => {
-        window.electronAPI.setSetting(key, value)
+        window.electron.setSetting(key, value)
           .catch(err => console.error(`Error resetting setting ${key}:`, err));
       });
     }
@@ -108,7 +108,7 @@ export const updateSetting = (key, value) => {
     current[keys[keys.length - 1]] = value;
     
     // Save to electron store
-    window.electronAPI.setSetting(key, value)
+    window.electron.setSetting(key, value)
       .catch(err => console.error(`Error updating setting ${key}:`, err));
     
     return settings;

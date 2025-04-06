@@ -14,7 +14,7 @@
   
   onMount(async () => {
     try {
-      const result = await window.electronAPI.checkApiKeyExists('openai');
+      const result = await window.electron.checkApiKeyExists('openai');
       keyStatus.set({ exists: result.exists, valid: true });
     } catch (err) {
       console.error('Error checking API key:', err);
@@ -29,7 +29,7 @@
     
     try {
       // Save key without validation
-      const result = await window.electronAPI.saveApiKey(apiKey);
+      const result = await window.electron.saveApiKey(apiKey);
       if (!result.success) {
         throw new Error(result.error || 'Failed to save API key');
       }
@@ -47,7 +47,7 @@
   
   async function deleteApiKey() {
     try {
-      await window.electronAPI.deleteApiKey('openai');
+      await window.electron.deleteApiKey('openai');
       keyStatus.set({ exists: false, valid: false });
     } catch (e) {
       error = e.message;

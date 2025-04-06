@@ -12,7 +12,7 @@
   // Initialize settings
   async function initSettings() {
     try {
-      const result = await window.electronAPI.getTranscriptionModel();
+      const result = await window.electron.getTranscriptionModel();
       if (result?.success && result?.model && CONFIG.TRANSCRIPTION.MODELS[result.model]) {
         selectedModel = result.model;
       }
@@ -33,7 +33,7 @@
     
     try {
       // Save using the transcription model API
-      await window.electronAPI.setTranscriptionModel(selectedModel);
+      await window.electron.setTranscriptionModel(selectedModel);
     } catch (err) {
       console.error('Error saving transcription model:', err);
     } finally {

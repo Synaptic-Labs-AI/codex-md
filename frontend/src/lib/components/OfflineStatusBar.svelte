@@ -14,39 +14,51 @@
   import { onMount, onDestroy } from 'svelte';
   import { fade, slide } from 'svelte/transition';
   import { offlineStore } from '$lib/stores/offlineStore';
+  import electronClient from '$lib/api/electron/client';
   
   // Local state
   let expanded = false;
   let queuedOperations = [];
   let showQueuedOperations = false;
+  let mounted = false;
   
   // Handle offline events
   function handleOfflineEvent(event, data) {
     // Log the event structure to help with debugging
     console.log('[OfflineStatusBar] Received offline event:', { event, data });
     
-    // Check if data exists and extract properties safely
+    // Check if data exists
     if (!data) {
       console.error('[OfflineStatusBar] Received offline event with no data');
       return;
     }
-    
-    const { type, online, status, operation } = data;
-    
-    if (type === 'status-change') {
-      offlineStore.setOnlineStatus(online);
-    } else if (type === 'api-status') {
-      offlineStore.setApiStatus(status);
-    } else if (type === 'operation-complete' || type === 'operation-failed') {
-      // Refresh queued operations
-      loadQueuedOperations();
+
+    try {
+      // Safely handle each event type with null checks
+      if (data.type === 'status-change' && typeof data.online === 'boolean') {
+        offlineStore.setOnlineStatus(data.online);
+      } else if (data.type === 'api-status' && data.status) {
+        offlineStore.setApiStatus(data.status);
+      } else if (data.type === 'operation-complete' || data.type === 'operation-failed') {
+        // Refresh queued operations
+        loadQueuedOperations();
+        
+        // Log operation details if available
+        if (data.operation) {
+          console.log(`[OfflineStatusBar] Operation ${data.type}:`, data.operation);
+        }
+      } else {
+        console.warn('[OfflineStatusBar] Unknown offline event type:', data.type);
+      }
+    } catch (error) {
+      console.error('[OfflineStatusBar] Error handling offline event:', error);
     }
   }
   
   // Load queued operations
   async function loadQueuedOperations() {
     try {
-      const operations = await window.electronAPI.getQueuedOperations();
+      const operations = await electronClient.getQueuedOperations();
       queuedOperations = operations;
     } catch (error) {
       console.error('Failed to load queued operations:', error);
@@ -56,7 +68,7 @@
   // Clear cache
   async function clearCache() {
     try {
-      await window.electronAPI.clearCache();
+      await electronClient.clearCache();
       alert('Cache cleared successfully');
     } catch (error) {
       console.error('Failed to clear cache:', error);
@@ -87,96 +99,117 @@
   
   // Setup on mount
   onMount(async () => {
+    mounted = true;
+    
     // Get initial status
     try {
-      const status = await window.electronAPI.getOfflineStatus();
-      offlineStore.setOnlineStatus(status.online);
-      offlineStore.setApiStatus(status.apiStatus);
+      // Wait for store to be initialized
+      if (!$offlineStore.isInitialized) {
+        // Initialization is handled by the store itself
+        // Just wait for it to be ready
+        return;
+      }
+      
+      // Listen for offline events
+      const cleanup = electronClient.onOfflineEvent(handleOfflineEvent);
+      
+      // Return cleanup function for onDestroy
+      return () => {
+        mounted = false;
+        if (typeof cleanup === 'function') {
+          cleanup();
+        }
+      };
     } catch (error) {
-      console.error('Failed to get offline status:', error);
+      console.error('Failed to setup offline status bar:', error);
     }
-    
-    // Listen for offline events
-    window.electronAPI.onOfflineEvent(handleOfflineEvent);
-  });
-  
-  // Cleanup on destroy
-  onDestroy(() => {
-    // Remove event listener (if possible in Electron context)
-    // This depends on how the preload script handles event removal
   });
 </script>
 
-<div class="offline-status-bar" class:expanded>
-  <button 
-    class="status-indicator" 
-    on:click={toggleExpanded}
-    on:keydown={(e) => e.key === 'Enter' && toggleExpanded()}
-    aria-expanded={expanded}
-    aria-controls="offline-expanded-content"
-    role="button"
-    tabindex="0"
-  >
-    <div class="status-icon" class:online={$offlineStore.online}>
-      {#if $offlineStore.online}
-        <span class="icon">🟢</span>
-      {:else}
-        <span class="icon">🔴</span>
-      {/if}
-    </div>
-    <div class="status-text">
-      {$offlineStore.online ? 'Online' : 'Offline'}
-    </div>
-    <div class="expand-icon">
-      {expanded ? '▲' : '▼'}
-    </div>
-  </button>
-  
-  {#if expanded}
-    <div id="offline-expanded-content" class="expanded-content" transition:slide={{ duration: 300 }}>
-      <div class="api-status">
-        <h4>API Status</h4>
-        <ul>
-          {#each Object.entries($offlineStore.apiStatus) as [api, status]}
-            <li>
-              <span class="api-name">{api}:</span>
-              <span class="api-status-indicator" class:online={status}>
-                {status ? '🟢 Connected' : '🔴 Disconnected'}
-              </span>
-            </li>
-          {/each}
-        </ul>
+{#if mounted}
+  {#if $offlineStore.isInitialized}
+    {#if $offlineStore.error}
+      <div class="offline-status-bar error" transition:fade>
+        <div class="status-text">Error: {$offlineStore.error}</div>
       </div>
-      
-      <div class="offline-controls">
-        <button on:click={toggleQueuedOperations} class="control-button">
-          {showQueuedOperations ? 'Hide' : 'Show'} Queued Operations ({queuedOperations.length})
+    {:else}
+      <div class="offline-status-bar" class:expanded>
+        <button 
+          class="status-indicator" 
+          on:click={toggleExpanded}
+          on:keydown={(e) => e.key === 'Enter' && toggleExpanded()}
+          aria-expanded={expanded}
+          aria-controls="offline-expanded-content"
+          role="button"
+          tabindex="0"
+        >
+          <div class="status-icon" class:online={$offlineStore.online}>
+            {#if $offlineStore.online}
+              <span class="icon">🟢</span>
+            {:else}
+              <span class="icon">🔴</span>
+            {/if}
+          </div>
+          <div class="status-text">
+            {$offlineStore.online ? 'Online' : 'Offline'}
+          </div>
+          <div class="expand-icon">
+            {expanded ? '▲' : '▼'}
+          </div>
         </button>
-        <button on:click={clearCache} class="control-button">
-          Clear Cache
-        </button>
+        
+        {#if expanded}
+          <div id="offline-expanded-content" class="expanded-content" transition:slide={{ duration: 300 }}>
+            <div class="api-status">
+              <h4>API Status</h4>
+              <ul>
+                {#each Object.entries($offlineStore.apiStatus) as [api, status]}
+                  <li>
+                    <span class="api-name">{api}:</span>
+                    <span class="api-status-indicator" class:online={status}>
+                      {status ? '🟢 Connected' : '🔴 Disconnected'}
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+            
+            <div class="offline-controls">
+              <button on:click={toggleQueuedOperations} class="control-button">
+                {showQueuedOperations ? 'Hide' : 'Show'} Queued Operations ({queuedOperations.length})
+              </button>
+              <button on:click={clearCache} class="control-button">
+                Clear Cache
+              </button>
+            </div>
+            
+            {#if showQueuedOperations}
+              <div class="queued-operations" transition:fade={{ duration: 200 }}>
+                <h4>Queued Operations</h4>
+                {#if queuedOperations.length === 0}
+                  <p class="empty-message">No operations in queue</p>
+                {:else}
+                  <ul>
+                    {#each queuedOperations as operation}
+                      <li>
+                        <div class="operation-type">{operation.type}</div>
+                        <div class="operation-time">{formatTime(operation.timestamp)}</div>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
-      
-      {#if showQueuedOperations}
-        <div class="queued-operations" transition:fade={{ duration: 200 }}>
-          <h4>Queued Operations</h4>
-          {#if queuedOperations.length === 0}
-            <p class="empty-message">No operations in queue</p>
-          {:else}
-            <ul>
-              {#each queuedOperations as operation}
-                <li>
-                  <div class="operation-type">{operation.type}</div>
-                  <div class="operation-time">{formatTime(operation.timestamp)}</div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {/if}
+    {/if}
+  {:else}
+    <div class="offline-status-bar loading" transition:fade>
+      <div class="status-text">Checking connection status...</div>
     </div>
   {/if}
-</div>
+{/if}
 
 <style>
   .offline-status-bar {

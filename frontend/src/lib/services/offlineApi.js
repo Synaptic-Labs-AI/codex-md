@@ -72,7 +72,7 @@ class OfflineApi {
         
         // Cache the result if caching is enabled
         if (cacheKey) {
-          await window.electronAPI.cacheData(cacheKey, {
+          await window.electron.cacheData(cacheKey, {
             data: result,
             timestamp: Date.now()
           });
@@ -134,7 +134,7 @@ class OfflineApi {
       offlineStore.addPendingOperation(operation);
       
       // Add to queue in main process
-      const result = await window.electronAPI.queueOperation(operation);
+      const result = await window.electron.queueOperation(operation);
       
       return result.operationId;
     } catch (error) {
@@ -151,7 +151,7 @@ class OfflineApi {
     // The main process will automatically process queued operations
     // when coming back online, so we just need to update our store
     try {
-      const operations = await window.electronAPI.getQueuedOperations();
+      const operations = await window.electron.getQueuedOperations();
       offlineStore.setPendingOperations(operations);
     } catch (error) {
       console.error('Failed to get queued operations:', error);
@@ -166,7 +166,7 @@ class OfflineApi {
    */
   async getCachedData(key, maxAge = null) {
     try {
-      const result = await window.electronAPI.getCachedData(key, maxAge);
+      const result = await window.electron.getCachedData(key, maxAge);
       return result.success ? result.data : null;
     } catch (error) {
       console.error('Failed to get cached data:', error);
@@ -181,7 +181,7 @@ class OfflineApi {
    */
   async invalidateCache(key) {
     try {
-      const result = await window.electronAPI.invalidateCache(key);
+      const result = await window.electron.invalidateCache(key);
       return result.success;
     } catch (error) {
       console.error('Failed to invalidate cache:', error);
@@ -195,7 +195,7 @@ class OfflineApi {
    */
   async clearCache() {
     try {
-      const result = await window.electronAPI.clearCache();
+      const result = await window.electron.clearCache();
       return result.success;
     } catch (error) {
       console.error('Failed to clear cache:', error);
@@ -235,7 +235,7 @@ const offlineApi = new OfflineApi();
 export async function convertFile(filePath, options = {}) {
   return offlineApi.performOperation(
     'conversion',
-    () => window.electronAPI.convertFile(filePath, options),
+    () => window.electron.convertFile(filePath, options),
     {
       queueIfOffline: true,
       cacheKey: `conversion:${filePath}`,
@@ -253,7 +253,7 @@ export async function convertFile(filePath, options = {}) {
 export async function getSetting(key) {
   return offlineApi.performOperation(
     'get-setting',
-    () => window.electronAPI.getSetting(key),
+    () => window.electron.getSetting(key),
     {
       queueIfOffline: false,
       cacheKey: `setting:${key}`,
@@ -272,7 +272,7 @@ export async function setSetting(key, value) {
   return offlineApi.performOperation(
     'set-setting',
     () => {
-      window.electronAPI.setSetting(key, value);
+      window.electron.setSetting(key, value);
       return { success: true };
     },
     {

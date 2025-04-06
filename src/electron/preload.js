@@ -1,266 +1,418 @@
 /**
- * Preload script that runs in a privileged context before the renderer process.
- * Provides secure bridge between main and renderer processes via contextBridge.
- * Exposes only specifically allowed APIs to the renderer.
- *
- * TEMPORARILY MODIFIED: Batch processing functionality has been disabled to simplify
- * the application to only handle one item at a time.
- *
- * Related files:
- * - main.js: Main process entry point
- * - ipc/types.js: TypeScript definitions for IPC messages
- * - ipc/handlers/*.js: IPC handler implementations
+ * Preload Script
+ * Exposes specific Electron APIs to the renderer process
+ * 
+ * This script creates a secure bridge between the renderer process and the main process,
+ * exposing only the necessary functionality while maintaining security through contextIsolation.
+ * 
+ * Includes initialization tracking and IPC call queueing to ensure reliable communication.
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Add enhanced error handling and logging for IPC events
-const safeIpcHandler = (channel, callback) => {
-  console.log('[IPC Preload] Creating handler for channel:', channel);
-  
-  return (event, ...args) => {
-    try {
-      // Log all incoming IPC events
-      console.log('[IPC Preload] Event received:', {
-        channel,
-        args,
-        hasData: args && args.length > 0,
-        dataType: args && args.length > 0 ? typeof args[0] : 'undefined',
-        timestamp: new Date().toISOString()
-      });
+// Initialization tracking
+let isAppReady = false;
+const pendingCalls = new Map();
+let readyCallback = null;
+const CALL_TIMEOUT = 10000; // 10 second timeout for queued calls
 
-      // For conversion events, log detailed data structure
-      if (channel === 'mdcode:convert:progress' || channel === 'mdcode:convert:status') {
-        const data = args[0];
-        console.log('[IPC Preload] Conversion event details:', {
-          channel,
-          eventType: channel.split(':')[2],
-          status: data?.status,
-          hasWebsiteData: !!(data?.websiteUrl || data?.currentUrl),
-          progress: data?.progress,
-          processedCount: data?.processedCount,
-          totalCount: data?.totalCount,
-          currentUrl: data?.currentUrl,
-          timestamp: new Date().toISOString()
-        });
-
-        // Special handling for website conversion events
-        if (data?.websiteUrl) {
-          console.log('[IPC Preload] Website conversion status:', {
-            status: data.status,
-            websiteUrl: data.websiteUrl,
-            currentUrl: data.currentUrl,
-            processedCount: data.processedCount,
-            totalCount: data.totalCount,
-            progress: data.progress,
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
-
-      // Check if data is defined before processing
-      if (args && args.length > 0) {
-        callback(event, ...args);
-      } else {
-        console.warn(`[IPC Preload] Received undefined data on channel: ${channel}`, {
-          timestamp: new Date().toISOString()
-        });
-      }
-    } catch (error) {
-      console.error(`[IPC Preload] Error handling event on channel ${channel}:`, {
-        error: error.message,
-        stack: error.stack,
-        args: args,
-        timestamp: new Date().toISOString()
-      });
-    }
-  };
-};
-
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
-contextBridge.exposeInMainWorld(
-  'electronAPI',
-  {
-    // Conversion operations
-    convertFile: (path, options) => ipcRenderer.invoke('mdcode:convert:file', { path, options }),
-    // TEMPORARILY MODIFIED: Batch processing is disabled, this will only process the first item
-    convertBatch: (items, options) => ipcRenderer.invoke('mdcode:convert:batch', { items, options }),
-    convertUrl: (url, options) => ipcRenderer.invoke('mdcode:convert:url', { url, options }),
-    convertParentUrl: (url, options) => ipcRenderer.invoke('mdcode:convert:parent-url', { url, options }),
-    convertYoutube: (url, options) => ipcRenderer.invoke('mdcode:convert:youtube', { url, options }),
-    selectFiles: () => ipcRenderer.invoke('mdcode:convert:select-files'),
-    selectOutput: () => ipcRenderer.invoke('mdcode:convert:select-output'),
-    getResult: (path) => ipcRenderer.invoke('mdcode:convert:get-result', { path }),
-
-    // File system operations
-    readFile: (path) => ipcRenderer.invoke('mdcode:fs:read', { path }),
-    writeFile: (path, content) => ipcRenderer.invoke('mdcode:fs:write', { path, content }),
-    createDirectory: (path) => ipcRenderer.invoke('mdcode:fs:mkdir', { path }),
-    listDirectory: (path, options) => ipcRenderer.invoke('mdcode:fs:list', { path, ...options }),
-    listDirectoryDetailed: (path, options) => ipcRenderer.invoke('mdcode:fs:list-directory', { path, ...options }),
-    deleteItem: (path, recursive) => ipcRenderer.invoke('mdcode:fs:delete', { path, recursive }),
-    getStats: (path) => ipcRenderer.invoke('mdcode:fs:stats', { path }),
-    moveItem: (sourcePath, destPath) => ipcRenderer.invoke('mdcode:fs:move', { sourcePath, destPath }),
-    selectInputDirectory: (options) => ipcRenderer.invoke('mdcode:fs:select-input-directory', options),
-    
-    // Large file transfer operations
-    initLargeFileTransfer: (params) => ipcRenderer.invoke('mdcode:fs:init-large-file-transfer', params),
-    transferFileChunk: (params) => ipcRenderer.invoke('mdcode:fs:transfer-file-chunk', params),
-    finalizeLargeFileTransfer: (params) => ipcRenderer.invoke('mdcode:fs:finalize-large-file-transfer', params),
-    
-    // Settings management
-    getSetting: (key) => ipcRenderer.invoke('mdcode:get-setting', key),
-    setSetting: (key, value) => ipcRenderer.invoke('mdcode:set-setting', key, value),
-    getOcrEnabled: () => ipcRenderer.invoke('mdcode:settings:get-ocr-enabled'),
-    setOcrEnabled: (enabled) => ipcRenderer.invoke('mdcode:settings:set-ocr-enabled', { enabled }),
-    
-    // Application
-    getVersion: () => ipcRenderer.invoke('mdcode:get-version'),
-    checkForUpdates: () => ipcRenderer.invoke('mdcode:check-updates'),
-    
-    // System integration
-    showItemInFolder: (path) => ipcRenderer.invoke('mdcode:show-item-in-folder', path),
-    openExternal: (url) => ipcRenderer.invoke('mdcode:open-external', url),
-    
-    // File watching
-    watchStart: (paths, options) => ipcRenderer.invoke('mdcode:watch:start', { paths, options }),
-    watchStop: (watchId) => ipcRenderer.invoke('mdcode:watch:stop', { watchId }),
-    acquireLock: (path, options) => ipcRenderer.invoke('mdcode:watch:lock', { path, options }),
-    releaseLock: (path) => ipcRenderer.invoke('mdcode:watch:unlock', { path }),
-    isLocked: (path) => ipcRenderer.invoke('mdcode:watch:is-locked', { path }),
-    
-    // Offline functionality
-    getOfflineStatus: () => ipcRenderer.invoke('mdcode:offline:status'),
-    getQueuedOperations: () => ipcRenderer.invoke('mdcode:offline:queued-operations'),
-    queueOperation: (operation) => ipcRenderer.invoke('mdcode:offline:queue-operation', operation),
-    cacheData: (key, data) => ipcRenderer.invoke('mdcode:offline:cache-data', { key, data }),
-    getCachedData: (key, maxAge) => ipcRenderer.invoke('mdcode:offline:get-cached-data', { key, maxAge }),
-    invalidateCache: (key) => ipcRenderer.invoke('mdcode:offline:invalidate-cache', { key }),
-    clearCache: () => ipcRenderer.invoke('mdcode:offline:clear-cache'),
-    
-    // API Key management
-    saveApiKey: (key, provider) => ipcRenderer.invoke('mdcode:apikey:save', { key, provider }),
-    checkApiKeyExists: (provider) => ipcRenderer.invoke('mdcode:apikey:exists', { provider }),
-    deleteApiKey: (provider) => ipcRenderer.invoke('mdcode:apikey:delete', { provider }),
-    validateApiKey: (key, provider) => ipcRenderer.invoke('mdcode:apikey:validate', { key, provider }),
-    getApiKey: (provider) => ipcRenderer.invoke('mdcode:apikey:get', { provider }),
-    
-    // Transcription
-    transcribeAudio: (filePath) => ipcRenderer.invoke('mdcode:transcribe:audio', { filePath }),
-    transcribeVideo: (filePath) => ipcRenderer.invoke('mdcode:transcribe:video', { filePath }),
-    getTranscriptionModel: () => ipcRenderer.invoke('mdcode:transcription:get-model'),
-    setTranscriptionModel: (model) => ipcRenderer.invoke('mdcode:transcription:set-model', { model }),
-    
-    // Events with on/off functionality - using safeIpcHandler to prevent errors
-    onFileDropped: (callback) => {
-      const safeCallback = safeIpcHandler('mdcode:file-dropped', callback);
-      ipcRenderer.on('mdcode:file-dropped', safeCallback);
-      return safeCallback; // Return for removal reference
-    },
-    offFileDropped: (callback) => ipcRenderer.removeListener('mdcode:file-dropped', callback),
-    
-    onUpdateAvailable: (callback) => {
-      const safeCallback = safeIpcHandler('mdcode:update-available', callback);
-      ipcRenderer.on('mdcode:update-available', safeCallback);
-      return safeCallback;
-    },
-    offUpdateAvailable: (callback) => ipcRenderer.removeListener('mdcode:update-available', callback),
-    
-    onConversionProgress: (callback) => {
-      const safeCallback = safeIpcHandler('mdcode:convert:progress', callback);
-      ipcRenderer.on('mdcode:convert:progress', safeCallback);
-      return safeCallback;
-    },
-    offConversionProgress: (callback) => ipcRenderer.removeListener('mdcode:convert:progress', callback),
-    
-    onConversionStatus: (callback) => {
-      const safeCallback = safeIpcHandler('mdcode:convert:status', callback);
-      ipcRenderer.on('mdcode:convert:status', safeCallback);
-      return safeCallback;
-    },
-    offConversionStatus: (callback) => ipcRenderer.removeListener('mdcode:convert:status', callback),
-    
-    onConversionComplete: (callback) => {
-      const safeCallback = safeIpcHandler('mdcode:convert:complete', callback);
-      ipcRenderer.on('mdcode:convert:complete', safeCallback);
-      return safeCallback;
-    },
-    offConversionComplete: (callback) => ipcRenderer.removeListener('mdcode:convert:complete', callback),
-    
-    onConversionError: (callback) => {
-      const safeCallback = safeIpcHandler('mdcode:convert:error', callback);
-      ipcRenderer.on('mdcode:convert:error', safeCallback);
-      return safeCallback;
-    },
-    offConversionError: (callback) => ipcRenderer.removeListener('mdcode:convert:error', callback),
-    
-    cancelConversion: (id) => ipcRenderer.invoke('mdcode:convert:cancel', { id }),
-    
-    onFileEvent: (callback) => {
-      const safeCallback = safeIpcHandler('mdcode:watch:event', callback);
-      ipcRenderer.on('mdcode:watch:event', safeCallback);
-      return safeCallback;
-    },
-    offFileEvent: (callback) => ipcRenderer.removeListener('mdcode:watch:event', callback),
-    
-    onOfflineEvent: (callback) => {
-      const safeCallback = safeIpcHandler('mdcode:offline:event', callback);
-      ipcRenderer.on('mdcode:offline:event', safeCallback);
-      return safeCallback;
-    },
-    offOfflineEvent: (callback) => ipcRenderer.removeListener('mdcode:offline:event', callback)
-  }
-);
-
-// Type definitions for TypeScript support
 /**
- * @typedef {Object} ElectronAPI
- * @property {(path: string, options?: Object) => Promise<ConversionResult>} convertFile
- * @property {(items: Array<Object>, options?: Object) => Promise<{success: boolean, results: ConversionResult[]}>} convertBatch - TEMPORARILY MODIFIED: Only processes the first item
- * @property {() => Promise<{success: boolean, paths?: string[]}>} selectFiles
- * @property {() => Promise<{success: boolean, path?: string}>} selectOutput
- * @property {(path: string) => Promise<{success: boolean, content?: string, metadata?: Object}>} getResult
- * 
- * @property {(path: string) => Promise<FileOperationResponse>} readFile
- * @property {(path: string, content: string) => Promise<FileOperationResponse>} writeFile
- * @property {(path: string) => Promise<FileOperationResponse>} createDirectory
- * @property {(path: string, options?: { recursive?: boolean, extensions?: string[] }) => Promise<FileOperationResponse>} listDirectory
- * @property {(path: string, options?: { recursive?: boolean, extensions?: string[] }) => Promise<{success: boolean, items?: Array<Object>, error?: string}>} listDirectoryDetailed
- * @property {(options?: Object) => Promise<{success: boolean, path?: string, error?: string}>} selectInputDirectory
- * @property {(path: string, recursive?: boolean) => Promise<FileOperationResponse>} deleteItem
- * @property {(path: string) => Promise<FileStatsResponse>} getStats
- * @property {(sourcePath: string, destPath: string) => Promise<FileOperationResponse>} moveItem
- * 
- * @property {(key: string) => Promise<any>} getSetting
- * @property {(key: string, value: any) => Promise<void>} setSetting
- * @property {() => Promise<string>} getVersion
- * @property {() => Promise<void>} checkForUpdates
- * @property {(path: string) => Promise<void>} showItemInFolder
- * @property {(url: string) => Promise<void>} openExternal
- * 
- * @property {(callback: (event: any, files: string[]) => void) => void} onFileDropped
- * @property {(callback: (event: any, version: string) => void) => void} onUpdateAvailable
- * @property {(paths: string|string[], options?: Object) => Promise<{success: boolean, watchId?: string, error?: string}>} watchStart
- * @property {(watchId: string) => Promise<{success: boolean, error?: string}>} watchStop
- * @property {(path: string, options?: Object) => Promise<{success: boolean, error?: string}>} acquireLock
- * @property {(path: string) => Promise<{success: boolean, error?: string}>} releaseLock
- * @property {(path: string) => Promise<{success: boolean, locked?: boolean, lockedBy?: string, error?: string}>} isLocked
- * @property {(callback: (event: any, progress: ConversionProgress) => void) => void} onConversionProgress
- * @property {(callback: (event: any, status: ConversionStatus) => void) => void} onConversionStatus
- * @property {(callback: (event: any, result: ConversionComplete) => void) => void} onConversionComplete
- * @property {(callback: (event: any, error: ConversionError) => void) => void} onConversionError
- * @property {(id: string) => Promise<{success: boolean, error?: string}>} cancelConversion
- * @property {(callback: (event: any, fileEvent: FileWatchEvent) => void) => void} onFileEvent
- * 
- * @property {(key: string, provider?: string) => Promise<ApiKeyResponse>} saveApiKey
- * @property {(provider?: string) => Promise<ApiKeyExistsResponse>} checkApiKeyExists
- * @property {(provider?: string) => Promise<ApiKeyResponse>} deleteApiKey
- * @property {(key: string, provider?: string) => Promise<ApiKeyValidationResponse>} validateApiKey
- * 
- * @property {(filePath: string) => Promise<TranscriptionResponse>} transcribeAudio
- * @property {(filePath: string) => Promise<TranscriptionResponse>} transcribeVideo
+ * Queue an IPC call until app is ready
+ * @param {string} channel - IPC channel name
+ * @param {Array} args - Call arguments
+ * @returns {Promise} Resolves when call completes
  */
+function queueCall(channel, args) {
+    return new Promise((resolve, reject) => {
+        if (isAppReady) {
+            // App is ready, make call immediately
+            ipcRenderer.invoke(channel, ...args)
+                .then(resolve)
+                .catch(reject);
+        } else {
+            // Queue the call
+            const id = Date.now().toString();
+            pendingCalls.set(id, { channel, args, resolve, reject });
+            
+            // Set timeout for queued calls
+            setTimeout(() => {
+                if (pendingCalls.has(id)) {
+                    const { reject } = pendingCalls.get(id);
+                    pendingCalls.delete(id);
+                    reject(new Error(`IPC call to ${channel} timed out waiting for app ready`));
+                }
+            }, CALL_TIMEOUT);
+        }
+    });
+}
 
-/** @type {ElectronAPI} */
-window.electronAPI;
+/**
+ * Process any queued calls once app is ready
+ */
+function processPendingCalls() {
+    console.log(`📨 Processing ${pendingCalls.size} pending IPC calls`);
+    for (const [id, { channel, args, resolve, reject }] of pendingCalls) {
+        ipcRenderer.invoke(channel, ...args)
+            .then(resolve)
+            .catch(reject)
+            .finally(() => pendingCalls.delete(id));
+    }
+}
+
+/**
+ * Clean up event listeners on window unload
+ */
+function cleanupEventListeners() {
+    // Remove all event listeners
+    ipcRenderer.removeAllListeners('codex:convert:progress');
+    ipcRenderer.removeAllListeners('codex:convert:status');
+    ipcRenderer.removeAllListeners('codex:convert:complete');
+    ipcRenderer.removeAllListeners('codex:convert:error');
+    ipcRenderer.removeAllListeners('codex:offline:event');
+    ipcRenderer.removeAllListeners('codex:file-dropped');
+    ipcRenderer.removeAllListeners('codex:watch:event');
+    ipcRenderer.removeAllListeners('app:ready');
+    ipcRenderer.removeAllListeners('app:error');
+}
+
+// Handle app ready event
+ipcRenderer.on('app:ready', () => {
+    console.log('🚀 App ready event received');
+    isAppReady = true;
+    processPendingCalls();
+    if (readyCallback) {
+        readyCallback();
+    }
+});
+
+// Handle app errors
+ipcRenderer.on('app:error', (_, error) => {
+    console.error('❌ App error:', error);
+});
+
+// Expose protected methods to renderer process
+contextBridge.exposeInMainWorld('electron', {
+    // App Status
+    isReady: () => isAppReady,
+    
+    onReady: (callback) => {
+        if (isAppReady) {
+            callback();
+        } else {
+            readyCallback = callback;
+        }
+    },
+
+    //=== Conversion Operations ===//
+    convert: async (input, options) => {
+        return queueCall('codex:convert:file', [input, options]);
+    },
+    
+    getResult: async (path) => {
+        return queueCall('codex:convert:get-result', [path]);
+    },
+    
+    cancelRequests: async () => {
+        return queueCall('codex:convert:cancel', []);
+    },
+    
+    convertUrl: async (url, options) => {
+        return queueCall('codex:convert:url', [url, options]);
+    },
+    
+    convertParentUrl: async (url, options) => {
+        return queueCall('codex:convert:parent-url', [url, options]);
+    },
+    
+    convertYoutube: async (url, options) => {
+        return queueCall('codex:convert:youtube', [url, options]);
+    },
+    
+    //=== Conversion Event Handlers ===//
+    
+    /**
+     * Register callback for conversion progress
+     * @param {Function} callback - Progress callback
+     */
+    onConversionProgress: (callback) => {
+        ipcRenderer.on('codex:convert:progress', (_, progress) => callback(progress));
+        // Return cleanup function
+        return () => {
+            ipcRenderer.removeListener('codex:convert:progress', callback);
+        };
+    },
+    
+    /**
+     * Register callback for conversion status
+     * @param {Function} callback - Status callback
+     */
+    onConversionStatus: (callback) => {
+        ipcRenderer.on('codex:convert:status', (_, status) => callback(status));
+        // Return cleanup function
+        return () => {
+            ipcRenderer.removeListener('codex:convert:status', callback);
+        };
+    },
+    
+    /**
+     * Register callback for conversion completion
+     * @param {Function} callback - Completion callback
+     */
+    onConversionComplete: (callback) => {
+        ipcRenderer.on('codex:convert:complete', (_, result) => callback(result));
+        // Return cleanup function
+        return () => {
+            ipcRenderer.removeListener('codex:convert:complete', callback);
+        };
+    },
+    
+    /**
+     * Register callback for conversion errors
+     * @param {Function} callback - Error callback
+     */
+    onConversionError: (callback) => {
+        ipcRenderer.on('codex:convert:error', (_, error) => callback(error));
+        // Return cleanup function
+        return () => {
+            ipcRenderer.removeListener('codex:convert:error', callback);
+        };
+    },
+    
+    /**
+     * Remove conversion progress listener
+     * @param {Function} listener - Progress listener to remove
+     */
+    offConversionProgress: (listener) => {
+        ipcRenderer.removeListener('codex:convert:progress', listener);
+    },
+    
+    /**
+     * Remove conversion status listener
+     * @param {Function} listener - Status listener to remove
+     */
+    offConversionStatus: (listener) => {
+        ipcRenderer.removeListener('codex:convert:status', listener);
+    },
+    
+    /**
+     * Remove conversion complete listener
+     * @param {Function} listener - Complete listener to remove
+     */
+    offConversionComplete: (listener) => {
+        ipcRenderer.removeListener('codex:convert:complete', listener);
+    },
+    
+    /**
+     * Remove conversion error listener
+     * @param {Function} listener - Error listener to remove
+     */
+    offConversionError: (listener) => {
+        ipcRenderer.removeListener('codex:convert:error', listener);
+    },
+    
+    //=== File System Operations ===//
+    
+    /**
+     * Select files for conversion
+     * @param {Object} options - Selection options
+     */
+    selectFiles: async (options) => {
+        return await ipcRenderer.invoke('codex:fs:select-files', options);
+    },
+    
+    /**
+     * Select directory for output
+     * @param {Object} options - Selection options
+     */
+    selectDirectory: async (options) => {
+        return await ipcRenderer.invoke('codex:fs:select-directory', options);
+    },
+    
+    /**
+     * Select input directory
+     * @param {Object} options - Selection options
+     */
+    selectInputDirectory: async (options) => {
+        return await ipcRenderer.invoke('codex:fs:select-input-directory', options);
+    },
+    
+    /**
+     * Select output directory
+     * @param {Object} options - Selection options
+     */
+    selectOutput: async (options) => {
+        return await ipcRenderer.invoke('codex:fs:select-output', options);
+    },
+    
+    /**
+     * List directory contents
+     * @param {string} path - Directory path
+     * @param {Object} options - Listing options
+     */
+    listDirectoryDetailed: async (path, options) => {
+        return await ipcRenderer.invoke('codex:fs:list-directory', { path, ...options });
+    },
+    
+    /**
+     * Show item in folder
+     * @param {string} path - Item path
+     */
+    showItemInFolder: async (path) => {
+        return await ipcRenderer.invoke('codex:show-item-in-folder', path);
+    },
+    
+    /**
+     * Get file or directory stats
+     * @param {string} path - Path to check
+     */
+    getStats: async (path) => {
+        return await ipcRenderer.invoke('codex:fs:stats', { path });
+    },
+    
+    /**
+     * Read file contents
+     * @param {string} path - File path
+     */
+    readFile: async (path) => {
+        return await ipcRenderer.invoke('codex:fs:read', { path });
+    },
+    
+    /**
+     * Write content to file
+     * @param {string} path - File path
+     * @param {string|Buffer} content - File content
+     */
+    writeFile: async (path, content) => {
+        return await ipcRenderer.invoke('codex:fs:write', { path, content });
+    },
+    
+    /**
+     * Create directory
+     * @param {string} path - Directory path
+     */
+    createDirectory: async (path) => {
+        return await ipcRenderer.invoke('codex:fs:mkdir', { path });
+    },
+    
+    /**
+     * Move file or directory
+     * @param {string} sourcePath - Source path
+     * @param {string} destPath - Destination path
+     */
+    moveItem: async (sourcePath, destPath) => {
+        return await ipcRenderer.invoke('codex:fs:move', { sourcePath, destPath });
+    },
+    
+    /**
+     * Delete file or directory
+     * @param {string} path - Path to delete
+     * @param {boolean} recursive - Whether to delete recursively
+     */
+    deleteItem: async (path, recursive) => {
+        return await ipcRenderer.invoke('codex:fs:delete', { path, recursive });
+    },
+    
+    /**
+     * Open external URL or file
+     * @param {string} url - URL or file path to open
+     */
+    openExternal: async (url) => {
+        return await ipcRenderer.invoke('codex:open-external', url);
+    },
+    
+    //=== Settings Management ===//
+    getSetting: async (key) => {
+        return queueCall('codex:get-setting', [key]);
+    },
+    
+    setSetting: async (key, value) => {
+        return queueCall('codex:set-setting', [key, value]);
+    },
+    
+    //=== API Key Management ===//
+    saveApiKey: async (key, provider = 'openai') => {
+        return queueCall('codex:apikey:save', [{ key, provider }]);
+    },
+    
+    checkApiKeyExists: async (provider = 'openai') => {
+        return queueCall('codex:apikey:exists', [{ provider }]);
+    },
+    
+    deleteApiKey: async (provider = 'openai') => {
+        return queueCall('codex:apikey:delete', [{ provider }]);
+    },
+    
+    validateApiKey: async (key, provider = 'openai') => {
+        return queueCall('codex:apikey:validate', [{ key, provider }]);
+    },
+    
+    getApiKey: async (provider = 'openai') => {
+        return queueCall('codex:apikey:get', [{ provider }]);
+    },
+    
+    //=== Offline Functionality ===//
+    getOfflineStatus: async () => {
+        return queueCall('codex:offline:status', []);
+    },
+    
+    getQueuedOperations: async () => {
+        return queueCall('codex:offline:queued-operations', []);
+    },
+    
+    queueOperation: async (operation) => {
+        return queueCall('codex:offline:queue-operation', [operation]);
+    },
+    
+    cacheData: async (key, data) => {
+        return queueCall('codex:offline:cache-data', [{ key, data }]);
+    },
+    
+    getCachedData: async (key, maxAge) => {
+        return queueCall('codex:offline:get-cached-data', [{ key, maxAge }]);
+    },
+    
+    invalidateCache: async (key) => {
+        return queueCall('codex:offline:invalidate-cache', [{ key }]);
+    },
+    
+    clearCache: async () => {
+        return queueCall('codex:offline:clear-cache', []);
+    },
+    
+    // Event handlers don't need queueing since they just register callbacks
+    onOfflineEvent: (callback) => {
+        ipcRenderer.on('codex:offline:event', (_, data) => callback(data));
+        return () => {
+            ipcRenderer.removeListener('codex:offline:event', callback);
+        };
+    },
+    
+    //=== Transcription ===//
+    transcribeAudio: async (filePath) => {
+        return queueCall('codex:transcribe:audio', [{ filePath }]);
+    },
+    
+    transcribeVideo: async (filePath) => {
+        return queueCall('codex:transcribe:video', [{ filePath }]);
+    },
+    
+    getTranscriptionModel: async () => {
+        return queueCall('codex:get-setting', ['transcription.model']);
+    },
+    
+    setTranscriptionModel: async (model) => {
+        return queueCall('codex:set-setting', ['transcription.model', model]);
+    },
+    
+    //=== Application ===//
+    getVersion: async () => {
+        return queueCall('codex:get-version', []);
+    },
+    
+    checkUpdates: async () => {
+        return queueCall('codex:check-updates', []);
+    }
+});
+
+// Clean up when window unloads
+window.addEventListener('unload', cleanupEventListeners);

@@ -15,18 +15,18 @@ const { createStore } = require('../../../utils/storeFactory');
 const transcriptionService = require('../../../services/TranscriptionService');
 const apiKeyService = require('../../../services/ApiKeyService');
 const { IPCChannels } = require('../../types');
-const configAdapter = require('../../../adapters/transcriptionConfigAdapter');
+const { getTranscriptionConfig } = require('../../../services/utils/config');
 // Will be initialized asynchronously
 let CONFIG = null;
 // Initialize config as soon as possible
 (async function initConfig() {
   try {
-    CONFIG = await configAdapter.getConfig();
+    CONFIG = await getTranscriptionConfig();
     console.log('✅ Transcription handlers: Configuration loaded');
   } catch (error) {
     console.error('❌ Transcription handlers: Failed to load configuration:', error);
     // Use fallback if needed
-    CONFIG = configAdapter.currentConfig || {
+    CONFIG = {
       MODELS: { 'whisper-1': { default: true } },
       DEFAULT_MODEL: 'whisper-1'
     };
@@ -41,7 +41,7 @@ const store = createStore('transcription-handlers');
  */
 function registerTranscriptionHandlers() {
   // Transcribe audio file
-  ipcMain.handle('mdcode:transcribe:audio', async (event, { filePath }) => {
+  ipcMain.handle('codex:transcribe:audio', async (event, { filePath }) => {
     try {
       // Validate file path
       if (!filePath || typeof filePath !== 'string') {
@@ -89,7 +89,7 @@ function registerTranscriptionHandlers() {
   });
 
   // Transcribe video file
-  ipcMain.handle('mdcode:transcribe:video', async (event, { filePath }) => {
+  ipcMain.handle('codex:transcribe:video', async (event, { filePath }) => {
     try {
       // Validate file path
       if (!filePath || typeof filePath !== 'string') {
@@ -131,7 +131,7 @@ function registerTranscriptionHandlers() {
   });
 
   // Get current transcription model
-  ipcMain.handle('mdcode:transcription:get-model', async () => {
+  ipcMain.handle('codex:transcription:get-model', async () => {
     try {
       const model = await store.get('transcriptionModel');
       return {
@@ -148,7 +148,7 @@ function registerTranscriptionHandlers() {
   });
 
   // Set transcription model
-  ipcMain.handle('mdcode:transcription:set-model', async (event, { model }) => {
+  ipcMain.handle('codex:transcription:set-model', async (event, { model }) => {
     try {
       if (!CONFIG.MODELS[model]) {
         throw new Error(`Invalid model: ${model}`);

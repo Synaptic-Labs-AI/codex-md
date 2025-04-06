@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS = {
 // Register handlers
 function registerHandlers() {
   // Get a setting
-  ipcMain.handle('mdcode:get-setting', async (event, key) => {
+  ipcMain.handle('codex:get-setting', async (event, key) => {
     try {
       const parts = key.split('.');
       let value = settingsStore.get(parts[0], DEFAULT_SETTINGS[parts[0]]);
@@ -47,7 +47,7 @@ function registerHandlers() {
   });
 
   // Set a setting
-  ipcMain.handle('mdcode:set-setting', async (event, key, value) => {
+  ipcMain.handle('codex:set-setting', async (event, key, value) => {
     try {
       const parts = key.split('.');
       
@@ -79,19 +79,19 @@ function registerHandlers() {
   });
 
   // OCR specific handlers
-  ipcMain.handle('mdcode:settings:get-ocr-enabled', async () => {
+  ipcMain.handle('codex:settings:get-ocr-enabled', async () => {
     const enabled = settingsStore.get('ocr.enabled', DEFAULT_SETTINGS.ocr.enabled);
     console.log('🔍 [Settings] Get OCR enabled:', enabled);
     return enabled;
   });
   
-  ipcMain.handle('mdcode:settings:get-ocr-enabled-direct', async () => {
+  ipcMain.handle('codex:settings:get-ocr-enabled-direct', async () => {
     const enabled = settingsStore.get('ocr.enabled', DEFAULT_SETTINGS.ocr.enabled);
     console.log('🔍 [Settings] Get OCR enabled (direct):', enabled);
     return enabled;
   });
 
-  ipcMain.handle('mdcode:settings:set-ocr-enabled', async (event, { enabled }) => {
+  ipcMain.handle('codex:settings:set-ocr-enabled', async (event, { enabled }) => {
     try {
       const ocr = settingsStore.get('ocr', DEFAULT_SETTINGS.ocr);
       ocr.enabled = enabled;

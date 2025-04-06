@@ -6,6 +6,7 @@
     "install:all": "npm install"
   },
   "dependencies": {
+    "@codex-md/shared": "file:../shared",
     "@bundled-es-modules/pdfjs-dist": "^3.6.172-alpha.1",
     "@iarna/rtf-to-html": "^1.1.0",
     "@mistralai/mistralai": "^1.2.0",

@@ -113,10 +113,10 @@ class EventHandlerManager {
     };
 
     try {
-      window.electronAPI.onConversionProgress(handlers.progress);
-      window.electronAPI.onConversionStatus(handlers.status);
-      window.electronAPI.onConversionComplete(handlers.complete);
-      window.electronAPI.onConversionError(handlers.error);
+      window.electron.onConversionProgress(handlers.progress);
+      window.electron.onConversionStatus(handlers.status);
+      window.electron.onConversionComplete(handlers.complete);
+      window.electron.onConversionError(handlers.error);
 
       this.activeRequests.set(jobId, { id: jobId, handlers });
       return handlers;
@@ -132,10 +132,10 @@ class EventHandlerManager {
   removeHandlers(jobId) {
     if (this.activeRequests.has(jobId)) {
       const { handlers } = this.activeRequests.get(jobId);
-      window.electronAPI.offConversionProgress(handlers.progress);
-      window.electronAPI.offConversionStatus(handlers.status);
-      window.electronAPI.offConversionComplete(handlers.complete);
-      window.electronAPI.offConversionError(handlers.error);
+      window.electron.offConversionProgress(handlers.progress);
+      window.electron.offConversionStatus(handlers.status);
+      window.electron.offConversionComplete(handlers.complete);
+      window.electron.offConversionError(handlers.error);
     }
   }
 

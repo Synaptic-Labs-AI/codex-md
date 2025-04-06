@@ -20,8 +20,7 @@
     "uuid": "^11.0.4"
   },
   "dependencies": {
-    "@types/three": "^0.175.0",
-    "skeleton-elements": "^4.0.1",
-    "three": "^0.175.0"
+    "@codex-md/shared": "file:../shared",
+    "skeleton-elements": "^4.0.1"
   }
 }

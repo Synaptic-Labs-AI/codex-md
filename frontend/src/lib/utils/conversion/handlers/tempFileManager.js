@@ -96,7 +96,7 @@ class TempFileManager {
         
         try {
             // Step 1: Initialize transfer
-            const initResult = await window.electronAPI.initLargeFileTransfer({
+            const initResult = await window.electron.initLargeFileTransfer({
                 tempFilePath,
                 fileName: file.name,
                 fileSize: file.size,
@@ -124,7 +124,7 @@ class TempFileManager {
                 const chunkBase64 = await this.readFileAsBase64(chunk);
                 
                 // Send chunk
-                const chunkResult = await window.electronAPI.transferFileChunk({
+                const chunkResult = await window.electron.transferFileChunk({
                     transferId,
                     chunkIndex,
                     data: chunkBase64,
@@ -142,7 +142,7 @@ class TempFileManager {
             }
             
             // Step 3: Finalize transfer
-            const finalizeResult = await window.electronAPI.finalizeLargeFileTransfer({
+            const finalizeResult = await window.electron.finalizeLargeFileTransfer({
                 transferId
             });
             

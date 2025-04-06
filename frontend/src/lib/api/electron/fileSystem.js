@@ -22,7 +22,7 @@ class FileSystemOperations {
  */
 async selectFiles(options = {}) {
   try {
-    return await window.electronAPI.selectFiles(options);
+    return await window.electron.selectFiles(options);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -37,7 +37,7 @@ async selectFiles(options = {}) {
  */
 async selectInputDirectory(options = {}) {
   try {
-    return await window.electronAPI.selectInputDirectory(options);
+    return await window.electron.selectInputDirectory(options);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -52,7 +52,7 @@ async selectInputDirectory(options = {}) {
  */
 async selectOutputDirectory(options = {}) {
   try {
-    return await window.electronAPI.selectOutput(options);
+    return await window.electron.selectOutput(options);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -68,7 +68,7 @@ async selectOutputDirectory(options = {}) {
  */
 async listDirectory(dirPath, options = {}) {
   try {
-    return await window.electronAPI.listDirectoryDetailed(dirPath, options);
+    return await window.electron.listDirectoryDetailed(dirPath, options);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -83,7 +83,7 @@ async listDirectory(dirPath, options = {}) {
  */
 async showItemInFolder(path) {
   try {
-    await window.electronAPI.showItemInFolder(path);
+    await window.electron.showItemInFolder(path);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -98,7 +98,7 @@ async showItemInFolder(path) {
  */
 async getStats(path) {
   try {
-    return await window.electronAPI.getStats(path);
+    return await window.electron.getStats(path);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -113,7 +113,7 @@ async getStats(path) {
  */
 async readFile(path) {
   try {
-    return await window.electronAPI.readFile(path);
+    return await window.electron.readFile(path);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -129,7 +129,7 @@ async readFile(path) {
  */
 async writeFile(path, content) {
   try {
-    return await window.electronAPI.writeFile(path, content);
+    return await window.electron.writeFile(path, content);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -144,7 +144,7 @@ async writeFile(path, content) {
  */
 async createDirectory(path) {
   try {
-    return await window.electronAPI.createDirectory(path);
+    return await window.electron.createDirectory(path);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -160,7 +160,7 @@ async createDirectory(path) {
  */
 async moveItem(sourcePath, destPath) {
   try {
-    return await window.electronAPI.moveItem(sourcePath, destPath);
+    return await window.electron.moveItem(sourcePath, destPath);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -176,7 +176,7 @@ async moveItem(sourcePath, destPath) {
  */
 async deleteItem(path, recursive = false) {
   try {
-    return await window.electronAPI.deleteItem(path, recursive);
+    return await window.electron.deleteItem(path, recursive);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -191,7 +191,7 @@ async deleteItem(path, recursive = false) {
  */
 async openFile(path) {
   try {
-    await window.electronAPI.openExternal(`file://${path}`);
+    await window.electron.openExternal(`file://${path}`);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 
@@ -206,7 +206,7 @@ async openFile(path) {
  */
 async openFolder(path) {
   try {
-    await window.electronAPI.openExternal(`file://${path}`);
+    await window.electron.openExternal(`file://${path}`);
   } catch (error) {
     throw error instanceof ConversionError ? 
       error : 

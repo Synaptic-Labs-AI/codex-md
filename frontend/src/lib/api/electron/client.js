@@ -1,299 +1,168 @@
 /**
- * Electron Client Entry Point
- *
- * Main entry point for the Electron client implementation. This module ties together
- * all the individual components and provides a clean interface for the application
- * to interact with Electron functionality.
- *
- * TEMPORARILY MODIFIED: Batch processing functionality has been disabled to simplify
- * the application to only handle one item at a time.
- *
+ * Electron Client
+ * Handles communication with the Electron main process.
+ * 
+ * This client provides a wrapper around the Electron IPC API exposed through the preload script.
+ * It ensures consistent error handling and provides a more convenient API for the renderer process.
+ * 
  * Related files:
- * - ../errors.js: Custom error definitions
- * - eventHandlers.js: Event registration and handling
- * - utils.js: Utility functions
- * - fileSystem.js: File system operations
- * - converters/*.js: Individual converter implementations
+ * - src/electron/preload.js: Exposes the Electron API to the renderer
+ * - src/electron/ipc/handlers/: Implements the IPC handlers in the main process
  */
+import { ConversionError } from '@codex-md/shared/utils/conversion/errors';
 
-import { ConversionError } from '../errors.js';
-import fileSystemOperations from './fileSystem.js';
-import eventHandlerManager from './eventHandlers.js';
-import { validateAndNormalizeItem } from './utils.js';
-import { convertUrl, convertParentUrl, convertYoutube } from './converters/urlConverter.js';
-import { convertFile, convertBatch, getResult } from './converters/fileConverter.js';
+export { ConversionError };
 
 class ElectronClient {
-  constructor() {
-    // This is now an Electron-only app
-    this.supportedTypes = ['file', 'url', 'parent', 'youtube', 'audio', 'video'];
-    
-    // Constants for chunked file transfer
-    this.CHUNK_SIZE = 24 * 1024 * 1024; // 24MB chunks
-    this.PROGRESS_INTERVAL = 250; // 250ms between progress updates
-  }
+    /**
+     * Convert a file to markdown format
+     * @param {string|ArrayBuffer} input - File path or buffer content
+     * @param {Object} options - Conversion options
+     * @param {Function} onProgress - Progress callback
+     */
+    async convertFile(input, options, onProgress) {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
+        }
 
-  /**
-   * Always returns true since we're now Electron-only
-   * @returns {boolean} Always true
-   */
-  isRunningInElectron() {
-    return true;
-  }
+        // Handle progress updates
+        if (onProgress) {
+            window.electron.onConversionProgress((progress) => {
+                onProgress(progress);
+            });
+        }
 
-  /**
-   * Converts a single file to Markdown
-   * @param {string} filePath Path to the file to convert
-   * @param {Object} options Conversion options
-   * @param {Function} onProgress Progress callback
-   * @returns {Promise<Object>} Conversion result
-   */
-  async convertFile(filePath, options = {}, onProgress = null) {
-    return convertFile(filePath, options, onProgress);
-  }
+        try {
+            // For audio/video buffers
+            if (input instanceof ArrayBuffer && options.isTemporary) {
+                // Infer type from file extension for audio/video files
+                const type = options.originalFileName 
+                    ? (/\.(mp3|wav|m4a|ogg)$/i.test(options.originalFileName) ? 'audio' : 'video')
+                    : 'audio';
+                
+                const conversionOptions = {
+                    ...options,
+                    buffer: input, // Pass buffer directly
+                    type: type // Explicitly set type for audio/video handling
+                };
+                return await window.electron.convert(input, conversionOptions);
+            }
 
-  /**
-   * Converts multiple files to Markdown
-   * @param {Array<string>} filePaths Array of file paths to convert
-   * @param {Object} options Conversion options
-   * @param {Function} onProgress Progress callback
-   * @param {Function} onItemComplete Callback for individual file completion
-   * @returns {Promise<Object>} Conversion result
-   *
-   * TEMPORARILY MODIFIED: Batch processing is disabled, this will only process the first item
-   */
-  async convertBatch(filePaths, options = {}, onProgress = null, onItemComplete = null) {
-    // Warn about batch processing being disabled
-    if (Array.isArray(filePaths) && filePaths.length > 1) {
-      console.warn(`Batch processing is disabled. Only the first of ${filePaths.length} items will be processed.`);
+            // For text content
+            if (typeof input === 'string' && options.originalFileName) {
+                const conversionOptions = {
+                    ...options,
+                    content: input
+                };
+                return await window.electron.convert(input, conversionOptions);
+            }
+
+            // For file paths
+            return await window.electron.convert(input, options);
+        } catch (error) {
+            console.error('Conversion error:', error);
+            throw error;
+        }
     }
-    return convertBatch(filePaths, options, onProgress, onItemComplete);
-  }
 
-  /**
-   * Converts a URL to Markdown
-   * @param {string} url The URL to convert
-   * @param {Object} options Conversion options
-   * @param {Function} onProgress Progress callback
-   * @returns {Promise<Object>} Conversion result
-   */
-  async convertUrl(url, options = {}, onProgress = null) {
-    return convertUrl(url, options, onProgress);
-  }
+    /**
+     * Select output directory for conversion results
+     */
+    async selectOutputDirectory() {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
+        }
 
-  /**
-   * Converts a parent URL (website) to Markdown
-   * @param {string} url The parent URL to convert
-   * @param {Object} options Conversion options
-   * @param {Function} onProgress Progress callback
-   * @returns {Promise<Object>} Conversion result
-   */
-  async convertParentUrl(url, options = {}, onProgress = null) {
-    return convertParentUrl(url, options, onProgress);
-  }
+        return await window.electron.selectDirectory();
+    }
 
-  /**
-   * Converts a YouTube URL to Markdown
-   * @param {string} url The YouTube URL to convert
-   * @param {Object} options Conversion options
-   * @param {Function} onProgress Progress callback
-   * @returns {Promise<Object>} Conversion result
-   */
-  async convertYoutube(url, options = {}, onProgress = null) {
-    return convertYoutube(url, options, onProgress);
-  }
+    /**
+     * Cancel ongoing conversion requests
+     */
+    async cancelRequests() {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
+        }
 
-  /**
-   * Gets the result of a conversion
-   * @param {string} path Path to the converted file or directory
-   * @returns {Promise<Object>} Conversion result
-   */
-  async getResult(path) {
-    return getResult(path);
-  }
-
-  /**
-   * Opens a file selection dialog
-   * @param {Object} options Dialog options
-   * @returns {Promise<Array<string>>} Selected file paths
-   */
-  async selectFiles(options = {}) {
-    return fileSystemOperations.selectFiles(options);
-  }
-
-  /**
-   * Opens an output directory selection dialog
-   * @param {Object} options Dialog options
-   * @returns {Promise<string>} Selected directory path
-   */
-  async selectOutputDirectory(options = {}) {
-    return fileSystemOperations.selectOutputDirectory(options);
-  }
-  
-  /**
-   * Opens an input directory selection dialog
-   * @param {Object} options Dialog options
-   * @returns {Promise<string>} Selected directory path
-   */
-  async selectInputDirectory(options = {}) {
-    return fileSystemOperations.selectInputDirectory(options);
-  }
-  
-  /**
-   * Lists directory contents with detailed information
-   * @param {string} dirPath Directory path to list
-   * @param {Object} options Listing options
-   * @returns {Promise<{success: boolean, items?: Array<Object>, error?: string}>}
-   */
-  async listDirectory(dirPath, options = {}) {
-    return fileSystemOperations.listDirectory(dirPath, options);
-  }
-
-  /**
-   * Shows an item in the system file explorer
-   * @param {string} path Path to show
-   * @returns {Promise<void>}
-   */
-  async showItemInFolder(path) {
-    return fileSystemOperations.showItemInFolder(path);
-  }
-
-  /**
-   * Validates and normalizes an item for conversion
-   * @param {Object} item The item to validate and normalize
-   * @returns {Object} The normalized item
-   */
-  validateItem(item) {
-    return validateAndNormalizeItem(item, this.supportedTypes);
-  }
-
-  /**
-   * Transfers a large file to the main process in chunks
-   * @param {File} file - The File object to transfer
-   * @param {string} tempFilePath - Path to the temporary file
-   * @param {Function} onProgress - Progress callback
-   * @returns {Promise<{success: boolean, finalPath: string, error?: string}>}
-   */
-  async transferLargeFile(file, tempFilePath, onProgress = null) {
-    console.log(`📤 [transferLargeFile] Starting chunked transfer for ${file.name} (${Math.round(file.size / (1024 * 1024))}MB)`);
+        await window.electron.cancelRequests();
+    }
     
-    try {
-      // Initialize the transfer
-      const initResult = await window.electronAPI.initLargeFileTransfer({
-        tempFilePath,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        chunkSize: this.CHUNK_SIZE // Pass the chunk size to the server
-      });
-      
-      if (!initResult.success) {
-        throw new Error(`Failed to initialize file transfer: ${initResult.error}`);
-      }
-      
-      const transferId = initResult.transferId;
-      console.log(`📤 [transferLargeFile] Transfer initialized with ID: ${transferId}`);
-      
-      // Calculate number of chunks
-      const totalChunks = Math.ceil(file.size / this.CHUNK_SIZE);
-      console.log(`📤 [transferLargeFile] File will be sent in ${totalChunks} chunks of ${this.CHUNK_SIZE / (1024 * 1024)}MB each`);
-      
-      // Track progress
-      let lastProgressUpdate = Date.now();
-      let bytesTransferred = 0;
-      
-      // Transfer file in chunks
-      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-        const start = chunkIndex * this.CHUNK_SIZE;
-        const end = Math.min(start + this.CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        
-        // Read chunk as array buffer
-        const arrayBuffer = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsArrayBuffer(chunk);
-        });
-        
-        // Convert to base64 for transfer
-        const base64Chunk = btoa(
-          new Uint8Array(arrayBuffer).reduce(
-            (data, byte) => data + String.fromCharCode(byte), ''
-          )
-        );
-        
-        // Send chunk to main process
-        const chunkResult = await window.electronAPI.transferFileChunk({
-          transferId,
-          chunkIndex,
-          totalChunks,
-          data: base64Chunk,
-          size: chunk.size
-        });
-        
-        if (!chunkResult.success) {
-          throw new Error(`Failed to transfer chunk ${chunkIndex}: ${chunkResult.error}`);
+    /**
+     * Get offline status
+     * @returns {Promise<{online: boolean, apiStatus: Object}>}
+     */
+    async getOfflineStatus() {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
         }
         
-        // Update progress
-        bytesTransferred += chunk.size;
-        const progress = (bytesTransferred / file.size) * 100;
-        
-        const now = Date.now();
-        if (onProgress && now - lastProgressUpdate >= this.PROGRESS_INTERVAL) {
-          onProgress(progress);
-          lastProgressUpdate = now;
+        return await window.electron.getOfflineStatus();
+    }
+    
+    /**
+     * Get queued operations
+     * @returns {Promise<Array>}
+     */
+    async getQueuedOperations() {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
         }
         
-        console.log(`📤 [transferLargeFile] Chunk ${chunkIndex + 1}/${totalChunks} transferred (${Math.round(progress)}%)`);
-      }
-      
-      // Finalize the transfer
-      const finalizeResult = await window.electronAPI.finalizeLargeFileTransfer({
-        transferId
-      });
-      
-      if (!finalizeResult.success) {
-        throw new Error(`Failed to finalize file transfer: ${finalizeResult.error}`);
-      }
-      
-      console.log(`✅ [transferLargeFile] Transfer completed successfully: ${finalizeResult.finalPath}`);
-      
-      // Ensure 100% progress is reported
-      if (onProgress) {
-        onProgress(100);
-      }
-      
-      return {
-        success: true,
-        finalPath: finalizeResult.finalPath
-      };
-    } catch (error) {
-      console.error(`❌ [transferLargeFile] Transfer failed:`, error);
-      return {
-        success: false,
-        error: error.message || 'File transfer failed'
-      };
+        return await window.electron.getQueuedOperations();
     }
-  }
-
-  /**
-   * Cancels all active conversion requests
-   */
-  cancelRequests() {
-    // Cancel all active requests
-    const activeJobs = eventHandlerManager.getActiveJobs();
-    for (const jobId of activeJobs) {
-      window.electronAPI.cancelConversion(jobId);
+    
+    /**
+     * Clear cache
+     * @returns {Promise<{success: boolean}>}
+     */
+    async clearCache() {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
+        }
+        
+        return await window.electron.clearCache();
     }
-
-    // Remove all event handlers
-    eventHandlerManager.removeAllHandlers();
-  }
+    
+    /**
+     * Register callback for offline events
+     * @param {Function} callback - Callback function
+     * @returns {Function} Cleanup function
+     */
+    onOfflineEvent(callback) {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
+        }
+        
+        return window.electron.onOfflineEvent(callback);
+    }
+    
+    /**
+     * Get a setting value
+     * @param {string} key - Setting key
+     * @returns {Promise<any>}
+     */
+    async getSetting(key) {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
+        }
+        
+        return await window.electron.getSetting(key);
+    }
+    
+    /**
+     * Set a setting value
+     * @param {string} key - Setting key
+     * @param {any} value - Setting value
+     * @returns {Promise<{success: boolean}>}
+     */
+    async setSetting(key, value) {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
+        }
+        
+        return await window.electron.setSetting(key, value);
+    }
 }
 
-// Create and export singleton instance
-const electronClient = new ElectronClient();
-export default electronClient;
-export { ConversionError };
+// Export singleton instance
+export default new ElectronClient();

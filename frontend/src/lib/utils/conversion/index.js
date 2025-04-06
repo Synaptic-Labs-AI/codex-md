@@ -20,7 +20,6 @@ export { storeManager } from './manager/storeManager.js';
 
 // Export individual handlers for advanced usage
 export { conversionHandler } from './handlers/conversionHandler.js';
-export { batchHandler } from './handlers/batchHandler.js';
 export { downloadHandler } from './handlers/downloadHandler.js';
 export { tempFileManager } from './handlers/tempFileManager.js';
 

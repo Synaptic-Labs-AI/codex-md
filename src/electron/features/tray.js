@@ -156,7 +156,7 @@ class TrayManager {
         this.showWindow();
         
         // Send the selected files to the renderer process
-        this.window.webContents.send('mdcode:files-selected', result.filePaths);
+        this.window.webContents.send('codex:files-selected', result.filePaths);
       }
     }).catch(err => {
       console.error('Error showing file dialog:', err);
@@ -180,7 +180,7 @@ class TrayManager {
    */
   openSettings() {
     this.showWindow();
-    this.window.webContents.send('mdcode:open-settings');
+    this.window.webContents.send('codex:open-settings');
   }
 
   /**

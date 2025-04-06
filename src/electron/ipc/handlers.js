@@ -24,19 +24,16 @@ const store = createStore('ipc-handlers', {
 });
 
 /**
- * Setup all IPC handlers for the main process
- * @param {Electron.App} app The Electron app instance 
- * @param {Electron.BrowserWindow} mainWindow The main application window
+ * Setup basic IPC handlers that don't require window access
+ * @param {Electron.App} app The Electron app instance
  */
-function setupIPCHandlers(app, mainWindow) {
+function setupBasicHandlers(app) {
   // Register handlers
   registerFileSystemHandlers();
-  registerConversionHandlers();
-  registerFileWatcherHandlers();
-  registerOfflineHandlers();
   registerApiKeyHandlers();
-  registerTranscriptionHandlers();
   registerSettingsHandlers();
+  registerOfflineHandlers();
+  registerTranscriptionHandlers();
   
   // Clean up resources on app quit
   app.on('will-quit', async () => {
@@ -47,37 +44,92 @@ function setupIPCHandlers(app, mainWindow) {
     await cleanupFileSystemHandlers();
   });
 
-  // Settings Management is now handled in handlers/settings.js
-
   // Application
-  ipcMain.handle('mdcode:get-version', () => {
+  ipcMain.handle('codex:get-version', () => {
     return app.getVersion();
   });
 
-  ipcMain.handle('mdcode:check-updates', async () => {
+  ipcMain.handle('codex:check-updates', async () => {
     // Will be implemented in phase 4 with auto-updater
     throw new Error('Not implemented yet');
   });
 
   // System Integration
-  ipcMain.handle('mdcode:show-item-in-folder', (event, filePath) => {
+  ipcMain.handle('codex:show-item-in-folder', (event, filePath) => {
     shell.showItemInFolder(filePath);
   });
 
-  ipcMain.handle('mdcode:open-external', (event, url) => {
+  ipcMain.handle('codex:open-external', (event, url) => {
     return shell.openExternal(url);
-  });
-
-  // File Drop Event Handling
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    // Prevent navigation events, handle dropped files instead
-    event.preventDefault();
-  });
-
-  mainWindow.webContents.on('drop', (event, files) => {
-    event.preventDefault();
-    mainWindow.webContents.send('mdcode:file-dropped', files);
   });
 }
 
-module.exports = { setupIPCHandlers };
+// Store references to cleanup functions for window-specific handlers
+let currentWindowHandlers = new Map();
+
+/**
+ * Setup handlers that require window access
+ * @param {Electron.BrowserWindow} mainWindow The main application window
+ */
+function setupWindowHandlers(mainWindow) {
+  if (!mainWindow?.webContents) {
+    throw new Error('Window not initialized for handler setup');
+  }
+
+  // Clean up any existing window handlers
+  cleanupWindowHandlers();
+
+  // Register conversion handlers that need window access
+  const conversionCleanup = registerConversionHandlers();
+  const watcherCleanup = registerFileWatcherHandlers();
+  
+  // Store cleanup functions
+  if (conversionCleanup) currentWindowHandlers.set('conversion', conversionCleanup);
+  if (watcherCleanup) currentWindowHandlers.set('watcher', watcherCleanup);
+
+  // File Drop Event Handling
+  const navigateHandler = (event, url) => {
+    event.preventDefault();
+  };
+  
+  const dropHandler = (event, files) => {
+    event.preventDefault();
+    mainWindow.webContents.send('codex:file-dropped', files);
+  };
+
+  mainWindow.webContents.on('will-navigate', navigateHandler);
+  mainWindow.webContents.on('drop', dropHandler);
+
+  // Store cleanup functions for event listeners
+  currentWindowHandlers.set('events', () => {
+    mainWindow.webContents.removeListener('will-navigate', navigateHandler);
+    mainWindow.webContents.removeListener('drop', dropHandler);
+  });
+
+  // Add window-closed cleanup
+  mainWindow.once('closed', () => {
+    cleanupWindowHandlers();
+  });
+}
+
+/**
+ * Clean up window-specific handlers
+ */
+function cleanupWindowHandlers() {
+  for (const cleanup of currentWindowHandlers.values()) {
+    if (typeof cleanup === 'function') {
+      try {
+        cleanup();
+      } catch (error) {
+        console.error('Error during window handler cleanup:', error);
+      }
+    }
+  }
+  currentWindowHandlers.clear();
+}
+
+module.exports = {
+  setupBasicHandlers,
+  setupWindowHandlers,
+  cleanupWindowHandlers
+};
