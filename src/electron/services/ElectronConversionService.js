@@ -28,6 +28,13 @@ const {
     const textConverterFactory = textConverterModule.textConverterFactory;
     registerConverterFactory('textFactory', textConverterFactory);
     
+    // Import PDF converter
+    const pdfConverterModule = await import('../../../backend/src/services/converter/pdf/PdfConverterFactory.js');
+    if (pdfConverterModule.default) {
+      registerConverter('pdf', pdfConverterModule.default);
+      console.log('✅ Registered PDF converter factory');
+    }
+    
     // Import audio converter
     const audioConverterModule = await import('../../../backend/src/services/converter/multimedia/audioconverter.js');
     if (audioConverterModule.default) {
@@ -72,31 +79,63 @@ class ElectronConversionService {
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
       progressTracker.update(5);
       
-      // Determine if we're handling audio/video content
+      // Determine if we're handling binary content (audio/video/pdf)
       const isAudioVideo = options.isTemporary && (options.type === 'audio' || options.type === 'video');
+      const isPdf = options.type === 'pdf';
       
       // Get file details based on input type
-      const fileName = isAudioVideo
-        ? (options.name || 'unnamed')
+      // For binary content, use the name from options
+      const isBinaryBuffer = Buffer.isBuffer(filePath) || (options.isTemporary && (isAudioVideo || isPdf));
+      
+      console.log('📄 File input details:', {
+        isBuffer: Buffer.isBuffer(filePath),
+        isTemporary: options.isTemporary,
+        isAudioVideo,
+        isPdf,
+        isBinaryBuffer,
+        originalFileName: options.originalFileName,
+        name: options.name,
+        type: options.type
+      });
+      
+      // Use options.originalFileName or options.name for binary content, otherwise extract from filePath
+      const fileName = isBinaryBuffer
+        ? (options.originalFileName || options.name || 'unnamed')
         : path.basename(filePath);
-      const fileType = isAudioVideo
-        ? (options.name ? path.extname(options.name).slice(1).toLowerCase() : options.type || 'mp3')
+      
+      // Determine file type from name or options
+      const fileType = isBinaryBuffer
+        ? (options.type || (options.originalFileName ? path.extname(options.originalFileName).slice(1).toLowerCase() : 'bin'))
         : path.extname(fileName).slice(1).toLowerCase();
+      
+      console.log(`📄 Determined file details: fileName=${fileName}, fileType=${fileType}`);
       const cleanedFileName = cleanTemporaryFilename(fileName);
       const finalBaseName = path.basename(cleanedFileName, path.extname(cleanedFileName));
       let fileContent;
 
-      if (isAudioVideo && options.isTemporary) {
-        fileContent = filePath; // filePath is actually the buffer for audio/video
-      } else {
-        // Validate file exists
-        const fileStats = await this.fileSystem.getStats(filePath);
-        if (!fileStats.success) {
+      // Handle binary content (audio/video/pdf)
+      const isBinaryContent = (isAudioVideo || isPdf) && options.isTemporary;
+      
+      if (isBinaryContent) {
+        console.log(`Processing binary content as ${options.type}: ${fileName}`);
+        fileContent = filePath; // filePath is actually the buffer
+      } else if (typeof filePath === 'string') {
+        // For file paths, validate file exists and read it
+        try {
+          const fileStats = await this.fileSystem.getStats(filePath);
+          if (!fileStats.success) {
+            throw new Error(`File not found or inaccessible: ${filePath}`);
+          }
+          
+          // Read file asynchronously
+          fileContent = await readFileAsync(filePath);
+        } catch (error) {
+          console.error(`Error reading file: ${filePath}`, error);
           throw new Error(`File not found or inaccessible: ${filePath}`);
         }
-        
-        // Read file asynchronously for non-audio/video files
-        fileContent = await readFileAsync(filePath);
+      } else {
+        // If filePath is not a string and not binary content, it's invalid
+        throw new Error('Invalid input: Expected a file path or buffer');
       }
       
       progressTracker.update(10);
@@ -105,6 +144,8 @@ class ElectronConversionService {
       const conversionResult = await convertToMarkdown(fileType, fileContent, {
         name: fileName,
         apiKey: options.apiKey,
+        useOcr: options.useOcr,
+        mistralApiKey: options.mistralApiKey,
         onProgress: (progress) => progressTracker.update(progress)
       });
       

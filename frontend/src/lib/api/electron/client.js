@@ -33,17 +33,33 @@ class ElectronClient {
         }
 
         try {
-            // For audio/video buffers
+            // For binary buffers (audio/video/pdf)
             if (input instanceof ArrayBuffer && options.isTemporary) {
-                // Infer type from file extension for audio/video files
-                const type = options.originalFileName 
-                    ? (/\.(mp3|wav|m4a|ogg)$/i.test(options.originalFileName) ? 'audio' : 'video')
-                    : 'audio';
+                // Use the type if explicitly provided
+                let type = options.type;
+                
+                // Otherwise infer type from file extension
+                if (!type && options.originalFileName) {
+                    if (/\.(mp3|wav|m4a|ogg)$/i.test(options.originalFileName)) {
+                        type = 'audio';
+                    } else if (/\.(mp4|avi|webm|mov)$/i.test(options.originalFileName)) {
+                        type = 'video';
+                    } else if (/\.pdf$/i.test(options.originalFileName)) {
+                        type = 'pdf';
+                    }
+                }
+                
+                // Default to audio if we couldn't determine the type
+                if (!type) {
+                    type = 'audio';
+                }
+                
+                console.log(`Converting binary file as ${type}: ${options.originalFileName}`);
                 
                 const conversionOptions = {
                     ...options,
                     buffer: input, // Pass buffer directly
-                    type: type // Explicitly set type for audio/video handling
+                    type: type // Set the determined type
                 };
                 return await window.electron.convert(input, conversionOptions);
             }

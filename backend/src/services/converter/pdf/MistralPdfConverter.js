@@ -311,8 +311,14 @@ export class MistralPdfConverter extends BasePdfConverter {
    * @override
    */
   async convertPdfToMarkdown(input, originalName, apiKey, options = {}) {
+    // Validate Mistral API key
     if (!apiKey) {
-      throw new Error('Mistral API key is required for OCR conversion');
+      throw new Error('Mistral API key is required for OCR conversion. Please add a Mistral API key in Settings.');
+    }
+    
+    // Check if the API key looks valid (basic format check)
+    if (!apiKey.startsWith('mis_') && !apiKey.startsWith('sk-')) {
+      console.warn('⚠️ Mistral API key format looks incorrect. Keys typically start with "mis_" or "sk-"');
     }
 
     try {
@@ -337,17 +343,29 @@ export class MistralPdfConverter extends BasePdfConverter {
         .trim();
 
       // No need to add a separate "Extracted Images" section since images are now referenced inline
-      const markdownContent = processedText;
+      const content = [
+        `# PDF: ${baseName}`,
+        '',
+        processedText
+      ].join('\n');
 
       return {
         success: true,
-        content: markdownContent,
-        metadata: metadata,
-        images,
+        content: content,
+        metadata: {
+          ...metadata,
+          mimeType: 'application/pdf',
+          created: new Date().toISOString()
+        },
+        type: 'pdf',
+        name: originalName,
+        category: 'documents',
+        originalContent: input,
+        images: images,
         pageBreaks: options.preservePageInfo ? pageBreaks : undefined,
         stats: {
           inputSize: input.length,
-          outputSize: markdownContent.length,
+          outputSize: content.length,
           imageCount: images.length,
           pageCount
         }

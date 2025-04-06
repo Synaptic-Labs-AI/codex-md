@@ -292,6 +292,15 @@ class ConversionResultManager {
     // Save the markdown content
     await this.fileSystem.writeFile(mainFilePath, fullContent);
 
+    // Log the result details
+    console.log('💾 Conversion result saved:', {
+      outputPath: outputBasePath,
+      mainFile: mainFilePath,
+      hasImages: images && images.length > 0,
+      imageCount: images ? images.length : 0,
+      contentLength: fullContent.length
+    });
+    
     // Return standardized result
     return {
       success: true,

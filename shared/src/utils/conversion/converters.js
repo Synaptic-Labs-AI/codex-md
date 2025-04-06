@@ -405,6 +405,28 @@ export async function convertToMarkdown(type, content, options = {}) {
       }
     }
     
+    // Special handling for PDF files
+    if (normalizedType === 'pdf') {
+      console.log('🔄 [convertToMarkdown] Converting PDF with options:', {
+        useOcr: options.useOcr,
+        hasMistralApiKey: !!options.mistralApiKey
+      });
+      
+      // Check if it's a PdfConverterFactory with convertPdfToMarkdown method
+      if (converter.convertPdfToMarkdown) {
+        // Ensure we're passing the OCR settings correctly
+        const pdfOptions = {
+          useOcr: options.useOcr === true,
+          mistralApiKey: options.mistralApiKey,
+          preservePageInfo: true
+        };
+        
+        console.log(`PDF conversion using OCR: ${pdfOptions.useOcr}, API key available: ${!!pdfOptions.mistralApiKey}`);
+        
+        return await converter.convertPdfToMarkdown(content, options.name, pdfOptions);
+      }
+    }
+    
     // For all other types, try to use the converter directly
     if (converter.convert) {
       return await converter.convert(content, options.name, options.apiKey, options);
