@@ -8,7 +8,6 @@
   import { conversionResult } from '$lib/stores/conversionResult.js';
   import { clearFiles, downloadHandler, storeManager } from '$lib/utils/conversion';
   import { files } from '$lib/stores/files.js';
-  import { conversionTimer } from '$lib/stores/conversionTimer.js';
 
   const dispatch = createEventDispatcher();
   
@@ -67,12 +66,6 @@
    */
   function handleConvertMore() {
     try {
-      // First reset the timer explicitly
-      if (typeof conversionTimer !== 'undefined') {
-        conversionTimer.captureAndStop();
-        conversionTimer.reset();
-      }
-
       // Reset ConversionProgress component state if exists
       if (conversionProgressComponent) {
         conversionProgressComponent.resetState();
@@ -82,7 +75,7 @@
       persistentCompletion = false;
       hasCompletedOnce = false;
 
-      // Then use storeManager to reset all other stores
+      // Use storeManager to reset all stores
       storeManager.resetStores();
 
       // Dispatch event to parent component to switch mode

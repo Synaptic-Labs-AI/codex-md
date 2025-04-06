@@ -13,7 +13,6 @@
   import { onDestroy, onMount } from 'svelte';
   import ChatBubble from './common/ChatBubble.svelte';
   import Timer from './common/Timer.svelte';
-  import { conversionTimer } from '$lib/stores/conversionTimer';
   import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion';
   import { getRandomMessage } from '$lib/utils/conversionMessages';
   
@@ -57,14 +56,14 @@
     isPersistentlyCompleted = true;
     finalTotalCount = totalCount;
     
-    // Get the final time synchronously before stopping the timer
-    finalElapsedTime = conversionTimer.getFinalTimeSync();
+    // Get the elapsed seconds directly from the unifiedConversion store
+    const elapsedSeconds = $unifiedConversion.elapsedSeconds;
     
-    // Now stop the timer (this will update the store asynchronously)
-    conversionTimer.captureAndStop();
+    // Format the elapsed seconds into HH:MM:SS
+    finalElapsedTime = unifiedConversion.formatElapsedTime(elapsedSeconds);
     
     // Ensure we have a valid time (not 00:00:00)
-    if (finalElapsedTime === '00:00:00') {
+    if (finalElapsedTime === '00:00:00' || elapsedSeconds === 0) {
       console.warn('Timer captured zero time, using fallback');
       // Use a fallback time of at least 1 second
       finalElapsedTime = '00:00:01';
@@ -74,7 +73,7 @@
     stopMessageAnimation();
   }
 
-  // Function to reset state with enhanced timer cleanup
+  // Function to reset state
   export function resetState() {
     // Reset all local state variables
     isPersistentlyCompleted = false;
@@ -82,10 +81,6 @@
     finalTotalCount = 0;
     finalElapsedTime = '';
     stopMessageAnimation();
-    
-    // Enhanced timer cleanup - ensure complete reset
-    conversionTimer.captureAndStop();
-    conversionTimer.reset();
     
     // Only start animation if we're in an active conversion state
     if (status !== ConversionState.STATUS.IDLE && 
@@ -160,9 +155,7 @@
     if (status !== ConversionState.STATUS.IDLE && 
         status !== ConversionState.STATUS.COMPLETED && 
         status !== ConversionState.STATUS.ERROR &&
-        status !== ConversionState.STATUS.CANCELLED &&
-        !$conversionTimer.isRunning) {
-      conversionTimer.start();
+        status !== ConversionState.STATUS.CANCELLED) {
       
       if (!isAnimating) {
         animateMessage();
@@ -173,9 +166,6 @@
     if (status === ConversionState.STATUS.COMPLETED) {
       if (!isPersistentlyCompleted) {
         captureCompletionState();
-      } else if ($conversionTimer.isRunning) {
-        // Safety check: ensure timer is stopped if completion state is persistent
-        conversionTimer.captureAndStop();
       }
     }
     
@@ -183,7 +173,6 @@
     if ((status === ConversionState.STATUS.ERROR || 
          status === ConversionState.STATUS.CANCELLED) &&
         prevStatus !== status) {  // Only handle state change
-      conversionTimer.captureAndStop();
       stopMessageAnimation();
     }
   });
@@ -198,19 +187,13 @@
       if (!isAnimating) {
         animateMessage();
       }
-      
-      if (!$conversionTimer.isRunning) {
-        conversionTimer.start();
-      }
     }
   });
 
-  // Ensure timer cleanup on component destroy
+  // Ensure cleanup on component destroy
   onDestroy(() => {
     unsubStatus();
     stopMessageAnimation();
-    conversionTimer.captureAndStop();
-    conversionTimer.cleanup(); // Clean up the timer store subscription
   });
 </script>
 
@@ -253,7 +236,7 @@
 
     <!-- Conversion Timer - only show during active conversion -->
     {#if !isPersistentlyCompleted && status !== ConversionState.STATUS.COMPLETED && status !== ConversionState.STATUS.ERROR && status !== ConversionState.STATUS.CANCELLED}
-      <Timer time={$conversionTimer.elapsedTime} />
+      <Timer />
     {/if}
   </div>
 {/if}
