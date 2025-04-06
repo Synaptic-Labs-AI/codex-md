@@ -14,7 +14,7 @@ const path = require('path');
 const { app } = require('electron');
 const FileSystemService = require('./FileSystemService');
 const { formatMetadata, cleanMetadata } = require('@codex-md/shared/utils/markdown');
-const { cleanTemporaryFilename } = require('@codex-md/shared/utils/files');
+const { cleanTemporaryFilename, getBasename } = require('@codex-md/shared/utils/files');
 
 /**
  * Helper function to escape special characters in regular expressions
@@ -185,6 +185,29 @@ class ConversionResultManager {
    * @returns {Promise<Object>} Result of the save operation
    */
   async saveConversionResult({ content, metadata = {}, images = [], name, type, outputDir, options = {} }) {
+    console.log(`🔄 [ConversionResultManager] Saving conversion result for ${name} (${type})`);
+    
+    // Validate required parameters
+    if (!content) {
+      console.error('❌ [ConversionResultManager] No content provided!');
+      throw new Error('Content is required for conversion result');
+    }
+    
+    if (!name) {
+      console.error('❌ [ConversionResultManager] No name provided!');
+      throw new Error('Name is required for conversion result');
+    }
+    
+    if (!type) {
+      console.error('❌ [ConversionResultManager] No type provided!');
+      throw new Error('Type is required for conversion result');
+    }
+    
+    if (!outputDir) {
+      console.error('❌ [ConversionResultManager] No output directory provided!');
+      console.log('⚠️ [ConversionResultManager] Using default output directory:', this.defaultOutputDir);
+    }
+    
     // Use provided output directory or fall back to default
     const baseOutputDir = outputDir || this.defaultOutputDir;
     
@@ -196,14 +219,22 @@ class ConversionResultManager {
     // Clean the name to remove any temporary filename patterns
     const cleanedName = cleanTemporaryFilename(name);
     
-    // Generate base name and output path
-    const baseName = cleanedName.replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
+    // Get the base name without extension and sanitize it
+    const baseName = getBasename(cleanedName).replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
     const outputBasePath = createSubdirectory ? 
       path.join(baseOutputDir, `${baseName}_${Date.now()}`) : 
       baseOutputDir;
 
+    console.log(`📁 [ConversionResultManager] Generated output path: ${outputBasePath}`);
+
     // Create output directory
-    await this.fileSystem.createDirectory(outputBasePath);
+    try {
+      await this.fileSystem.createDirectory(outputBasePath);
+      console.log(`✅ [ConversionResultManager] Created output directory: ${outputBasePath}`);
+    } catch (error) {
+      console.error(`❌ [ConversionResultManager] Failed to create output directory: ${error.message}`);
+      throw new Error(`Failed to create output directory: ${error.message}`);
+    }
 
     // Create images directory if we have images
     if (images && images.length > 0) {
@@ -301,13 +332,45 @@ class ConversionResultManager {
       contentLength: fullContent.length
     });
     
-    // Return standardized result
-    return {
+    // Special handling for data files (CSV, XLSX)
+    const isDataFile = type === 'csv' || type === 'xlsx';
+    if (isDataFile) {
+      console.log(`📊 [ConversionResultManager] Special handling for data file: ${type}`);
+      
+      // Ensure we have all required properties for data files
+      if (!metadata.format) {
+        metadata.format = type;
+      }
+      
+      if (!metadata.type) {
+        metadata.type = 'spreadsheet';
+      }
+      
+      // Add additional logging for data files
+      console.log(`📊 [ConversionResultManager] Data file metadata:`, metadata);
+    }
+    
+    // Ensure we have a valid output path
+    if (!outputBasePath) {
+      console.error('❌ [ConversionResultManager] No output path generated!');
+      throw new Error('Failed to generate output path');
+    }
+    
+    // Return standardized result with guaranteed outputPath
+    const result = {
       success: true,
       outputPath: outputBasePath,
       mainFile: mainFilePath,
       metadata: fullMetadata
     };
+    
+    console.log(`✅ [ConversionResultManager] Successfully saved conversion result:`, {
+      type,
+      outputPath: outputBasePath,
+      mainFile: mainFilePath
+    });
+    
+    return result;
   }
 }
 

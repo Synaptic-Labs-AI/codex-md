@@ -3,9 +3,11 @@
  * Handles conversion-related IPC events between renderer and main process
  */
 
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
 const ElectronConversionService = require('../../../services/ElectronConversionService');
 const { dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
 
 /**
  * Register conversion IPC handlers
@@ -14,7 +16,7 @@ function registerConversionHandlers() {
     // Handle file conversion requests
     ipcMain.handle('codex:convert:file', async (event, input, options) => {
         try {
-            // Handle buffer input for binary files (audio/video/pdf)
+            // Handle buffer input for binary files (audio/video/pdf/xlsx)
             if (options && options.buffer) {
                 console.log(`IPC: Processing binary file of type ${options.type || 'unknown'}: ${options.originalFileName || 'unnamed'}`);
                 
@@ -38,6 +40,39 @@ function registerConversionHandlers() {
                     name: options.originalFileName,
                     isTemporary: true
                 });
+            }
+
+            // Handle CSV content directly (when isContent flag is set)
+            if (options && options.isContent && options.type === 'csv') {
+                console.log(`IPC: Processing CSV content directly: ${options.originalFileName || 'unnamed'}`);
+                
+                // Create a temporary file with the CSV content
+                const tempDir = path.join(app.getPath('temp'), 'codex-md-temp');
+                if (!fs.existsSync(tempDir)) {
+                    fs.mkdirSync(tempDir, { recursive: true });
+                }
+                
+                const tempFilePath = path.join(tempDir, `temp_${Date.now()}.csv`);
+                fs.writeFileSync(tempFilePath, input);
+                
+                console.log(`IPC: Created temporary CSV file: ${tempFilePath}`);
+                
+                // Convert the temporary file
+                const result = await ElectronConversionService.convert(tempFilePath, {
+                    ...options,
+                    originalFileName: options.originalFileName || options.name,
+                    name: options.originalFileName || options.name || path.basename(tempFilePath)
+                });
+                
+                // Clean up the temporary file
+                try {
+                    fs.unlinkSync(tempFilePath);
+                    console.log(`IPC: Removed temporary CSV file: ${tempFilePath}`);
+                } catch (cleanupError) {
+                    console.warn(`IPC: Failed to remove temporary CSV file: ${cleanupError.message}`);
+                }
+                
+                return result;
             }
 
             // Handle text content
