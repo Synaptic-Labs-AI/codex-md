@@ -1,5 +1,4 @@
 // services/transcriber.js
-import { Readable } from 'stream';
 import { OpenAI } from 'openai';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
@@ -8,6 +7,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
+import { File, Blob } from 'node:buffer';
 
 // Import the transcription config using ES Module syntax
 import transcriptionConfig from '../config/transcription.js';
@@ -41,40 +41,64 @@ class Transcriber {
     this.openai = new OpenAI({ apiKey });
   }
 
+
   /**
-   * Create a read stream from a buffer or file path
+   * Create a File object from a file path
+   * @param {string} filePath Path to the audio file
+   * @returns {Promise<File>} File object for OpenAI API
    */
-  _createAudioStream(input) {
-    if (Buffer.isBuffer(input)) {
-      return Readable.from(input);
+  async _createFileObject(filePath) {
+    try {
+      const fileData = await fs.readFile(filePath);
+      const fileName = path.basename(filePath);
+      return new File([fileData], fileName, { type: 'audio/mpeg' });
+    } catch (error) {
+      console.error('Error creating File object:', error);
+      throw new Error(`Failed to create File object from ${filePath}: ${error.message}`);
     }
-    // For file paths, return path directly as OpenAI SDK handles them
-    return input;
   }
 
   /**
    * Transcribe audio content to text
-   * @param {Buffer|string} input Audio content as buffer or file path
+   * @param {string} filePath Path to the audio file
    * @param {string} apiKey OpenAI API key
    * @returns {Promise<string>} Transcribed text
    */
-  async transcribe(input, apiKey) {
+  async transcribe(filePath, apiKey) {
     if (!this.openai) {
       this.initialize(apiKey);
     }
 
     try {
-      const file = this._createAudioStream(input);
-      
+      console.log('Starting transcription for:', filePath);
+
+      // Verify file exists and is accessible
+      try {
+        await fs.access(filePath);
+      } catch (error) {
+        console.error('File access error:', error);
+        throw new Error(`Cannot access audio file at ${filePath}`);
+      }
+
+      // Create File object for OpenAI API
+      console.log('Creating File object from:', filePath);
+      const file = await this._createFileObject(filePath);
+      console.log('File object created successfully');
+
+      // Create form with file object
       const response = await this.openai.audio.transcriptions.create({
         file,
         model: this.selectedModel,
         response_format: this._getResponseFormat()
       });
 
+      console.log('Transcription completed successfully');
       return response.text;
     } catch (error) {
       console.error('Transcription error:', error);
+      if (error.response?.status === 413) {
+        throw new Error('Audio file too large. Maximum size is 25MB.');
+      }
       throw error;
     }
   }
@@ -82,17 +106,17 @@ class Transcriber {
   /**
    * Extract audio from video buffer
    * @param {Buffer} buffer Video buffer
-   * @returns {Promise<Buffer>} Audio buffer
+   * @returns {Promise<{path: string, cleanup: Function}>} Audio file path and cleanup function
    */
   async extractAudioFromVideo(buffer) {
     const tempDir = path.join(os.tmpdir(), uuidv4());
     const inputPath = path.join(tempDir, 'input.mp4');
     const outputPath = path.join(tempDir, 'output.mp3');
 
+    // Create temp directory
+    await fs.mkdir(tempDir, { recursive: true });
+    
     try {
-      // Create temp directory
-      await fs.mkdir(tempDir, { recursive: true });
-      
       // Write buffer to temp file (required for ffmpeg)
       await fs.writeFile(inputPath, buffer);
 
@@ -119,20 +143,29 @@ class Transcriber {
           .save(outputPath);
       });
 
-      // Read output file
-      const audioBuffer = await fs.readFile(outputPath);
-      return audioBuffer;
+      // Create cleanup function
+      const cleanup = async () => {
+        try {
+          await fs.rm(tempDir, { recursive: true, force: true });
+          console.log('Cleaned up temp directory:', tempDir);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup temp files:', cleanupError);
+        }
+      };
 
+      // Delete input file early since we don't need it anymore
+      await fs.unlink(inputPath);
+
+      return { path: outputPath, cleanup };
     } catch (error) {
-      console.error('Audio extraction error:', error);
-      throw error;
-    } finally {
-      // Cleanup temp files
+      // Clean up on error
       try {
         await fs.rm(tempDir, { recursive: true, force: true });
       } catch (cleanupError) {
-        console.warn('Failed to cleanup temp files:', cleanupError);
+        console.warn('Failed to cleanup temp files after error:', cleanupError);
       }
+      console.error('Audio extraction error:', error);
+      throw error;
     }
   }
 }

@@ -16,6 +16,7 @@ import { generateMarkdown } from "../../../utils/markdownGenerator.js";
 import { AppError } from "../../../utils/errorHandler.js";
 import { AudioChunker } from "../../../utils/audioChunker.js";
 import path from "path";
+import fs from 'fs/promises';
 
 const SUPPORTED_FORMATS = ["mp4", "webm", "avi"];
 
@@ -70,72 +71,84 @@ class VideoConverter {
         );
       }
 
-      // Extract audio and transcribe
+      // Process video for transcription
       console.log("Processing video for transcription");
       try {
-        // Extract audio from video
-        const audioBuffer = await transcriber.extractAudioFromVideo(input);
+        // Extract audio from video and get file path
+        const { path: audioPath, cleanup: cleanupAudio } = await transcriber.extractAudioFromVideo(input);
         console.log("Audio extracted, checking size...");
 
-        // Initialize AudioChunker with 25MB limit and 2s overlap
-        const chunker = new AudioChunker({ 
-          chunkSize: 25 * 1024 * 1024,
-          overlapSeconds: 2
-        });
-        
-        // Always split audio to ensure consistent processing
-        console.log("Splitting audio into manageable chunks...");
-        
-        // Create a progress tracking callback for chunking phase (50-75% of total progress)
-        const onChunkingProgress = options.onProgress ? (progress) => {
-          // Scale progress to 50-75% range (chunking phase)
-          const scaledProgress = 50 + (progress * 0.25);
-          options.onProgress(scaledProgress);
-          
-          // Report phase if the method exists
-          if (options.onProgress.reportPhase) {
-            options.onProgress.reportPhase('chunking');
-          }
-        } : null;
-        
-        // Split audio with progress tracking
-        const chunks = await chunker.splitAudio(audioBuffer, { onProgress: onChunkingProgress });
-        console.log(`Created ${chunks.length} chunks for processing`);
+        // Check audio file size
+        const stats = await fs.stat(audioPath);
+        const isLargeAudio = stats.size > 25 * 1024 * 1024; // 25MB limit
 
-        // Process chunks sequentially with progress tracking
-        console.log(`Transcribing ${chunks.length} chunks`);
-        const transcriptions = [];
-        
-        for (let i = 0; i < chunks.length; i++) {
-          try {
-            console.log(`Transcribing chunk ${i + 1}/${chunks.length}`);
-            
-            // Update progress for transcription phase (75-100%)
-            if (options.onProgress) {
-              const transcriptionProgress = (i / chunks.length) * 100;
-              const scaledProgress = 75 + (transcriptionProgress * 0.25);
-              options.onProgress(scaledProgress);
-              
-              // Report phase if the method exists
-              if (options.onProgress.reportPhase) {
-                options.onProgress.reportPhase('transcribing');
+        let transcriptions = [];
+        try {
+          if (isLargeAudio) {
+            console.log("Audio file exceeds 25MB, splitting into chunks...");
+            // Initialize AudioChunker
+            const chunker = new AudioChunker({ 
+              chunkSize: 25 * 1024 * 1024,
+              overlapSeconds: 2
+            });
+
+            // Split audio with progress tracking
+            const { paths: chunkPaths, cleanup: cleanupChunks } = await chunker.splitAudio(audioPath, { 
+              onProgress: options.onProgress ? (progress) => {
+                const scaledProgress = 50 + (progress * 0.25);
+                options.onProgress(scaledProgress);
+                options.onProgress.reportPhase?.('chunking');
+              } : null
+            });
+
+            console.log(`Created ${chunkPaths.length} chunks for processing`);
+
+            try {
+              // Process chunks sequentially
+              for (let i = 0; i < chunkPaths.length; i++) {
+                try {
+                  console.log(`Transcribing chunk ${i + 1}/${chunkPaths.length}`);
+
+                  // Update progress for transcription phase (75-100%)
+                  if (options.onProgress) {
+                    const transcriptionProgress = (i / chunkPaths.length) * 100;
+                    const scaledProgress = 75 + (transcriptionProgress * 0.25);
+                    options.onProgress(scaledProgress);
+                    options.onProgress.reportPhase?.('transcribing');
+                  }
+
+                  const result = await transcriber.transcribe(chunkPaths[i], apiKey);
+                  transcriptions.push(result);
+                } catch (error) {
+                  console.error(`Error transcribing chunk ${i + 1}:`, error);
+                  transcriptions.push(`[Transcription failed for segment ${i + 1}]`);
+                }
               }
+            } finally {
+              // Clean up chunk files
+              await cleanupChunks();
             }
-            
-            const result = await transcriber.transcribe(chunks[i], apiKey);
-            transcriptions.push(result);
-          } catch (error) {
-            console.error(`Error transcribing chunk ${i + 1}:`, error);
-            // Return placeholder for failed chunk to maintain sequence
-            transcriptions.push(`[Transcription failed for segment ${i + 1}]`);
+          } else {
+            console.log("Audio file within size limit, transcribing directly...");
+            // Single transcription for smaller files
+            const result = await transcriber.transcribe(audioPath, apiKey);
+            transcriptions = [result];
           }
+        } finally {
+          // Clean up extracted audio file
+          await cleanupAudio();
         }
 
-        // Smart merge transcriptions with overlap handling
-        console.log("Merging transcribed chunks...");
-        const fullTranscript = chunks.length > 1 
-          ? chunker.mergeTranscriptions(transcriptions)
-          : transcriptions[0];
+        // Process transcriptions
+        console.log("Processing transcriptions...");
+        let fullTranscript;
+        
+        if (isLargeAudio) {
+          console.log("Merging chunked transcriptions...");
+          fullTranscript = chunker.mergeTranscriptions(transcriptions);
+        } else {
+          fullTranscript = transcriptions[0];
+        }
 
         // Remove temp_ prefix from title if present
         let baseName = path.basename(name, path.extname(name));
