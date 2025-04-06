@@ -7,7 +7,7 @@
 
 import { get } from 'svelte/store';
 import { files } from '$lib/stores/files.js';
-import { apiKey } from '$lib/stores/apiKey.js';
+import apiKeyStore, { apiKey } from '$lib/stores/apiKey.js';
 import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
 import electronClient from '$lib/api/electron';
 import { storeManager } from '../manager/storeManager.js';
@@ -47,8 +47,22 @@ class ConversionHandler {
             
         } catch (error) {
             console.error('Conversion error:', error);
-            storeManager.setError(error.message || 'An unexpected error occurred during conversion');
-            this.showFeedback(error.message, 'error');
+            
+            // Check for API key related errors
+            const errorMessage = error.message || '';
+            if (errorMessage.includes('Unauthorized') || 
+                errorMessage.includes('401') || 
+                errorMessage.includes('API key')) {
+                
+                // Provide a more user-friendly error message for API key issues
+                const friendlyError = 'OCR conversion failed: Invalid or missing Mistral API key. Please check your API key in Settings.';
+                storeManager.setError(friendlyError);
+                this.showFeedback(friendlyError, 'error');
+            } else {
+                // Use the original error message
+                storeManager.setError(errorMessage || 'An unexpected error occurred during conversion');
+                this.showFeedback(errorMessage, 'error');
+            }
         }
     }
 
@@ -56,7 +70,7 @@ class ConversionHandler {
      * Handles conversion in Electron environment
      * @private
      */
-    async handleElectronConversion(item, apiKey) {
+    async handleElectronConversion(item, openaiApiKey) {
         try {
             // First prompt for output directory
             storeManager.updateConversionStatus(CONVERSION_STATUSES.SELECTING_OUTPUT, 0);
@@ -70,14 +84,20 @@ class ConversionHandler {
 
             // Get current OCR settings
             const ocrEnabled = await window.electron.getSetting('ocr.enabled');
-
-            // Create options object
+            
+            // Get Mistral API key from store
+            const apiKeyState = get(apiKeyStore);
+            const mistralApiKey = apiKeyState.keys.mistral || '';
+            
+            console.log(`Using API keys - OpenAI: ${openaiApiKey ? '✓ (set)' : '✗ (not set)'}, Mistral: ${mistralApiKey ? '✓ (set)' : '✗ (not set)'}`);
+            
+            // Create options object with separate keys for each service
             const options = {
                 outputDir: outputResult.path,
                 createSubdirectory: false,
-                ...(apiKey ? { apiKey } : {}),
+                ...(openaiApiKey ? { apiKey: openaiApiKey } : {}), // OpenAI key for general use
                 useOcr: ocrEnabled,
-                mistralApiKey: apiKey
+                mistralApiKey: mistralApiKey // Dedicated Mistral key for OCR
             };
 
             await this.handleSingleItemConversion(item, options);
@@ -107,16 +127,20 @@ class ConversionHandler {
                 });
             } else if (item.file instanceof File) {
                 // Browser File object
+                const fileExt = item.file.name.split('.').pop().toLowerCase();
                 const isAudioVideo = ['mp3', 'wav', 'm4a', 'ogg', 'mp4', 'avi', 'webm']
-                    .includes(item.file.name.split('.').pop().toLowerCase());
+                    .includes(fileExt);
+                const isPdf = fileExt === 'pdf';
                 
-                if (isAudioVideo) {
-                    // For audio/video, read as buffer and pass directly
+                if (isAudioVideo || isPdf) {
+                    // For audio/video/pdf, read as buffer and pass directly
                     const buffer = await item.file.arrayBuffer();
                     result = await electronClient.convertFile(buffer, {
                         ...options,
                         isTemporary: true,
-                        originalFileName: item.file.name
+                        originalFileName: item.file.name,
+                        // For PDFs, explicitly set the type
+                        ...(isPdf ? { type: 'pdf' } : {})
                     }, (progress) => {
                         storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
                     });
@@ -144,9 +168,24 @@ class ConversionHandler {
             }
         } catch (error) {
             console.error(`Error converting ${item.name || item.url}:`, error);
-            storeManager.setError(error.message);
-            storeManager.updateFileStatus(item.id, CONVERSION_STATUSES.ERROR);
-            throw error;
+            
+            // Check for API key related errors
+            const errorMessage = error.message || '';
+            if (errorMessage.includes('Unauthorized') || 
+                errorMessage.includes('401') || 
+                errorMessage.includes('API key')) {
+                
+                // Provide a more user-friendly error message for API key issues
+                const friendlyError = 'OCR conversion failed: Invalid or missing Mistral API key. Please check your API key in Settings.';
+                storeManager.setError(friendlyError);
+                storeManager.updateFileStatus(item.id, CONVERSION_STATUSES.ERROR);
+                throw new Error(friendlyError);
+            } else {
+                // Use the original error message
+                storeManager.setError(errorMessage);
+                storeManager.updateFileStatus(item.id, CONVERSION_STATUSES.ERROR);
+                throw error;
+            }
         }
     }
 

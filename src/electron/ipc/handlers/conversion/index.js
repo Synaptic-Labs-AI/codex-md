@@ -14,11 +14,29 @@ function registerConversionHandlers() {
     // Handle file conversion requests
     ipcMain.handle('codex:convert:file', async (event, input, options) => {
         try {
-            // Handle buffer input for audio/video
+            // Handle buffer input for binary files (audio/video/pdf)
             if (options && options.buffer) {
-                return await ElectronConversionService.convert(Buffer.from(options.buffer), {
+                console.log(`IPC: Processing binary file of type ${options.type || 'unknown'}: ${options.originalFileName || 'unnamed'}`);
+                
+                // Log buffer details to help diagnose issues
+                console.log('IPC: Buffer details:', {
+                    bufferLength: options.buffer.byteLength,
+                    isArrayBuffer: options.buffer instanceof ArrayBuffer,
+                    type: options.type,
+                    originalFileName: options.originalFileName,
+                    isTemporary: options.isTemporary
+                });
+                
+                // Convert ArrayBuffer to Buffer
+                const buffer = Buffer.from(options.buffer);
+                
+                // Verify buffer was created correctly
+                console.log(`IPC: Created Buffer of length ${buffer.length}`);
+                
+                return await ElectronConversionService.convert(buffer, {
                     ...options,
-                    name: options.originalFileName
+                    name: options.originalFileName,
+                    isTemporary: true
                 });
             }
 

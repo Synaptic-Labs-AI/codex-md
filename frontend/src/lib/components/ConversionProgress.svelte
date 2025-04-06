@@ -65,7 +65,7 @@
     stopMessageAnimation();
   }
 
-  // Function to reset state
+  // Function to reset state with enhanced timer cleanup
   export function resetState() {
     isPersistentlyCompleted = false;
     completionMessage = '';
@@ -73,7 +73,8 @@
     finalElapsedTime = '';
     stopMessageAnimation();
     
-    // Always reset the timer when state is reset
+    // Enhanced timer cleanup
+    conversionTimer.captureAndStop();
     conversionTimer.reset();
     
     // Only start animation if we're in an active conversion state
@@ -138,12 +139,14 @@
     }
   }
 
-  // Subscription to conversion state
+  // Subscription to conversion state with enhanced completion handling
   const unsubStatus = unifiedConversion.subscribe(value => {
+    const prevStatus = status;
     status = value.status;
     totalCount = value.totalCount || 0;
     error = value.error;
 
+    // Handle transition to active state
     if (status !== ConversionState.STATUS.IDLE && 
         status !== ConversionState.STATUS.COMPLETED && 
         status !== ConversionState.STATUS.ERROR &&
@@ -156,13 +159,20 @@
       }
     }
     
-    if (status === ConversionState.STATUS.COMPLETED && !isPersistentlyCompleted) {
-      // Don't just stop the timer, capture the final time
-      captureCompletionState();
+    // Handle completion state
+    if (status === ConversionState.STATUS.COMPLETED) {
+      if (!isPersistentlyCompleted) {
+        captureCompletionState();
+      } else if ($conversionTimer.isRunning) {
+        // Safety check: ensure timer is stopped if completion state is persistent
+        conversionTimer.captureAndStop();
+      }
     }
     
-    if (status === ConversionState.STATUS.ERROR || 
-        status === ConversionState.STATUS.CANCELLED) {
+    // Handle error and cancellation states
+    if ((status === ConversionState.STATUS.ERROR || 
+         status === ConversionState.STATUS.CANCELLED) &&
+        prevStatus !== status) {  // Only handle state change
       conversionTimer.captureAndStop();
       stopMessageAnimation();
     }
@@ -185,9 +195,11 @@
     }
   });
 
+  // Ensure timer cleanup on component destroy
   onDestroy(() => {
     unsubStatus();
     stopMessageAnimation();
+    conversionTimer.captureAndStop();
   });
 </script>
 

@@ -317,6 +317,11 @@ class UnifiedConverterFactory {
       progressTracker.update(10, { status: 'reading_file' });
     }
     
+    // Special handling for PDF files
+    if (fileType === 'pdf') {
+      return await this.handlePdfConversion(filePath, options);
+    }
+    
     // Check if text converter factory is available
     if (!textConverterFactory) {
       console.error('Text converter factory not available');
@@ -350,6 +355,61 @@ class UnifiedConverterFactory {
       return {
         success: false,
         error: `Conversion failed: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Handle PDF conversion using PdfConverterFactory
+   * @private
+   */
+  async handlePdfConversion(filePath, options) {
+    const { progressTracker, fileName } = options;
+    
+    if (progressTracker) {
+      progressTracker.update(10, { status: 'reading_pdf' });
+    }
+    
+    // Check if PDF converter is available
+    if (!pdfConverter) {
+      console.error('PDF converter not available');
+      return {
+        success: false,
+        error: 'PDF converter not available. Backend services may still be initializing.'
+      };
+    }
+    
+    try {
+      // Read the file
+      const fileContent = fs.readFileSync(filePath);
+      
+      if (progressTracker) {
+        progressTracker.update(20, { status: 'converting_pdf' });
+      }
+      
+      console.log('🔄 [UnifiedConverterFactory] Converting PDF with options:', {
+        useOcr: options.useOcr,
+        hasMistralApiKey: !!options.mistralApiKey,
+        preservePageInfo: true
+      });
+      
+      // Use the PDF converter factory with OCR options
+      const result = await pdfConverter.convertPdfToMarkdown(fileContent, fileName, {
+        useOcr: options.useOcr,
+        mistralApiKey: options.mistralApiKey,
+        preservePageInfo: true
+      });
+      
+      if (progressTracker) {
+        progressTracker.update(90, { status: 'finalizing_pdf' });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('PDF conversion error:', error);
+      return {
+        success: false,
+        error: `PDF conversion failed: ${error.message}`
       };
     }
   }

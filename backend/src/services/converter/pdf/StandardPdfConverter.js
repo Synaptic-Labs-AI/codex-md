@@ -417,7 +417,7 @@ export class StandardPdfConverter extends BasePdfConverter {
       const baseName = path.basename(originalName, '.pdf');
       
       // Create metadata object
-      const metadata = this.createMetadata(baseName, images.length, options.preservePageInfo ? pageBreaks.length + 1 : 1);
+      const metadata = this.createMetadata(baseName, images.length, pageCount);
 
       // Process text content
       const processedText = textContent
@@ -432,21 +432,31 @@ export class StandardPdfConverter extends BasePdfConverter {
           images.map(img => this.generateImageMarkdown(img.path)).join('\n\n');
       }
 
-      const markdownContent = [
-        '## Content\n',
+      // Generate content without frontmatter
+      const content = [
+        `# PDF: ${baseName}`,
+        '',
         processedText,
         imageSection
       ].join('\n');
 
       return {
         success: true,
-        content: markdownContent,
-        metadata: metadata,
+        content: content,
+        metadata: {
+          ...metadata,
+          mimeType: 'application/pdf',
+          created: new Date().toISOString()
+        },
+        type: 'pdf',
+        name: originalName,
+        category: 'documents',
+        originalContent: input,
         images: images,
         pageBreaks: options.preservePageInfo ? pageBreaks : undefined,
         stats: {
           inputSize: input.length,
-          outputSize: markdownContent.length,
+          outputSize: content.length,
           imageCount: images.length,
           pageCount
         }

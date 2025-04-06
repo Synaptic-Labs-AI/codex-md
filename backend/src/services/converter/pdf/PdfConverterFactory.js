@@ -23,10 +23,15 @@ export class PdfConverterFactory {
   static getConverter(options = {}) {
     const { useOcr, mistralApiKey } = options;
 
-    // If OCR is enabled and API key is provided, use Mistral converter
-    if (useOcr && mistralApiKey) {
-      console.log('🔄 Using Mistral OCR converter');
-      return new MistralPdfConverter();
+    // If OCR is enabled, check for Mistral API key
+    if (useOcr) {
+      if (mistralApiKey) {
+        console.log('🔄 Using Mistral OCR converter');
+        return new MistralPdfConverter();
+      } else {
+        console.warn('⚠️ OCR is enabled but no Mistral API key provided. Falling back to standard converter.');
+        console.warn('⚠️ To use OCR, please add a Mistral API key in Settings.');
+      }
     }
 
     // Default to standard converter
@@ -65,25 +70,43 @@ export class PdfConverterFactory {
     } catch (error) {
       console.error(`PDF conversion failed with ${converter.config.name}:`, error);
       
+      // Check for API key related errors
+      const errorMessage = error.message || '';
+      const isAuthError = 
+        errorMessage.includes('Unauthorized') || 
+        errorMessage.includes('401') || 
+        errorMessage.includes('API key');
+      
+      // If it's an auth error, provide a more helpful message
+      if (isAuthError && options.useOcr && converter instanceof MistralPdfConverter) {
+        console.warn('⚠️ OCR failed due to API key issue. Please check your Mistral API key in Settings.');
+      }
+      
       // If OCR fails, try falling back to standard conversion
       if (options.useOcr && converter instanceof MistralPdfConverter) {
         console.log('⚠️ OCR failed, falling back to standard conversion');
         const standardConverter = new StandardPdfConverter();
         
-        const fallbackResult = await standardConverter.convertPdfToMarkdown(
-          input,
-          originalName,
-          null,
-          {
-            preservePageInfo: options.preservePageInfo
-          }
-        );
+        try {
+          const fallbackResult = await standardConverter.convertPdfToMarkdown(
+            input,
+            originalName,
+            null,
+            {
+              preservePageInfo: options.preservePageInfo
+            }
+          );
 
-        return {
-          ...fallbackResult,
-          converter: standardConverter.config.name,
-          ocrFallback: true
-        };
+          return {
+            ...fallbackResult,
+            converter: standardConverter.config.name,
+            ocrFallback: true,
+            ocrError: errorMessage
+          };
+        } catch (fallbackError) {
+          console.error('Standard conversion also failed:', fallbackError);
+          throw new Error(`PDF conversion failed: ${fallbackError.message}. Original OCR error: ${errorMessage}`);
+        }
       }
       
       throw error;
