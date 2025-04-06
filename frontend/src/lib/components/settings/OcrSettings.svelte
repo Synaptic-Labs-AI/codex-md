@@ -48,7 +48,8 @@
     />
     <p class="description">
       When enabled, Mistral's advanced OCR will be used to process PDF documents,
-      providing better text extraction and document understanding capabilities.
+      providing better text extraction, image extraction, and document understanding capabilities.
+      Without OCR, only text will be extracted from PDFs.
     </p>
   </div>
   
@@ -58,6 +59,7 @@
         Mistral's OCR (Optical Character Recognition) technology provides enhanced PDF processing with:
       </p>
       <ul>
+        <li>Image extraction from PDF documents</li>
         <li>Better text extraction from complex layouts</li>
         <li>Preservation of document structure and formatting</li>
         <li>Support for tables, lists, and other complex elements</li>

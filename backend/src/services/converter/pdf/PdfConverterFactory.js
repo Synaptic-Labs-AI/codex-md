@@ -9,7 +9,7 @@ import MistralPdfConverter from './MistralPdfConverter.js';
  * 
  * Related files:
  * - BasePdfConverter.js: Abstract base class
- * - StandardPdfConverter.js: Default poppler implementation
+ * - StandardPdfConverter.js: Default JavaScript implementation using pdf-parse
  * - MistralPdfConverter.js: OCR implementation
  */
 export class PdfConverterFactory {
