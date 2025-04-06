@@ -10,6 +10,7 @@
  * - src/electron/ipc/handlers/: Implements the IPC handlers in the main process
  */
 import { ConversionError } from '@codex-md/shared/utils/conversion/errors';
+import { getFileHandlingInfo } from '@codex-md/shared/utils/files/types';
 
 export { ConversionError };
 
@@ -33,48 +34,38 @@ class ElectronClient {
         }
 
         try {
-            // For binary buffers (audio/video/pdf)
+            // Get comprehensive file handling info
+            const fileInfo = getFileHandlingInfo({
+                name: options.originalFileName,
+                type: options.type,
+                path: typeof input === 'string' ? input : undefined
+            });
+
+            console.log('🔍 File handling info:', fileInfo);
+
+            // Prepare conversion options with file info
+            const conversionOptions = {
+                ...options,
+                type: fileInfo.converter,
+                isBinary: fileInfo.isBinary
+            };
+
+            // Handle based on input type
             if (input instanceof ArrayBuffer && options.isTemporary) {
-                // Use the type if explicitly provided
-                let type = options.type;
-                
-                // Otherwise infer type from file extension
-                if (!type && options.originalFileName) {
-                    if (/\.(mp3|wav|m4a|ogg)$/i.test(options.originalFileName)) {
-                        type = 'audio';
-                    } else if (/\.(mp4|avi|webm|mov)$/i.test(options.originalFileName)) {
-                        type = 'video';
-                    } else if (/\.pdf$/i.test(options.originalFileName)) {
-                        type = 'pdf';
-                    }
-                }
-                
-                // Default to audio if we couldn't determine the type
-                if (!type) {
-                    type = 'audio';
-                }
-                
-                console.log(`Converting binary file as ${type}: ${options.originalFileName}`);
-                
-                const conversionOptions = {
-                    ...options,
-                    buffer: input, // Pass buffer directly
-                    type: type // Set the determined type
-                };
-                return await window.electron.convert(input, conversionOptions);
+                // Binary buffer handling
+                console.log(`Converting binary file as ${fileInfo.converter}: ${fileInfo.fileName}`);
+                conversionOptions.buffer = input;
+            } else if (typeof input === 'string' && fileInfo.isWeb) {
+                // URL handling
+                console.log(`Converting URL: ${input}`);
+                conversionOptions.content = input;
+            } else if (typeof input === 'string' && options.originalFileName) {
+                // Text content handling
+                console.log(`Converting text content from: ${fileInfo.fileName}`);
+                conversionOptions.content = input;
             }
 
-            // For text content
-            if (typeof input === 'string' && options.originalFileName) {
-                const conversionOptions = {
-                    ...options,
-                    content: input
-                };
-                return await window.electron.convert(input, conversionOptions);
-            }
-
-            // For file paths
-            return await window.electron.convert(input, options);
+            return await window.electron.convert(input, conversionOptions);
         } catch (error) {
             console.error('Conversion error:', error);
             throw error;

@@ -11,8 +11,12 @@ import * as sanitization from './sanitization.js';
 export const {
     FILE_CATEGORIES,
     API_REQUIRED_TYPES,
+    HANDLING_TYPES,
+    CONVERTER_CONFIG,
     getFileType,
-    requiresApiKey
+    requiresApiKey,
+    getFileHandlingInfo,
+    getFileContent
 } = types;
 
 export const {
@@ -36,8 +40,12 @@ export const {
 export const fileTypes = {
     getFileType,
     requiresApiKey,
+    getFileHandlingInfo,
+    getFileContent,
     FILE_CATEGORIES,
     API_REQUIRED_TYPES,
+    HANDLING_TYPES,
+    CONVERTER_CONFIG
 };
 
 export const fileValidation = {
@@ -62,8 +70,12 @@ export default {
     // Types
     FILE_CATEGORIES,
     API_REQUIRED_TYPES,
+    HANDLING_TYPES,
+    CONVERTER_CONFIG,
     getFileType,
     requiresApiKey,
+    getFileHandlingInfo,
+    getFileContent,
     
     // Validation
     FILE_SIZE_LIMITS,
