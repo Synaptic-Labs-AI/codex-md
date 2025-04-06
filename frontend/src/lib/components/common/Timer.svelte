@@ -8,6 +8,8 @@
   - frontend/src/lib/components/ConversionProgress.svelte: Primary consumer
 -->
 <script>
+  import { unifiedConversion } from '$lib/stores/unifiedConversion';
+  
   export let time = '00:00:00';
   export let label = 'Time elapsed';
   
@@ -15,9 +17,12 @@
   let minutes = '00';
   let seconds = '00';
   
+  // Get formatted time from unifiedConversion store
+  $: formattedTime = unifiedConversion.formatElapsedTime($unifiedConversion.elapsedSeconds);
+  
   // Update time segments
   $: {
-    [hours, minutes, seconds] = time.split(':');
+    [hours, minutes, seconds] = formattedTime.split(':');
   }
 </script>
 

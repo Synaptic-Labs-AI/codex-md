@@ -15,7 +15,6 @@ import { get } from 'svelte/store';
 import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
 import { conversionResult } from '$lib/stores/conversionResult.js';
 import { files } from '$lib/stores/files.js';
-import { conversionTimer } from '$lib/stores/conversionTimer.js';
 import { CONVERSION_STATUSES, FILE_TYPES } from '../constants';
 
 // Map old status constants to new ones for backward compatibility
@@ -75,6 +74,9 @@ class StoreManager {
      * Sets an error state
      */
     setError(error) {
+        // Stop the timer when an error occurs
+        unifiedConversion.stopTimer();
+        
         const errorMessage = error?.message || error || 'An unknown error occurred';
         unifiedConversion.setError(errorMessage);
         console.error('[StoreManager] Error:', errorMessage);
@@ -158,6 +160,8 @@ class StoreManager {
      * Handles conversion completion
      */
     completeConversion() {
+        // Ensure timer is stopped and final time is captured
+        unifiedConversion.stopTimer();
         unifiedConversion.completeConversion();
     }
 
@@ -165,6 +169,9 @@ class StoreManager {
      * Cancels the ongoing conversion
      */
     cancelConversion() {
+        // Stop the timer
+        unifiedConversion.stopTimer();
+        
         unifiedConversion.setStatus(ConversionState.STATUS.CANCELLED);
         unifiedConversion.setProgress(0);
         
@@ -187,11 +194,10 @@ class StoreManager {
      * Resets all conversion-related stores
      */
     resetStores() {
-        // Reset timer first to ensure it's fully reset
-        conversionTimer.captureAndStop();
-        conversionTimer.reset();
+        // Stop the timer
+        unifiedConversion.stopTimer();
         
-        // Then reset other stores
+        // Reset all stores
         unifiedConversion.reset();
         conversionResult.clearResult();
         files.clearFiles();
