@@ -187,12 +187,14 @@ class StoreManager {
      * Resets all conversion-related stores
      */
     resetStores() {
-        unifiedConversion.reset();
+        // Reset timer first to ensure it's fully reset
+        conversionTimer.captureAndStop();
         conversionTimer.reset();
+        
+        // Then reset other stores
+        unifiedConversion.reset();
         conversionResult.clearResult();
-        files.clearFiles().catch(error => {
-            console.warn('Failed to clear files store:', error);
-        });
+        files.clearFiles();
     }
 
     /**

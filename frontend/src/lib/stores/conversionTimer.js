@@ -32,8 +32,26 @@ function createTimer() {
     return [h, m, s].map(n => n.toString().padStart(2, '0')).join(':');
   }
 
+  // Helper function to get current store value synchronously
+  let currentState = {
+    startTime: null,
+    elapsedTime: '00:00:00',
+    isRunning: false,
+    secondsCount: 0,
+    finalTime: null
+  };
+  
+  // Subscribe to keep currentState in sync
+  const unsubscribe = subscribe(state => {
+    currentState = state;
+  });
+
   return {
     subscribe,
+    getFinalTimeSync: () => {
+      const elapsedMs = currentState.startTime ? (Date.now() - currentState.startTime) : 0;
+      return formatTime(elapsedMs);
+    },
     start: () => {
       // Clear any existing interval first to prevent duplicates
       if (intervalId) clearInterval(intervalId);
@@ -91,6 +109,7 @@ function createTimer() {
         intervalId = null;
       }
       
+      // Reset the store state
       set({ 
         startTime: null, 
         elapsedTime: '00:00:00', 
@@ -98,6 +117,22 @@ function createTimer() {
         secondsCount: 0,
         finalTime: null
       });
+      
+      // Also reset the internal currentState tracking
+      currentState = {
+        startTime: null,
+        elapsedTime: '00:00:00',
+        isRunning: false,
+        secondsCount: 0,
+        finalTime: null
+      };
+    },
+    
+    // Cleanup subscription
+    cleanup: () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
     }
   };
 }

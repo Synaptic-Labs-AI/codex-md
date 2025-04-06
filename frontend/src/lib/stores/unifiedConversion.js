@@ -95,7 +95,11 @@ function createUnifiedConversionStore() {
     reset: () => set(initialState),
     
     // Start different conversion types
-    startFileConversion: (file) => {
+    startFileConversion: async (file) => {
+      // Reset timer before starting a new conversion
+      const { conversionTimer } = await import('./conversionTimer');
+      conversionTimer.reset();
+      
       set({
         ...initialState,
         status: ConversionState.STATUS.CONVERTING,
@@ -105,7 +109,11 @@ function createUnifiedConversionStore() {
       });
     },
     
-    startBatchConversion: (files) => {
+    startBatchConversion: async (files) => {
+      // Reset timer before starting a new conversion
+      const { conversionTimer } = await import('./conversionTimer');
+      conversionTimer.reset();
+      
       set({
         ...initialState,
         status: ConversionState.STATUS.CONVERTING,
@@ -115,7 +123,11 @@ function createUnifiedConversionStore() {
       });
     },
     
-    startWebsiteConversion: (url) => {
+    startWebsiteConversion: async (url) => {
+      // Reset timer before starting a new conversion
+      const { conversionTimer } = await import('./conversionTimer');
+      conversionTimer.reset();
+      
       set({
         ...initialState,
         status: ConversionState.STATUS.CONVERTING, // Start directly in converting state

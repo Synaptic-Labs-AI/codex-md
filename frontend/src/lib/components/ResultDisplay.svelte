@@ -67,22 +67,23 @@
    */
   function handleConvertMore() {
     try {
-      // Use storeManager to reset all stores
-      storeManager.resetStores();
-      
-      // Always reset the timer when converting more files
+      // First reset the timer explicitly
       if (typeof conversionTimer !== 'undefined') {
+        conversionTimer.captureAndStop();
         conversionTimer.reset();
+      }
+
+      // Reset ConversionProgress component state if exists
+      if (conversionProgressComponent) {
+        conversionProgressComponent.resetState();
       }
 
       // Reset local state
       persistentCompletion = false;
       hasCompletedOnce = false;
 
-      // Reset ConversionProgress component state if exists
-      if (conversionProgressComponent) {
-        conversionProgressComponent.resetState();
-      }
+      // Then use storeManager to reset all other stores
+      storeManager.resetStores();
 
       // Dispatch event to parent component to switch mode
       dispatch('convertMore');

@@ -100,6 +100,7 @@ class AudioConverter {
         } : null;
 
         // Split audio into chunks
+        console.log(`🔄 [AudioConverter] Splitting ${fileExt} file into chunks...`);
         const chunks = await this.chunker.splitAudio(audioBuffer, {
           onProgress: onChunkingProgress
         });
@@ -151,9 +152,14 @@ class AudioConverter {
 
         // Prepare form data
         const formData = new FormData();
-        formData.append("file", new Blob([audioBuffer]), originalName);
+        
+        // For WAV files, explicitly set the MIME type to ensure proper handling
+        const mimeType = fileExt === 'wav' ? 'audio/wav' : undefined;
+        formData.append("file", new Blob([audioBuffer], { type: mimeType }), originalName);
         formData.append("model", "whisper-1");
         formData.append("response_format", "text");
+        
+        console.log(`📝 [AudioConverter] Sending ${fileExt} file to OpenAI API for transcription`);
 
         // Get transcription
         transcription = await openaiProxy.makeRequest(apiKey, "audio/transcriptions", formData);

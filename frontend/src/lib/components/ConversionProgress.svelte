@@ -57,9 +57,18 @@
     isPersistentlyCompleted = true;
     finalTotalCount = totalCount;
     
-    // Use the timer's captureAndStop method to ensure we get the final time
+    // Get the final time synchronously before stopping the timer
+    finalElapsedTime = conversionTimer.getFinalTimeSync();
+    
+    // Now stop the timer (this will update the store asynchronously)
     conversionTimer.captureAndStop();
-    finalElapsedTime = $conversionTimer.elapsedTime;
+    
+    // Ensure we have a valid time (not 00:00:00)
+    if (finalElapsedTime === '00:00:00') {
+      console.warn('Timer captured zero time, using fallback');
+      // Use a fallback time of at least 1 second
+      finalElapsedTime = '00:00:01';
+    }
     
     completionMessage = `Successfully converted ${finalTotalCount > 0 ? `all ${finalTotalCount} files` : 'your content'}! 🎉<br>Time taken: ${finalElapsedTime}`;
     stopMessageAnimation();
@@ -67,13 +76,14 @@
 
   // Function to reset state with enhanced timer cleanup
   export function resetState() {
+    // Reset all local state variables
     isPersistentlyCompleted = false;
     completionMessage = '';
     finalTotalCount = 0;
     finalElapsedTime = '';
     stopMessageAnimation();
     
-    // Enhanced timer cleanup
+    // Enhanced timer cleanup - ensure complete reset
     conversionTimer.captureAndStop();
     conversionTimer.reset();
     
@@ -200,6 +210,7 @@
     unsubStatus();
     stopMessageAnimation();
     conversionTimer.captureAndStop();
+    conversionTimer.cleanup(); // Clean up the timer store subscription
   });
 </script>
 
@@ -240,8 +251,10 @@
       {/if}
     </div>
 
-    <!-- Conversion Timer -->
-    <Timer time={$conversionTimer.elapsedTime} />
+    <!-- Conversion Timer - only show during active conversion -->
+    {#if !isPersistentlyCompleted && status !== ConversionState.STATUS.COMPLETED && status !== ConversionState.STATUS.ERROR && status !== ConversionState.STATUS.CANCELLED}
+      <Timer time={$conversionTimer.elapsedTime} />
+    {/if}
   </div>
 {/if}
 
