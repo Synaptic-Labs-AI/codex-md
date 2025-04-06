@@ -5,18 +5,21 @@ import { dirname } from 'path';
 import path from 'path';
 import crypto from 'crypto';
 import * as fs from 'fs/promises';
-import { promisify } from 'util';
-import { exec } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
+import pdfParse from 'pdf-parse';
 import BasePdfConverter from './BasePdfConverter.js';
 
-const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Standard PDF converter implementation using poppler-utils
- * Provides basic PDF conversion with image extraction and optional fallback
+ * Standard PDF converter implementation using pdf-parse
+ * Provides basic PDF text extraction without external dependencies
+ * 
+ * This converter uses a pure JavaScript approach to extract text from PDFs,
+ * eliminating the need for external dependencies like Poppler.
+ * 
+ * For image extraction and more advanced OCR capabilities, use MistralPdfConverter.
  * 
  * Related files:
  * - BasePdfConverter.js: Parent abstract class
@@ -32,12 +35,12 @@ export class StandardPdfConverter extends BasePdfConverter {
     supportedExtensions: ['.pdf'],
     supportedMimeTypes: ['application/pdf'],
     maxSizeBytes: 100 * 1024 * 1024, // 100MB
-    requiresPoppler: true,
+    requiresPoppler: false, // No external dependencies
     options: {
-      imageQuality: 300,
-      minImageSize: 5120, // 5KB
-      debug: false,
-      popplerPath: process.env.POPPLER_PATH
+      // pdf-parse options
+      pagerender: null, // use default pagerender
+      max: 0, // no limit on pages
+      minImageSize: 5120, // 5KB - kept for compatibility
     }
   };
 
@@ -55,96 +58,22 @@ export class StandardPdfConverter extends BasePdfConverter {
   }
 
   /**
-   * Gets the poppler binary path based on the operating system
-   * @private
-   */
-  async getPopplerPath() {
-    if (process.platform === 'win32') {
-      // Check common installation paths
-      const possiblePaths = [
-        'C:\\Program Files\\poppler-24.08.0\\Library\\bin',
-        'C:\\Program Files\\poppler\\Library\\bin',
-        'C:\\Program Files\\poppler-23.11.0\\Library\\bin',
-        'C:\\Program Files (x86)\\poppler\\Library\\bin',
-        'C:\\poppler\\Library\\bin',
-        process.env.POPPLER_PATH
-      ].filter(Boolean);
-
-      for (const binPath of possiblePaths) {
-        if (!binPath) continue;
-        
-        const pdfimagesPath = path.join(binPath, 'pdfimages.exe');
-        console.log('Checking poppler path:', pdfimagesPath);
-        
-        try {
-          const exists = await this.fileExists(pdfimagesPath);
-          if (exists) {
-            console.log('Found poppler at:', binPath);
-            return binPath;
-          }
-        } catch (error) {
-          console.warn(`Failed to check path ${binPath}:`, error);
-        }
-      }
-      
-      throw new Error('Poppler not found. Please install poppler-utils and set POPPLER_PATH environment variable.');
-    }
-    
-    return ''; // Unix systems typically have it in PATH
-  }
-
-  /**
-   * Executes poppler command with proper path handling
-   * @private
-   */
-  async executePopplerCommand(originalCommand) {
-    let command = originalCommand;
-    
-    try {
-      if (process.platform === 'win32') {
-        const popplerPath = await this.getPopplerPath();
-        // Add poppler path to command
-        if (command.startsWith('pdfimages')) {
-          command = command.replace('pdfimages', `"${path.join(popplerPath, 'pdfimages.exe')}"`);
-        } else if (command.startsWith('pdftotext')) {
-          command = command.replace('pdftotext', `"${path.join(popplerPath, 'pdftotext.exe')}"`);
-        } else if (command.startsWith('pdfinfo')) {
-          command = command.replace('pdfinfo', `"${path.join(popplerPath, 'pdfinfo.exe')}"`);
-        }
-      }
-
-      console.log('Executing command:', command);
-      const { stdout, stderr } = await execAsync(command);
-      
-      if (stderr) {
-        console.warn('Command stderr:', stderr);
-      }
-      
-      return stdout;
-    } catch (error) {
-      console.error('Poppler command failed:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Fallback image extraction using pdf-lib
    * @private
    */
-  async extractImagesWithFallback(pdfPath, originalName) {
+  async extractImagesWithFallback(pdfBuffer, originalName) {
     let pdfDoc;
     const images = [];
     const imageHashes = new Map();
 
     try {
       const { PDFDocument } = await import('pdf-lib');
-      console.log('📚 Loading PDF document for fallback extraction');
-      const pdfBytes = await fs.readFile(pdfPath);
-      pdfDoc = await PDFDocument.load(pdfBytes);
+      console.log('📚 Loading PDF document for image extraction');
+      pdfDoc = await PDFDocument.load(pdfBuffer);
       
       console.log('📄 Processing PDF pages:', {
         pageCount: pdfDoc.getPageCount(),
-        fileSize: pdfBytes.length
+        fileSize: pdfBuffer.length
       });
 
       for (let i = 0; i < pdfDoc.getPageCount(); i++) {
@@ -209,163 +138,64 @@ export class StandardPdfConverter extends BasePdfConverter {
 
       return images;
     } catch (error) {
-      console.error('Fallback image extraction failed:', error);
+      console.error('Image extraction failed:', error);
       return [];
     }
   }
 
   /**
-   * Extract images from PDF using poppler-utils with fallback
+   * Extract images from PDF
    * @override
    */
-  async extractImages(pdfPath, originalName) {
-    let tempDir;
-    let imageRoot;
-    const images = [];
-    const imageHashes = new Map();
-
-    try {
-      tempDir = path.join(process.cwd(), 'temp', uuidv4());
-      imageRoot = path.join(tempDir, 'image');
-      
-      await fs.mkdir(tempDir, { recursive: true });
-
-      try {
-        // Use pdfimages for extraction
-        const command = `pdfimages -all "${pdfPath}" "${imageRoot}"`;
-        await this.executePopplerCommand(command);
-
-        // Process extracted images
-        const files = await fs.readdir(tempDir);
-        const imageFiles = files.filter(f => /\.(jpg|jpeg|png|ppm|pbm)$/i.test(f));
-
-        for (const imageFile of imageFiles) {
-          const imagePath = path.join(tempDir, imageFile);
-          const stats = await fs.stat(imagePath);
-
-          // Skip tiny images (likely artifacts)
-          if (stats.size < this.config.options.minImageSize) continue;
-
-          // Calculate image hash
-          const imageBuffer = await fs.readFile(imagePath);
-          const hash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
-
-          // Check for duplicates
-          if (imageHashes.has(hash)) continue;
-          imageHashes.set(hash, true);
-
-          const ext = path.extname(imageFile).slice(1);
-          const baseName = path.basename(originalName, '.pdf');
-          const generatedPath = this.generateUniqueImageName(baseName, 0, ext);
-
-          const imageObject = {
-            name: generatedPath,
-            data: imageBuffer.toString('base64'),
-            type: `image/${ext}`,
-            path: generatedPath,
-            hash: hash,
-            size: stats.size
-          };
-
-          if (this.validateImageObject(imageObject)) {
-            images.push(imageObject);
-            console.log(`📸 Added image: ${imageObject.name} (${stats.size} bytes, data: ${this.truncateBase64(imageObject.data)})`);
-          } else {
-            console.warn(`⚠️ Invalid image object structure for ${imageObject.name}`);
-          }
-        }
-
-      } catch (error) {
-        console.warn('Poppler extraction failed:', error);
-        console.log('Attempting fallback image extraction...');
-        return await this.extractImagesWithFallback(pdfPath, originalName);
-      }
-
-      return images;
-
-    } catch (error) {
-      console.error('Image extraction error:', error);
-      return [];
-    } finally {
-      // Cleanup
-      if (tempDir) {
-        try {
-          await fs.rm(tempDir, { recursive: true, force: true });
-        } catch (error) {
-          console.warn('Failed to cleanup temp directory:', error);
-        }
-      }
-    }
+  async extractImages(pdfBuffer, originalName) {
+    console.log('📸 Image extraction skipped in standard converter');
+    console.log('📸 For image extraction, use the OCR converter with a Mistral API key');
+    
+    // Return empty array as this converter doesn't extract images by default
+    // Users who need images should use the Mistral OCR converter
+    return [];
+    
+    // Uncomment the following line to enable basic image extraction using pdf-lib
+    // return await this.extractImagesWithFallback(pdfBuffer, originalName);
   }
 
   /**
-   * Extract text from PDF using poppler-utils pdftotext
+   * Extract text from PDF using pdf-parse
    * @override
    */
-  async extractText(pdfPath, preservePageInfo = false) {
+  async extractText(pdfBuffer, preservePageInfo = false) {
     try {
-      let text = '';
-      let pageBreaks = [];
+      console.log('📄 Extracting text using pdf-parse');
       
-      // First, get the number of pages using pdfinfo
-      const pdfInfoCommand = `pdfinfo "${pdfPath}"`;
-      const pdfInfoOutput = await this.executePopplerCommand(pdfInfoCommand);
+      // Parse PDF
+      const data = await pdfParse(pdfBuffer, this.config.options);
       
-      // Parse the output to get the number of pages
-      const pagesMatch = pdfInfoOutput.match(/Pages:\s+(\d+)/);
-      const numPages = pagesMatch ? parseInt(pagesMatch[1], 10) : 0;
-      
+      // Get page count
+      const numPages = data.numpages || 0;
       console.log(`📄 PDF has ${numPages} pages`);
       
-      if (preservePageInfo) {
-        // Extract text page by page and add page markers
-        let combinedText = '';
+      let pageBreaks = [];
+      
+      // If preservePageInfo is true, we can try to estimate page breaks
+      // This is not as accurate as Poppler's extraction but provides a basic approximation
+      if (preservePageInfo && numPages > 1) {
+        // pdf-parse doesn't provide page break information directly
+        // We can approximate by dividing the text evenly across pages
+        const textLength = data.text.length;
+        const avgPageLength = Math.floor(textLength / numPages);
         
-        for (let i = 1; i <= numPages; i++) {
-          // Extract text for this page only
-          const command = `pdftotext -f ${i} -l ${i} "${pdfPath}" -`;
-          let pageText = await this.executePopplerCommand(command);
-          
-          // Trim leading/trailing whitespace from the page text
-          pageText = pageText.trim();
-          
-          // Remove standalone page numbers that poppler might extract
-          // Split into lines and check if the last line is just a number
-          const lines = pageText.split('\n');
-          if (lines.length > 0) {
-            const lastLine = lines[lines.length - 1].trim();
-            // Check if the last line is just a number (the page number)
-            if (/^\d+$/.test(lastLine)) {
-              // Remove the last line (page number)
-              lines.pop();
-              pageText = lines.join('\n');
-            }
-          }
-          
-          if (i > 1) {
-            // Add a page break position
-            pageBreaks.push({
-              pageNumber: i,
-              position: combinedText.length
-            });
-            
-            // Add the page text with proper spacing
-            combinedText += `\n\n${pageText}`;
-          } else {
-            // For the first page, just add the text
-            combinedText += pageText;
-          }
+        for (let i = 1; i < numPages; i++) {
+          pageBreaks.push({
+            pageNumber: i + 1,
+            position: i * avgPageLength
+          });
         }
         
-        text = combinedText;
-      } else {
-        // Use pdftotext command from poppler to extract all text at once
-        const command = `pdftotext "${pdfPath}" -`;
-        text = await this.executePopplerCommand(command);
+        console.log(`📄 Estimated ${pageBreaks.length} page breaks`);
       }
       
       return {
-        text: text.trim(),
+        text: data.text,
         pageBreaks,
         pageCount: numPages
       };
@@ -380,39 +210,19 @@ export class StandardPdfConverter extends BasePdfConverter {
   }
 
   /**
-   * Main converter function that transforms PDF to Markdown with images
+   * Main converter function that transforms PDF to Markdown
    * @override
    */
   async convertPdfToMarkdown(input, originalName, apiKey, options = {}) {
-    let tempDir;
-    
     try {
       // Validate input
       this.validatePdfInput(input);
 
-      tempDir = path.join(process.cwd(), 'temp', uuidv4());
-      const tempPdfPath = path.join(tempDir, 'input.pdf');
+      // Extract text using pdf-parse
+      const { text: textContent, pageBreaks, pageCount } = await this.extractText(input, options.preservePageInfo);
       
-      await fs.mkdir(tempDir, { recursive: true });
-
-      // Write buffer with additional error handling
-      try {
-        await fs.writeFile(tempPdfPath, input, { flag: 'wx' });
-      } catch (error) {
-        throw new Error(`Failed to write PDF file: ${error.message}`);
-      }
-
-      // Check if file was written successfully
-      const stats = await fs.stat(tempPdfPath);
-      if (stats.size !== input.length) {
-        throw new Error('PDF file corrupted during write');
-      }
-
-      // Extract text using poppler with page information if requested
-      const { text: textContent, pageBreaks, pageCount } = await this.extractText(tempPdfPath, options.preservePageInfo);
-      
-      // Extract images
-      const images = await this.extractImages(tempPdfPath, originalName);
+      // Extract images (will be empty in this implementation)
+      const images = await this.extractImages(input, originalName);
       
       const baseName = path.basename(originalName, '.pdf');
       
@@ -425,11 +235,14 @@ export class StandardPdfConverter extends BasePdfConverter {
         .replace(/[^\S\r\n]+/g, ' ')
         .trim();
 
-      // Add image references using Obsidian format
+      // Add image references using Obsidian format if any images were extracted
       let imageSection = '';
       if (images.length > 0) {
         imageSection = '\n\n## Extracted Images\n\n' +
           images.map(img => this.generateImageMarkdown(img.path)).join('\n\n');
+      } else {
+        // Add a note about OCR for image extraction
+        imageSection = '\n\n> Note: This conversion includes text only. For image extraction, enable OCR conversion with a Mistral API key in settings.';
       }
 
       // Generate content without frontmatter
@@ -465,15 +278,6 @@ export class StandardPdfConverter extends BasePdfConverter {
     } catch (error) {
       console.error('PDF conversion error:', error);
       throw new Error(`PDF conversion failed: ${error.message}`);
-    } finally {
-      // Cleanup
-      if (tempDir) {
-        try {
-          await fs.rm(tempDir, { recursive: true, force: true });
-        } catch (error) {
-          console.warn('Failed to cleanup temp directory:', error);
-        }
-      }
     }
   }
 }
