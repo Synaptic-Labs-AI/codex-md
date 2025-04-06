@@ -72,6 +72,30 @@ class OpenAIProxy {
       if (data instanceof FormData) {
         // Let the FormData set its own Content-Type with boundary
         Object.assign(headers, data.getHeaders?.() || {});
+        
+        // Log FormData details without exposing binary content
+        try {
+          const formDataDetails = {};
+          // Check if entries method exists (it should in formdata-node)
+          if (typeof data.entries === 'function') {
+            for (const [key, value] of data.entries()) {
+              if (value instanceof Blob) {
+                formDataDetails[key] = {
+                  type: 'Blob',
+                  size: value.size,
+                  contentType: value.type || 'application/octet-stream'
+                };
+              } else {
+                formDataDetails[key] = value;
+              }
+            }
+            console.log('🔄 [OpenAIProxy] FormData details:', formDataDetails);
+          } else {
+            console.log('🔄 [OpenAIProxy] FormData entries method not available');
+          }
+        } catch (formDataError) {
+          console.warn('⚠️ [OpenAIProxy] Could not log FormData details:', formDataError.message);
+        }
       }
 
       const response = await this.axiosInstance.post(`/${endpoint}`, data, { headers });
@@ -97,7 +121,8 @@ class OpenAIProxy {
         status: error.response?.status,
         endpoint,
         headers: Object.keys(headers || {}),
-        isFormData: data instanceof FormData
+        isFormData: data instanceof FormData,
+        formDataKeys: data instanceof FormData ? Array.from(data.keys()) : undefined
       });
       throw this.handleApiError(error);
     }

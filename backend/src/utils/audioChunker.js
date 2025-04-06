@@ -20,26 +20,41 @@ export class AudioChunker {
 
   /**
    * Split audio into chunks with progress tracking
-   * @param {string} inputPath - Path to the audio file to split
+   * @param {string|Buffer} input - Path to the audio file or audio buffer to split
    * @param {Object} options - Options for splitting
    * @param {Function} options.onProgress - Progress callback
-   * @returns {Promise<{paths: Array<string>, cleanup: Function}>} Array of chunk file paths and cleanup function
+   * @returns {Promise<Array<Buffer>|{paths: Array<string>, cleanup: Function}>} Array of chunk buffers or file paths and cleanup function
    */
-  async splitAudio(inputPath, options = {}) {
+  async splitAudio(input, options = {}) {
     // Create a unique temp directory for this chunking operation
     const chunkDir = path.join(this.tempDir, uuidv4());
     const chunkPaths = [];
+    let tempFilePath = null;
+    let isBuffer = false;
 
     try {
       // Ensure temp directories exist
       await fs.mkdir(this.tempDir, { recursive: true });
       await fs.mkdir(chunkDir, { recursive: true });
 
-      // Verify file exists
-      try {
-        await fs.access(inputPath);
-      } catch (error) {
-        throw new Error(`Cannot access audio file at ${inputPath}`);
+      // Handle input as buffer or path
+      let inputPath;
+      if (Buffer.isBuffer(input)) {
+        isBuffer = true;
+        console.log('🔄 [AudioChunker] Processing input as buffer');
+        // Write buffer to temp file
+        tempFilePath = path.join(chunkDir, `temp_input_${Date.now()}.bin`);
+        await fs.writeFile(tempFilePath, input);
+        inputPath = tempFilePath;
+      } else {
+        console.log('🔄 [AudioChunker] Processing input as file path');
+        inputPath = input;
+        // Verify file exists
+        try {
+          await fs.access(inputPath);
+        } catch (error) {
+          throw new Error(`Cannot access audio file at ${inputPath}`);
+        }
       }
 
       // Get audio duration
@@ -68,20 +83,50 @@ export class AudioChunker {
         }
       }
 
-      // Create cleanup function
-      const cleanup = async () => {
-        try {
-          await fs.rm(chunkDir, { recursive: true, force: true });
-          console.log('Cleaned up chunk directory:', chunkDir);
-        } catch (cleanupError) {
-          console.warn('Failed to cleanup chunk files:', cleanupError);
+      // If input was a buffer, read chunks back into buffers
+      if (isBuffer) {
+        console.log('🔄 [AudioChunker] Reading chunks back into buffers');
+        const chunkBuffers = [];
+        for (const chunkPath of chunkPaths) {
+          const chunkBuffer = await fs.readFile(chunkPath);
+          chunkBuffers.push(chunkBuffer);
         }
-      };
+        
+        // Clean up temp files
+        await fs.rm(chunkDir, { recursive: true, force: true });
+        console.log('Cleaned up chunk directory:', chunkDir);
+        
+        return chunkBuffers;
+      } else {
+        // Create cleanup function for file paths
+        const cleanup = async () => {
+          try {
+            await fs.rm(chunkDir, { recursive: true, force: true });
+            console.log('Cleaned up chunk directory:', chunkDir);
+          } catch (cleanupError) {
+            console.warn('Failed to cleanup chunk files:', cleanupError);
+          }
+        };
 
-      return { paths: chunkPaths, cleanup };
+        return { paths: chunkPaths, cleanup };
+      }
     } catch (error) {
-      console.error('Error splitting audio:', error);
-      throw error;
+      // Clean up temp directory on error
+      try {
+        await fs.rm(chunkDir, { recursive: true, force: true });
+        console.log('Cleaned up chunk directory after error:', chunkDir);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup chunk files after error:', cleanupError);
+      }
+      
+      // Avoid logging binary data
+      if (Buffer.isBuffer(input)) {
+        console.error('Error splitting audio buffer:', error.message);
+        throw new Error(`Error splitting audio buffer: ${error.message}`);
+      } else {
+        console.error('Error splitting audio file:', error.message);
+        throw error;
+      }
     }
   }
 

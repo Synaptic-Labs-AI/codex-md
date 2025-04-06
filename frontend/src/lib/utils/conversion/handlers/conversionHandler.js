@@ -36,6 +36,10 @@ class ConversionHandler {
             return;
         }
 
+        // Ensure timer is reset before starting a new conversion
+        const { conversionTimer } = await import('$lib/stores/conversionTimer');
+        conversionTimer.reset();
+        
         storeManager.updateConversionStatus(CONVERSION_STATUSES.INITIALIZING, 0);
         await new Promise(resolve => setTimeout(resolve, 1000));
 
