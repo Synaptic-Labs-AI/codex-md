@@ -33,7 +33,8 @@ export const {
     normalizePath,
     joinPaths,
     getExtension,
-    getBasename
+    getBasename,
+    generateUrlFilename
 } = sanitization;
 
 // Group functions by category
@@ -63,6 +64,7 @@ export const fileSanitization = {
     joinPaths,
     getExtension,
     getBasename,
+    generateUrlFilename,
 };
 
 // Default export for compatibility
@@ -91,6 +93,7 @@ export default {
     joinPaths,
     getExtension,
     getBasename,
+    generateUrlFilename,
     
     // Grouped exports
     fileTypes,

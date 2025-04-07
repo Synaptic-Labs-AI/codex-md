@@ -276,27 +276,100 @@ export class ContentExtractor {
    */
   async extractImages(page, baseUrl) {
     try {
-      return await page.evaluate((baseUrl, imageExtensions) => {
+      // Import DEFAULT_URL_CONVERTER_OPTIONS
+      const { DEFAULT_URL_CONVERTER_OPTIONS } = await import('./config.js');
+      
+      // Extract just the image configuration we need
+      const imageConfig = {
+        trustedCdnDomains: DEFAULT_URL_CONVERTER_OPTIONS.images.trustedCdnDomains,
+        validQueryParams: DEFAULT_URL_CONVERTER_OPTIONS.images.validQueryParams
+      };
+      
+      return await page.evaluate((baseUrl, imageExtensions, imageConfig) => {
         if (!document || !document.querySelectorAll) return [];
-        
+
+        const isValidImageUrl = (url) => {
+          try {
+            // Check if URL is absolute, if not make it absolute using baseUrl
+            const fullUrl = url.startsWith('http') ? url : new URL(url, baseUrl).href;
+            const urlObj = new URL(fullUrl);
+
+            // Access image config directly from passed argument
+
+            // Check if domain is a trusted CDN
+            const isTrustedCdn = imageConfig.trustedCdnDomains.some(domain => 
+              urlObj.hostname.includes(domain)
+            );
+
+            // Check for valid query parameters
+            const hasValidQueryParams = imageConfig.validQueryParams.some(param => 
+              urlObj.searchParams.has(param)
+            );
+
+            // Check file extension
+            const pathWithoutQuery = urlObj.pathname.toLowerCase();
+            const hasValidExtension = imageExtensions.some(ext => 
+              pathWithoutQuery.endsWith(ext) || 
+              pathWithoutQuery.includes(ext + '?')
+            );
+
+            // Special handling for CDN and dynamic URLs
+            const isImagePath = /(images?|photos?|media)\//i.test(urlObj.pathname);
+
+            return hasValidExtension || isTrustedCdn || (hasValidQueryParams && isImagePath);
+          } catch (e) {
+            console.warn('Invalid image URL:', e.message);
+            return false;
+          }
+        };
+
+        const getImageMetadata = (img) => {
+          const metadata = {
+            src: '',
+            alt: '',
+            title: '',
+            width: '',
+            height: ''
+          };
+
+          try {
+            // Get source URL
+            const src = img.src || img.getAttribute('src') || img.getAttribute('data-src');
+            if (!src) return null;
+            
+            metadata.src = src.startsWith('http') ? src : new URL(src, baseUrl).href;
+            if (!isValidImageUrl(metadata.src)) return null;
+
+            // Get image text metadata
+            metadata.alt = img.alt || img.getAttribute('alt') || '';
+            metadata.title = img.title || img.getAttribute('title') || metadata.alt || '';
+
+            // Get size metadata if available
+            const width = img.getAttribute('width') || img.width;
+            const height = img.getAttribute('height') || img.height;
+            if (width) metadata.width = width.toString();
+            if (height) metadata.height = height.toString();
+
+            // Clean up metadata
+            Object.keys(metadata).forEach(key => {
+              if (typeof metadata[key] === 'string') {
+                metadata[key] = metadata[key].trim();
+              }
+            });
+
+            return metadata;
+          } catch (e) {
+            console.warn('Error extracting image metadata:', e.message);
+            return null;
+          }
+        };
+
+        // Process all img elements
         return Array.from(document.querySelectorAll('img'))
-          .filter(img => {
-            try {
-              const src = img.src;
-              if (!src) return false;
-              const url = new URL(src, baseUrl);
-              const ext = url.pathname.split('.').pop().toLowerCase();
-              return imageExtensions.includes(`.${ext}`);
-            } catch (e) {
-              return false;
-            }
-          })
-          .map(img => ({
-            src: new URL(img.src, baseUrl).href,
-            alt: img.alt || '',
-            title: img.title || img.alt || ''
-          }));
-      }, baseUrl, IMAGE_EXTENSIONS);
+          .map(img => getImageMetadata(img))
+          .filter(metadata => metadata !== null);
+
+      }, baseUrl, IMAGE_EXTENSIONS, imageConfig);
     } catch (error) {
       console.error('Error extracting images:', error);
       return [];
@@ -404,49 +477,6 @@ export class ContentExtractor {
         source: url,
         captured: new Date().toISOString()
       };
-    }
-  }
-
-  /**
-   * Generate a filename from a URL
-   * @param {string} url - URL to generate filename from
-   * @returns {string} Generated filename
-   */
-  generateNameFromUrl(url) {
-    try {
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
-      
-      // If pathname is empty or just '/', use the hostname
-      if (!pathname || pathname === '/') {
-        return urlObj.hostname.replace(/\./g, '-');
-      }
-      
-      // Get the last part of the pathname
-      const parts = pathname.split('/').filter(Boolean);
-      let filename = parts.pop() || urlObj.hostname.replace(/\./g, '-');
-      
-      // Remove file extension if present
-      filename = filename.replace(/\.[^.]+$/, '');
-      
-      // Remove query parameters
-      filename = filename.split('?')[0];
-      
-      // Clean up the filename
-      filename = filename
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-      
-      // If filename is empty, use the hostname
-      if (!filename) {
-        filename = urlObj.hostname.replace(/\./g, '-');
-      }
-      
-      return filename;
-    } catch (error) {
-      console.error('Error generating name from URL:', error);
-      return 'untitled-page';
     }
   }
 
@@ -574,12 +604,7 @@ export class ContentExtractor {
   }
 }
 
-// Export utility functions for backward compatibility
-export const generateNameFromUrl = (url) => {
-  const extractor = new ContentExtractor();
-  return extractor.generateNameFromUrl(url);
-};
-
+// Export utility function for backward compatibility
 export const extractTitleFromUrl = (url) => {
   const extractor = new ContentExtractor();
   return extractor.extractTitleFromUrl(url);

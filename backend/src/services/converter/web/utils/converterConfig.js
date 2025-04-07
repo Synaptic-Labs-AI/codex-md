@@ -4,6 +4,7 @@
  */
 
 import path from 'path';
+import { generateUrlFilename } from '@codex-md/shared/utils/files';
 
 /**
  * Default image extensions to include in conversion
@@ -222,44 +223,6 @@ export function formatMetadata(metadata) {
   return lines.join('\n');
 }
 
-/**
- * Generate a filename from a URL
- * @param {string} url - URL to generate filename from
- * @returns {string} Generated filename
- */
-export function generateNameFromUrl(url) {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    
-    // Extract the last part of the path
-    let filename = path.basename(pathname);
-    
-    // If it's empty or just a slash, use the hostname
-    if (!filename || filename === '/' || filename === 'index.html') {
-      filename = urlObj.hostname;
-    }
-    
-    // Remove file extension if present
-    filename = filename.replace(/\.[^/.]+$/, '');
-    
-    // Sanitize the filename and add .md extension
-    filename = filename
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    
-    // Always append .md extension if not present
-    if (!filename.endsWith('.md')) {
-      filename = `${filename}.md`;
-    }
-    
-    return filename || 'untitled.md';
-  } catch (error) {
-    console.error('Error generating name from URL:', error);
-    return 'untitled';
-  }
-}
 
 /**
  * Extract a title from a URL

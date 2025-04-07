@@ -110,6 +110,27 @@ export function getBasename(filename) {
     return lastDotIndex === -1 ? filename : filename.slice(0, lastDotIndex);
 }
 
+/**
+ * Generates a filename from a URL
+ * @param {string} url - URL to generate filename from
+ * @returns {string} Generated filename with .md extension
+ */
+export function generateUrlFilename(url) {
+    if (!url) return 'untitled.md';
+    
+    try {
+        const urlObj = new URL(url);
+        // Extract hostname and remove www. prefix if present
+        const baseName = urlObj.hostname.replace(/^www\./, '');
+        // Use existing sanitizeFilename and ensure .md extension
+        const sanitized = sanitizeFilename(baseName);
+        return sanitized.endsWith('.md') ? sanitized : `${sanitized}.md`;
+    } catch (error) {
+        console.error('Error generating filename from URL:', error);
+        return 'untitled.md';
+    }
+}
+
 // Default export for compatibility
 export default {
     sanitizeFilename,
@@ -117,5 +138,6 @@ export default {
     normalizePath,
     joinPaths,
     getExtension,
-    getBasename
+    getBasename,
+    generateUrlFilename
 };

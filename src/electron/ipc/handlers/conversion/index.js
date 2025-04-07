@@ -16,6 +16,15 @@ function registerConversionHandlers() {
     // Handle file conversion requests
     ipcMain.handle('codex:convert:file', async (event, input, options) => {
         try {
+            // Handle URL conversions
+            if (options && options.type === 'url') {
+                console.log(`IPC: Processing URL conversion: ${input}`);
+                return await ElectronConversionService.convert(input, {
+                    ...options,
+                    type: 'url'
+                });
+            }
+            
             // Handle buffer input for binary files (audio/video/pdf/xlsx)
             if (options && options.buffer) {
                 console.log(`IPC: Processing binary file of type ${options.type || 'unknown'}: ${options.originalFileName || 'unnamed'}`);
