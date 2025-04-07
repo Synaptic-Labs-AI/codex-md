@@ -101,12 +101,6 @@ export async function convertPptxToMarkdown(input, originalName, apiKey) {
     let markdown = [
       `# ${presentationName}`,
       '',
-      '---',
-      'type: presentation',
-      `created: ${new Date().toISOString()}`,
-      `original: ${originalName}`,
-      '---',
-      '',
       ''
     ].join('\n');
 
