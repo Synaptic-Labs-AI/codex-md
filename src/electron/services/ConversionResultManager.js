@@ -14,7 +14,24 @@ const path = require('path');
 const { app } = require('electron');
 const FileSystemService = require('./FileSystemService');
 const { formatMetadata, cleanMetadata } = require('@codex-md/shared/utils/markdown');
-const { cleanTemporaryFilename, getBasename } = require('@codex-md/shared/utils/files');
+const { cleanTemporaryFilename, getBasename, generateUrlFilename } = require('@codex-md/shared/utils/files');
+
+/**
+ * Generate appropriate filename based on conversion type and metadata
+ * @private
+ * @param {string} originalName - Original filename or URL
+ * @param {string} type - Type of conversion (e.g., 'url', 'pdf')
+ * @param {Object} metadata - Metadata from conversion
+ * @returns {string} The appropriate filename
+ */
+function generateAppropriateFilename(originalName, type, metadata = {}) {
+  if (type === 'url' && metadata.source_url) {
+    return generateUrlFilename(metadata.source_url);
+  }
+  
+  // For regular files, clean the original name
+  return cleanTemporaryFilename(originalName);
+}
 
 /**
  * Helper function to escape special characters in regular expressions
@@ -216,11 +233,11 @@ class ConversionResultManager {
     const createSubdirectory = userProvidedOutputDir ? false : 
                              (options.createSubdirectory !== undefined ? options.createSubdirectory : true);
     
-    // Clean the name to remove any temporary filename patterns
-    const cleanedName = cleanTemporaryFilename(name);
+    // Generate appropriate filename based on type and metadata
+    const filename = generateAppropriateFilename(name, type, metadata);
     
-    // Get the base name without extension and sanitize it
-    const baseName = getBasename(cleanedName).replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
+    // Get the base name without extension and ensure it's valid for the file system
+    const baseName = getBasename(filename).replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
     const outputBasePath = createSubdirectory ? 
       path.join(baseOutputDir, `${baseName}_${Date.now()}`) : 
       baseOutputDir;

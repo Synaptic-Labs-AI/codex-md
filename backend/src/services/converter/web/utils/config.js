@@ -385,7 +385,8 @@ export const IMAGE_EXTENSIONS = [
   '.gif',
   '.webp',
   '.svg',
-  '.bmp'
+  '.bmp',
+  '.avif'
 ];
 
 /**
@@ -411,7 +412,35 @@ export const DEFAULT_URL_CONVERTER_OPTIONS = {
   // Add option to use body as fallback if no content is found with selectors
   useBodyFallback: true,
   // Minimum content length to consider valid (characters)
-  minContentLength: 100
+  minContentLength: 100,
+  // Image handling options
+  images: {
+    // Array of trusted image CDN domains
+    trustedCdnDomains: [
+      'synapticlabs.ai',
+      'cloudinary.com',
+      'imgix.net',
+      'cloudfront.net',
+      'amazonaws.com',
+      'akamaized.net',
+      'fastly.net',
+      'cdn.io'
+    ],
+    // Common image query parameters to preserve
+    validQueryParams: [
+      'width',
+      'height',
+      'w',
+      'h',
+      'size',
+      'resize',
+      'fit',
+      'quality',
+      'format',
+      'auto',
+      'name'
+    ]
+  }
 };
 
 /**

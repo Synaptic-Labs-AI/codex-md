@@ -13,8 +13,7 @@ const FileSystemService = require('./FileSystemService');
 const ConversionResultManager = require('./ConversionResultManager');
 const sharedUtils = require('@codex-md/shared');
 const { 
-  getFileType, 
-  cleanTemporaryFilename, 
+  getFileType,
   getFileHandlingInfo,
   HANDLING_TYPES,
   CONVERTER_CONFIG
@@ -138,38 +137,30 @@ class ElectronConversionService {
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
       progressTracker.update(5);
       
-      // Get file handling info from centralized system
-      const fileInfo = getFileHandlingInfo({
-        name: options.originalFileName || options.name,
-        type: options.type,
-        path: typeof filePath === 'string' ? filePath : undefined
-      });
+      // For URLs, use the explicit type from options, otherwise detect from file
+      const fileType = options.type === 'url' || options.type === 'parenturl' 
+        ? options.type 
+        : getFileType({
+            name: options.originalFileName || options.name,
+            type: options.type,
+            path: typeof filePath === 'string' ? filePath : undefined
+          });
       
-      console.log('📄 [ElectronConversionService] File input details:', {
+      console.log('📄 [ElectronConversionService] Processing:', {
+        type: fileType,
         isBuffer: Buffer.isBuffer(filePath),
         isTemporary: options.isTemporary,
-        fileInfo,
-        originalFileName: options.originalFileName,
-        name: options.name,
-        type: options.type,
-        outputDir: options.outputDir
+        isUrl: options.type === 'url' || options.type === 'parenturl'
       });
-      
-      const fileName = fileInfo.fileName;
-      const fileType = fileInfo.fileType;
-      
-      console.log(`📄 Determined file details: fileName=${fileName}, fileType=${fileType}`);
-      const cleanedFileName = cleanTemporaryFilename(fileName);
-      const finalBaseName = path.basename(cleanedFileName, path.extname(cleanedFileName));
       let fileContent;
-
-      // Handle content based on file type
-      if (options.isTemporary && fileInfo.isBinary) {
-        console.log(`Processing binary content as ${fileInfo.converter}: ${fileName}`);
+      
+      // Handle content based on input type
+      if (options.isTemporary && Buffer.isBuffer(filePath)) {
+        console.log(`Processing binary content as ${fileType}`);
         fileContent = filePath; // filePath is actually the buffer
-      } else if (fileInfo.isWeb) {
+      } else if (options.type === 'url') {
         console.log(`Processing URL: ${filePath}`);
-        fileContent = filePath; // filePath is the URL string
+        fileContent = filePath;
       } else if (typeof filePath === 'string') {
         // For file paths, validate file exists and read it
         try {
@@ -178,11 +169,8 @@ class ElectronConversionService {
             throw new Error(`File not found or inaccessible: ${filePath}`);
           }
           
-          // Read file based on handling type
-          fileContent = await readFileAsync(
-            filePath, 
-            fileInfo.isBinary ? undefined : 'utf8'
-          );
+          // Read file with appropriate encoding
+          fileContent = await readFileAsync(filePath);
         } catch (error) {
           console.error(`Error reading file: ${filePath}`, error);
           throw new Error(`File not found or inaccessible: ${filePath}`);
@@ -196,7 +184,7 @@ class ElectronConversionService {
       
       // Use the shared converters module directly
       const conversionResult = await convertToMarkdown(fileType, fileContent, {
-        name: fileName,
+        name: options.originalFileName || options.name,
         apiKey: options.apiKey,
         useOcr: options.useOcr,
         mistralApiKey: options.mistralApiKey,
@@ -212,25 +200,23 @@ class ElectronConversionService {
         throw new Error('Conversion produced empty content');
       }
       
-      // Determine file category
-      const fileCategory = getFileType(fileName) || 'text';
+      // Determine file category from name or type
+      const fileCategory = getFileType(options.originalFileName || options.name) || 'text';
       
       // Save the conversion result using the ConversionResultManager
       const result = await this.resultManager.saveConversionResult({
         content: content,
-        metadata: {
-          originalFile: cleanedFileName,
-          type: fileType,
-          category: fileCategory,
-          ...(conversionResult.pageCount ? { pageCount: conversionResult.pageCount } : {}),
-          ...(conversionResult.slideCount ? { slideCount: conversionResult.slideCount } : {}),
-          ...(conversionResult.metadata || {})
-        },
+        metadata: conversionResult.metadata || {},
         images: conversionResult.images || [],
-        name: finalBaseName,
+        name: options.originalFileName || options.name,
         type: fileType,
         outputDir: options.outputDir,
-        options
+        options: {
+          ...options,
+          category: fileCategory,
+          pageCount: conversionResult.pageCount,
+          slideCount: conversionResult.slideCount
+        }
       });
       
       progressTracker.update(100);

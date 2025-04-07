@@ -1,6 +1,7 @@
 import { convertUrlToMarkdown } from './urlConverter.js';
 import { AppError } from '../../../utils/errorHandler.js';
 import { SitemapParser } from './utils/SitemapParser.js';
+import { generateUrlFilename, sanitizeFilename } from '@codex-md/shared/utils/files';
 
 /**
  * Convert a parent URL and its child pages to markdown
@@ -65,6 +66,8 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
     } else {
       console.log(`⚠️ No URLs found in sitemap, will only process parent URL`);
     }
+    
+    const timestamp = new Date().toISOString();
 
     // Add parent URL if not already included
     urlsToProcess.add(parentUrl);
@@ -141,8 +144,8 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
       }
     }
 
-    // Generate output files
-    const { files, indexContent } = generateOutputFiles(parentUrl, processedPages, hostname);
+    // Generate output files and pass timestamp for consistency
+    const { files, indexContent } = generateOutputFiles(parentUrl, processedPages, hostname, timestamp);
 
     // Send a single final progress event
     if (options.onProgress) {
@@ -182,9 +185,16 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
       url: parentUrl,
       type: 'parenturl',
       name: hostname,
+      source_url: parentUrl,
       content: indexContent,
       files,
       success: true,
+      metadata: {
+        source_url: parentUrl,
+        type: 'website',
+        hostname,
+        created: timestamp
+      },
       stats: {
         totalPages: processedPages.length,
         successfulPages: processedPages.filter(p => p.success).length,
@@ -206,10 +216,9 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
  * All files are organized in a dedicated folder for the website
  * @private
  */
-function generateOutputFiles(parentUrl, pages, hostname) {
+function generateOutputFiles(parentUrl, pages, hostname, timestamp) {
   const successfulPages = pages.filter(p => p.success);
   const failedPages = pages.filter(p => !p.success);
-  const timestamp = new Date().toISOString();
   
   // Generate a folder name for the website
   const folderName = generateFolderName(hostname, timestamp);
@@ -251,24 +260,12 @@ function generateOutputFiles(parentUrl, pages, hostname) {
     ...Array.from(sections.entries()).map(([section, sectionPages]) => [
       `### ${section.charAt(0).toUpperCase() + section.slice(1)}\n`,
       ...sectionPages.map(page => {
-        // Generate a safe filename from the URL - same logic as in files array
+        // Use shared utility to generate filename from URL
         let filename;
         try {
-          const urlObj = new URL(page.url);
-          // Use pathname or hostname if pathname is just '/'
-          const pathSegment = urlObj.pathname === '/' ? 
-            urlObj.hostname : 
-            urlObj.pathname.split('/').pop() || urlObj.hostname;
-          
-          // Clean the filename and ensure it's valid
-          filename = pathSegment
-            .replace(/\.[^/.]+$/, '') // Remove file extension if present
-            .replace(/[^a-zA-Z0-9_-]/g, '_') // Replace invalid chars with underscore
-            .replace(/_+/g, '_') // Replace multiple underscores with single one
-            .toLowerCase();
-          
-          // Ensure we have a valid filename
-          if (!filename || filename === '' || filename === '_') {
+          // Use just the base part without .md extension
+          filename = generateUrlFilename(page.url).replace(/\.md$/, '');
+          if (!filename || filename === 'untitled') {
             filename = 'page_' + Math.floor(Math.random() * 10000);
           }
         } catch (error) {
@@ -298,24 +295,11 @@ function generateOutputFiles(parentUrl, pages, hostname) {
       type: 'text'
     },
     ...successfulPages.map(page => {
-      // Generate a safe filename from the URL
+      // Use shared utility to generate filename from URL
       let filename;
       try {
-        const urlObj = new URL(page.url);
-        // Use pathname or hostname if pathname is just '/'
-        const pathSegment = urlObj.pathname === '/' ? 
-          urlObj.hostname : 
-          urlObj.pathname.split('/').pop() || urlObj.hostname;
-        
-        // Clean the filename and ensure it's valid
-        filename = pathSegment
-          .replace(/\.[^/.]+$/, '') // Remove file extension if present
-          .replace(/[^a-zA-Z0-9_-]/g, '_') // Replace invalid chars with underscore
-          .replace(/_+/g, '_') // Replace multiple underscores with single one
-          .toLowerCase();
-        
-        // Ensure we have a valid filename
-        if (!filename || filename === '' || filename === '_') {
+        filename = generateUrlFilename(page.url).replace(/\.md$/, '');
+        if (!filename || filename === 'untitled') {
           filename = 'page_' + Math.floor(Math.random() * 10000);
         }
       } catch (error) {
@@ -342,17 +326,20 @@ function generateOutputFiles(parentUrl, pages, hostname) {
  * @private
  */
 function generateFolderName(hostname, timestamp) {
-  // Sanitize hostname for folder name
-  const sanitizedHostname = hostname
-    .replace(/[^a-zA-Z0-9]/g, '-') // Replace invalid chars with hyphen
-    .replace(/-+/g, '-')           // Replace multiple hyphens with single one
-    .toLowerCase();
-  
-  // Extract date and time components from timestamp for a more readable format
-  const date = new Date(timestamp);
-  const dateStr = date.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
-  const timeStr = date.toISOString().split('T')[1].substring(0, 8).replace(/:/g, ''); // HHMMSS
-  
-  // Combine hostname with date and time to ensure uniqueness
-  return `${sanitizedHostname}-${dateStr}-${timeStr}`;
+  try {
+    // Use sanitizeFilename for hostname part
+    const sanitizedHostname = sanitizeFilename(hostname).replace(/\./g, '-');
+    
+    // Extract date and time components from timestamp for a more readable format
+    const date = new Date(timestamp);
+    const dateStr = date.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
+    const timeStr = date.toISOString().split('T')[1].substring(0, 8).replace(/:/g, ''); // HHMMSS
+    
+    // Combine hostname with date and time to ensure uniqueness
+    return `${sanitizedHostname}-${dateStr}-${timeStr}`;
+  } catch (error) {
+    console.error('Error generating folder name:', error);
+    // Fallback to a simpler name if something goes wrong
+    return `website-${Date.now()}`;
+  }
 }

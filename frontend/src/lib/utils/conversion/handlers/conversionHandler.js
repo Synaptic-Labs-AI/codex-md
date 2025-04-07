@@ -169,10 +169,13 @@ class ConversionHandler {
                     }
                 );
             } else if (fileInfo.isWeb && item.url) {
-                // For URLs, pass the URL string directly
+                // For URLs, pass the URL string directly with the correct type
                 result = await electronClient.convertFile(
                     item.url,
-                    conversionOptions,
+                    {
+                        ...conversionOptions,
+                        type: item.type || 'url', // Ensure we pass url or parenturl type
+                    },
                     progress => {
                         storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
                     }

@@ -9,7 +9,7 @@ import { BrowserManager } from './utils/BrowserManager.js';
 import { PageCleaner } from './utils/PageCleaner.js';
 import { ContentExtractor } from './utils/ContentExtractor.js';
 import { generateMarkdown } from '../../../utils/markdownGenerator.js';
-import { mergeOptions, generateNameFromUrl } from './utils/converterConfig.js';
+import { mergeOptions } from './utils/converterConfig.js';
 
 export class UrlConverter {
   constructor() {
@@ -195,14 +195,13 @@ export class UrlConverter {
         throw new AppError(`Failed to generate Markdown: ${markdownError.message}`, 500);
       }
       
-      // Generate name from URL
-      const name = this.generateName(finalUrl);
-      
       return {
         content: markdown,
-        name,
         url: finalUrl,
-        metadata,
+        metadata: {
+          ...metadata,
+          source_url: finalUrl
+        },
         images,
         success: true
       };
@@ -244,14 +243,6 @@ export class UrlConverter {
     }
   }
 
-  /**
-   * Generate a filename from a URL
-   * @param {string} url - URL to generate name from
-   * @returns {string} Generated filename
-   */
-  generateName(url) {
-    return generateNameFromUrl(url);
-  }
 }
 
 // Factory function to create converter

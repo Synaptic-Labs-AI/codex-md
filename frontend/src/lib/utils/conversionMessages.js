@@ -44,7 +44,11 @@ function formatMessage(message) {
     .join('');
 }
 
-export const conversionMessages = [
+// Initialize an array to store pre-formatted messages
+let formattedMessages;
+
+// Original messages array
+const messages = [
   // Original conversion messages
   "Converting digital knowledge to *markdown*... 🚀",
   "Transforming content into **readable** format... ✨",
@@ -65,7 +69,7 @@ export const conversionMessages = [
   "Turning information into **insight**... 💭",
   "Making your content more *accessible*... 🌈",
   "Preparing your **perfect** markdown files... 📝",
-  "Transforming files with *markdown magic*... 🪄",
+  "Transforming files with *markdown magic*... ✅",
   
   // What Markdown is
   "# Quick Markdown Facts\nMarkdown is a *lightweight* markup language for creating **formatted text**! 📄",
@@ -154,10 +158,24 @@ export const conversionMessages = [
 ];
 
 /**
- * Returns a random message from the conversionMessages array
- * @returns {string} A randomly selected message, formatted with HTML
+ * Initialize the formatted messages array by pre-formatting all messages.
+ * This is called immediately to prepare messages at startup time.
+ */
+function initializeFormattedMessages() {
+  formattedMessages = messages.map(message => formatMessage(message));
+}
+
+/**
+ * Returns a random message from the pre-formatted messages array
+ * @returns {string} A randomly selected message, already formatted with HTML
  */
 export function getRandomMessage() {
-  const randomIndex = Math.floor(Math.random() * conversionMessages.length);
-  return formatMessage(conversionMessages[randomIndex]);
+  const randomIndex = Math.floor(Math.random() * formattedMessages.length);
+  return formattedMessages[randomIndex];
 }
+
+// Format all messages at startup
+initializeFormattedMessages();
+
+// Export the original messages for reference if needed
+export const conversionMessages = messages;
