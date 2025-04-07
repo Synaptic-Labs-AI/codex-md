@@ -120,8 +120,27 @@ export function generateUrlFilename(url) {
     
     try {
         const urlObj = new URL(url);
+        
         // Extract hostname and remove www. prefix if present
-        const baseName = urlObj.hostname.replace(/^www\./, '');
+        const hostname = urlObj.hostname.replace(/^www\./, '');
+        
+        // Extract path and clean it
+        let pathPart = urlObj.pathname;
+        
+        // Remove trailing slash
+        pathPart = pathPart.replace(/\/$/, '');
+        
+        // If path is empty or just '/', use 'home' or 'index'
+        if (!pathPart || pathPart === '/') {
+            pathPart = 'home';
+        } else {
+            // Remove leading slash and replace remaining slashes with hyphens
+            pathPart = pathPart.replace(/^\//, '').replace(/\//g, '-');
+        }
+        
+        // Combine hostname and path
+        const baseName = `${hostname}${pathPart ? '-' + pathPart : ''}`;
+        
         // Use existing sanitizeFilename and ensure .md extension
         const sanitized = sanitizeFilename(baseName);
         return sanitized.endsWith('.md') ? sanitized : `${sanitized}.md`;

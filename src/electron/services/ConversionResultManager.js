@@ -195,13 +195,14 @@ class ConversionResultManager {
    * @param {string} options.content - The content to save
    * @param {Object} [options.metadata={}] - Metadata to include in the frontmatter
    * @param {Array} [options.images=[]] - Array of image objects to save
+   * @param {Array} [options.files=[]] - Array of additional files to save (for multi-file conversions)
    * @param {string} options.name - Base name for the output file/directory
    * @param {string} options.type - Type of content (e.g., 'pdf', 'url', etc.)
    * @param {string} [options.outputDir] - Custom output directory
    * @param {Object} [options.options={}] - Additional options
    * @returns {Promise<Object>} Result of the save operation
    */
-  async saveConversionResult({ content, metadata = {}, images = [], name, type, outputDir, options = {} }) {
+  async saveConversionResult({ content, metadata = {}, images = [], files = [], name, type, outputDir, options = {} }) {
     console.log(`🔄 [ConversionResultManager] Saving conversion result for ${name} (${type})`);
     
     // Validate required parameters
@@ -340,12 +341,54 @@ class ConversionResultManager {
     // Save the markdown content
     await this.fileSystem.writeFile(mainFilePath, fullContent);
 
+    // Handle additional files if provided (for multi-file conversions like parenturl)
+    if (files && Array.isArray(files) && files.length > 0) {
+      console.log(`📄 [ConversionResultManager] Processing ${files.length} additional files`);
+      
+      for (const file of files) {
+        if (!file || !file.name || !file.content) {
+          console.warn(`⚠️ Invalid file object:`, file);
+          continue;
+        }
+        
+        try {
+          // Ensure the directory exists
+          const fileDirPath = path.dirname(path.join(outputBasePath, file.name));
+          await this.fileSystem.createDirectory(fileDirPath);
+          
+          // Save the file
+          const filePath = path.join(outputBasePath, file.name);
+          console.log(`💾 Saving additional file: ${filePath}`);
+          
+          // Determine if we need to add frontmatter
+          let fileContent = file.content;
+          if (file.type === 'text' && !fileContent.trim().startsWith('---')) {
+            // Create metadata for this file
+            const fileMetadata = cleanMetadata({
+              type: file.type || 'text',
+              converted: new Date().toISOString(),
+              ...(file.metadata || {})
+            });
+            
+            // Add frontmatter
+            const fileFrontmatter = formatMetadata(fileMetadata);
+            fileContent = fileFrontmatter + fileContent;
+          }
+          
+          await this.fileSystem.writeFile(filePath, fileContent);
+        } catch (fileError) {
+          console.error(`❌ Failed to save file: ${file.name}`, fileError);
+        }
+      }
+    }
+
     // Log the result details
     console.log('💾 Conversion result saved:', {
       outputPath: outputBasePath,
       mainFile: mainFilePath,
       hasImages: images && images.length > 0,
       imageCount: images ? images.length : 0,
+      additionalFiles: files ? files.length : 0,
       contentLength: fullContent.length
     });
     
