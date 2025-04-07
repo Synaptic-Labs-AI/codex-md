@@ -22,35 +22,77 @@
     "make": "electron-forge make",
     "lint": "eslint src/electron"
   },
-  "build": {
-    "appId": "com.codexmd.app",
-    "productName": "codex.md",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "src/electron/**/*",
-      "frontend/build/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "frontend/static/logo.png"
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ],
-      "icon": "frontend/static/logo.png"
-    },
-    "linux": {
-      "target": [
-        "AppImage"
-      ],
-      "icon": "frontend/static/logo.png"
-    }
+    "build": {
+        "appId": "com.codexmd.app",
+        "productName": "codex.md",
+        "directories": {
+            "output": "dist"
+        },
+        "publish": [{
+            "provider": "github",
+            "owner": "Synaptic-Labs-AI",
+            "repo": "codex-md"
+        }],
+        "files": [
+            "src/electron/**/*",
+            "frontend/build/**/*",
+            "backend/dist/**/*",
+            "shared/dist/**/*",
+            "package.json"
+        ],
+        "afterPack": "./scripts/afterPack.js",
+        "extraResources": [
+            {
+                "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
+                "to": "ffmpeg.exe",
+                "platform": "win32"
+            },
+            {
+                "from": "node_modules/@ffmpeg-installer/darwin-x64/ffmpeg",
+                "to": "ffmpeg",
+                "platform": "darwin"
+            },
+            {
+                "from": "node_modules/@ffmpeg-installer/linux-x64/ffmpeg",
+                "to": "ffmpeg",
+                "platform": "linux"
+            }
+        ],
+        "win": {
+            "target": ["nsis"],
+            "icon": "frontend/static/logo.png",
+            "extraResources": [
+                {
+                    "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
+                    "to": "ffmpeg.exe"
+                }
+            ]
+        },
+        "mac": {
+            "target": ["dmg"],
+            "icon": "frontend/static/logo.png",
+            "extraResources": [
+                {
+                    "from": "node_modules/@ffmpeg-installer/darwin-x64/ffmpeg",
+                    "to": "ffmpeg"
+                }
+            ],
+            "hardenedRuntime": true,
+            "gatekeeperAssess": false,
+            "entitlements": "build/entitlements.mac.plist",
+            "entitlementsInherit": "build/entitlements.mac.plist"
+        },
+        "linux": {
+            "target": ["AppImage"],
+            "icon": "frontend/static/logo.png",
+            "extraResources": [
+                {
+                    "from": "node_modules/@ffmpeg-installer/linux-x64/ffmpeg",
+                    "to": "ffmpeg"
+                }
+            ],
+            "category": "Utility"
+        }
   },
   "config": {
     "forge": {

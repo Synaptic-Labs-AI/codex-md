@@ -12,10 +12,14 @@
 const { app, BrowserWindow, protocol } = require('electron');
 const path = require('path');
 const url = require('url');
+const { utils } = require('@codex-md/shared');
+const { PathUtils } = utils.paths;
 const ElectronConversionService = require('./services/ElectronConversionService');
+const { createMacMenu } = require('./features/menu');
 const { setupBasicHandlers, setupWindowHandlers, cleanupWindowHandlers } = require('./ipc/handlers');
 const TrayManager = require('./features/tray');
 const NotificationManager = require('./features/notifications');
+const UpdateManager = require('./features/updater');
 const { createStore } = require('./utils/storeFactory');
 
 // Keep a global reference of objects
@@ -23,6 +27,7 @@ let mainWindow;
 let appInitialized = false;
 let trayManager = null;
 let notificationManager = null;
+let updateManager = null;
 
 // Initialize tray store
 const trayStore = createStore('tray-manager', {
@@ -87,6 +92,11 @@ async function createAndSetupWindow() {
  */
 async function initializeApp() {
     try {
+        // Initialize update manager
+        updateManager = new UpdateManager();
+        updateManager.initialize();
+        console.log('✅ Update manager initialized');
+
         // Setup basic IPC handlers first
         console.log('📡 Registering basic IPC handlers...');
         setupBasicHandlers(app);
@@ -118,18 +128,33 @@ function createMainWindow() {
         throw new Error('Cannot create window before app initialization');
     }
 
-    mainWindow = new BrowserWindow({
+    // Get platform-specific icon path
+    const iconPath = PathUtils.normalizePath(
+        path.join(__dirname, '../../frontend/static/logo.png')
+    );
+
+    // Configure window for platform
+    const windowConfig = {
         width: 1200,
         height: 800,
         minWidth: 800,
         minHeight: 600,
-        icon: path.join(__dirname, '../../frontend/static/logo.png'),
+        icon: iconPath,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js')
+            preload: PathUtils.normalizePath(path.join(__dirname, 'preload.js'))
         }
-    });
+    };
+
+    // Platform-specific window settings
+    if (process.platform === 'darwin') {
+        windowConfig.titleBarStyle = 'hiddenInset';
+    } else if (process.platform === 'win32') {
+        windowConfig.frame = true;
+    }
+
+    mainWindow = new BrowserWindow(windowConfig);
 
     // Load the app
     if (process.env.NODE_ENV === 'development') {
@@ -137,14 +162,51 @@ function createMainWindow() {
         mainWindow.loadURL('http://localhost:5173');
         mainWindow.webContents.openDevTools();
     } else {
-        // Production - load local files
+        // Production - load local files using platform-safe paths
+        const appPath = PathUtils.normalizePath(
+            path.join(__dirname, '../frontend/dist/index.html')
+        );
+        
         mainWindow.loadURL(
             url.format({
-                pathname: path.join(__dirname, '../frontend/dist/index.html'),
+                pathname: appPath,
                 protocol: 'file:',
                 slashes: true
             })
         );
+    }
+
+    // Set platform-specific application menu
+    if (process.platform === 'darwin') {
+        createMacMenu();
+        // Make mainWindow available globally for menu actions
+        global.mainWindow = mainWindow;
+    } else {
+        // For Windows and Linux, use a simpler menu or default
+        const { Menu } = require('electron');
+        Menu.setApplicationMenu(Menu.buildFromTemplate([
+            {
+                label: 'File',
+                submenu: [
+                    {
+                        label: 'New Conversion',
+                        accelerator: 'CmdOrCtrl+N',
+                        click: () => mainWindow?.webContents.send('menu:new-conversion')
+                    },
+                    { type: 'separator' },
+                    { role: 'quit' }
+                ]
+            },
+            {
+                label: 'View',
+                submenu: [
+                    { role: 'reload' },
+                    { role: 'toggleDevTools' },
+                    { type: 'separator' },
+                    { role: 'togglefullscreen' }
+                ]
+            }
+        ]));
     }
 
     // Window event handlers
@@ -164,11 +226,12 @@ function createMainWindow() {
 // App startup sequence
 app.whenReady().then(async () => {
     try {
-        // Register protocols
-        protocol.registerFileProtocol('media', (request, callback) => {
-            const filePath = request.url.replace('media://', '');
-            callback(decodeURI(filePath));
-        });
+// Register protocols with platform-safe paths
+protocol.registerFileProtocol('media', (request, callback) => {
+    const filePath = request.url.replace('media://', '');
+    const safePath = PathUtils.normalizePath(decodeURI(filePath));
+    callback(safePath);
+});
 
         // Initialize app before creating window
         console.log('🚀 Starting app initialization...');
@@ -238,6 +301,7 @@ app.on('will-quit', () => {
         trayManager = null;
     }
     notificationManager = null;
+    updateManager = null;
 });
 
 // Handle fatal errors

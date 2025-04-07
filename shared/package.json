@@ -29,6 +29,10 @@
     "./utils/web": {
       "import": "./dist/esm/utils/web/index.js",
       "require": "./dist/cjs/utils/web/index.cjs"
+    },
+    "./utils/paths": {
+      "import": "./dist/esm/utils/paths/index.js",
+      "require": "./dist/cjs/utils/paths/index.cjs"
     }
   },
   "scripts": {
