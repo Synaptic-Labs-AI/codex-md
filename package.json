@@ -37,19 +37,19 @@
       "target": [
         "nsis"
       ],
-      "icon": "frontend/src/static/favicon.ico"
+      "icon": "frontend/static/logo.png"
     },
     "mac": {
       "target": [
         "dmg"
       ],
-      "icon": "frontend/src/static/favicon.icns"
+      "icon": "frontend/static/logo.png"
     },
     "linux": {
       "target": [
         "AppImage"
       ],
-      "icon": "frontend/src/static/favicon.png"
+      "icon": "frontend/static/logo.png"
     }
   },
   "config": {

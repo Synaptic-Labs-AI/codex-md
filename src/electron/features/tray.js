@@ -40,7 +40,7 @@ class TrayManager {
    */
   createTray() {
     try {
-      const iconPath = path.join(__dirname, '../../../frontend/static/logo.png');
+      const iconPath = path.join(__dirname, '../../../frontend/static/logo-32x32.png');
       
       // Create the tray icon
       this.tray = new Tray(iconPath);

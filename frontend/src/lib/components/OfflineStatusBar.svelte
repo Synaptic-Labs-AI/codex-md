@@ -23,32 +23,43 @@
   let mounted = false;
   
   // Handle offline events
-  function handleOfflineEvent(event, data) {
+  function handleOfflineEvent(event) {
     // Log the event structure to help with debugging
-    console.log('[OfflineStatusBar] Received offline event:', { event, data });
+    console.log('[OfflineStatusBar] Received offline event:', event);
     
-    // Check if data exists
-    if (!data) {
-      console.error('[OfflineStatusBar] Received offline event with no data');
-      return;
-    }
-
     try {
       // Safely handle each event type with null checks
-      if (data.type === 'status-change' && typeof data.online === 'boolean') {
-        offlineStore.setOnlineStatus(data.online);
-      } else if (data.type === 'api-status' && data.status) {
-        offlineStore.setApiStatus(data.status);
-      } else if (data.type === 'operation-complete' || data.type === 'operation-failed') {
-        // Refresh queued operations
-        loadQueuedOperations();
-        
-        // Log operation details if available
-        if (data.operation) {
-          console.log(`[OfflineStatusBar] Operation ${data.type}:`, data.operation);
-        }
-      } else {
-        console.warn('[OfflineStatusBar] Unknown offline event type:', data.type);
+      if (!event || typeof event !== 'object') {
+        console.error('[OfflineStatusBar] Invalid event received');
+        return;
+      }
+
+      switch (event.type) {
+        case 'status-change':
+          if (typeof event.online === 'boolean') {
+            offlineStore.setOnlineStatus(event.online);
+          }
+          break;
+          
+        case 'api-status':
+          if (event.status) {
+            offlineStore.setApiStatus(event.status);
+          }
+          break;
+          
+        case 'operation-complete':
+        case 'operation-failed':
+          // Refresh queued operations
+          loadQueuedOperations();
+          
+          // Log operation details if available
+          if (event.operation) {
+            console.log(`[OfflineStatusBar] Operation ${event.type}:`, event.operation);
+          }
+          break;
+          
+        default:
+          console.warn('[OfflineStatusBar] Unknown offline event type:', event.type);
       }
     } catch (error) {
       console.error('[OfflineStatusBar] Error handling offline event:', error);
@@ -111,7 +122,7 @@
       }
       
       // Listen for offline events
-      const cleanup = electronClient.onOfflineEvent(handleOfflineEvent);
+      const cleanup = electronClient.onOfflineEvent((event) => handleOfflineEvent(event));
       
       // Return cleanup function for onDestroy
       return () => {
