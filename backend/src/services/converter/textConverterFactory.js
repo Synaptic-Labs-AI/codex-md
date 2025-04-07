@@ -1,16 +1,18 @@
 // services/converter/textConverterFactory.js
 
 /**
- * Factory for creating text-based document converters (PDF, DOCX, etc.)
+ * Factory for creating text-based document converters (PDF, DOCX, PPTX, etc.)
  * Handles selection and creation of appropriate converter based on file type
- * 
+ *
  * Related files:
  * - pdf/PdfConverterFactory.js: PDF converter implementation
  * - text/docxConverter.js: DOCX converter implementation
+ * - text/pptxConverter.js: PPTX converter implementation
  */
 
 import pdfConverter from './pdf/PdfConverterFactory.js';
 import docxConverter from './text/docxConverter.js';
+import pptxConverter from './text/pptxConverter.js';
 import * as xlsxConverter from './data/xlsxConverter.js';
 import * as csvConverter from './data/csvConverter.js';
 import * as urlConverter from './web/urlConverter.js';
@@ -58,6 +60,21 @@ const converters = {
     convert: docxConverter.convert,
     validate: docxConverter.validate,
     config: docxConverter.config
+  },
+
+  // PowerPoint Presentations
+  pptx: {
+    convert: pptxConverter.convert,
+    validate: (input) => Buffer.isBuffer(input) && input.length > 0,
+    config: {
+      name: 'PowerPoint Presentation',
+      extensions: ['.pptx', '.ppt'],
+      mimeTypes: [
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/vnd.ms-powerpoint'
+      ],
+      maxSize: 50 * 1024 * 1024, // 50MB
+    }
   },
 
   // Excel Spreadsheets

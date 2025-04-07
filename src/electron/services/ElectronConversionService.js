@@ -2,6 +2,20 @@
  * ElectronConversionService.js
  * Handles document conversion using native file system operations in Electron.
  * Coordinates conversion processes and delegates to the shared conversion utilities.
+ *
+ * IMPORTANT: When determining file types for conversion, we extract the file extension
+ * directly rather than using the category from getFileType. This ensures that we use
+ * the specific converter registered for each file type (e.g., 'pdf', 'docx', 'pptx')
+ * rather than trying to use a converter for the category ('documents').
+ *
+ * Special handling is implemented for data files (CSV, XLSX) to ensure they use the
+ * correct converter based on file extension. If the extension can't be determined,
+ * we default to 'csv' rather than using the category 'data'.
+ *
+ * For CSV files sent as text content, we detect CSV content by checking for commas, tabs,
+ * and newlines, and process it directly rather than treating it as a file path. This fixes
+ * the "File not found or inaccessible" error that occurred when the system tried to interpret
+ * CSV content as a file path.
  */
 
 const path = require('path');
@@ -137,14 +151,45 @@ class ElectronConversionService {
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
       progressTracker.update(5);
       
-      // For URLs, use the explicit type from options, otherwise detect from file
-      const fileType = options.type === 'url' || options.type === 'parenturl' 
-        ? options.type 
-        : getFileType({
-            name: options.originalFileName || options.name,
-            type: options.type,
-            path: typeof filePath === 'string' ? filePath : undefined
-          });
+      // For URLs, use the explicit type from options
+      // For files, use the file extension directly instead of the category
+      const fileType = options.type === 'url' || options.type === 'parenturl'
+        ? options.type
+        : (() => {
+            // Special handling for data files
+            if (options.type === 'data') {
+              // Try to get the file extension from the filename
+              const fileName = options.originalFileName || options.name;
+              if (fileName) {
+                const extension = fileName.split('.').pop().toLowerCase();
+                if (extension === 'csv' || extension === 'xlsx' || extension === 'xls') {
+                  console.log(`📊 [ElectronConversionService] Detected data file type: ${extension}`);
+                  return extension;
+                }
+              }
+              
+              // If we can't determine the specific data file type, default to CSV
+              // This is safer than using 'data' which isn't a registered converter
+              console.log(`📊 [ElectronConversionService] Using default 'csv' for data file with unknown extension`);
+              return 'csv';
+            }
+            
+            // For other files, try to get the file extension directly
+            const fileName = options.originalFileName || options.name;
+            if (fileName) {
+              const extension = fileName.split('.').pop().toLowerCase();
+              if (extension && extension !== fileName) {
+                return extension;
+              }
+            }
+            
+            // If we can't get the extension, fall back to the category
+            return getFileType({
+              name: fileName,
+              type: options.type,
+              path: typeof filePath === 'string' ? filePath : undefined
+            });
+          })();
       
       console.log('📄 [ElectronConversionService] Processing:', {
         type: fileType,
@@ -169,18 +214,74 @@ class ElectronConversionService {
         console.log(`Processing ${options.type === 'parenturl' ? 'parent URL' : 'URL'}: ${filePath}`);
         fileContent = filePath;
       } else if (typeof filePath === 'string') {
-        // For file paths, validate file exists and read it
-        try {
-          const fileStats = await this.fileSystem.getStats(filePath);
-          if (!fileStats.success) {
+        // Special handling for data files
+        if (options.type === 'data') {
+          // Determine the specific data file type based on the filename and content
+          const fileName = options.originalFileName || options.name || '';
+          const fileExtension = fileName.split('.').pop().toLowerCase();
+          
+          // Check if this is CSV content
+          const isCSVContent = (filePath.includes(',') || filePath.includes('\t')) &&
+                              filePath.includes('\n');
+          
+          if (isCSVContent || fileExtension === 'csv') {
+            console.log('Detected CSV content, processing directly');
+            fileContent = filePath;
+            
+            // Use the csv converter instead of data
+            if (fileType === 'data') {
+              console.log('Changing fileType from "data" to "csv" for CSV content');
+              fileType = 'csv';
+            }
+          } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+            console.log(`Detected Excel file (${fileExtension}), using xlsx converter`);
+            
+            // For XLSX files, we still need to validate the file path
+            try {
+              const fileStats = await this.fileSystem.getStats(filePath);
+              if (!fileStats.success) {
+                throw new Error(`File not found or inaccessible: ${filePath}`);
+              }
+              
+              fileContent = await readFileAsync(filePath);
+              
+              // Use the xlsx converter instead of data
+              if (fileType === 'data') {
+                console.log('Changing fileType from "data" to "xlsx" for Excel content');
+                fileType = 'xlsx';
+              }
+            } catch (error) {
+              console.error(`Error reading Excel file: ${filePath}`, error);
+              throw new Error(`File not found or inaccessible: ${filePath}`);
+            }
+          } else {
+            // For other data files or unknown formats, try to read as a file
+            try {
+              const fileStats = await this.fileSystem.getStats(filePath);
+              if (!fileStats.success) {
+                throw new Error(`File not found or inaccessible: ${filePath}`);
+              }
+              
+              fileContent = await readFileAsync(filePath);
+            } catch (error) {
+              console.error(`Error reading file: ${filePath}`, error);
+              throw new Error(`File not found or inaccessible: ${filePath}`);
+            }
+          }
+        } else {
+          // For non-data files, validate file exists and read it
+          try {
+            const fileStats = await this.fileSystem.getStats(filePath);
+            if (!fileStats.success) {
+              throw new Error(`File not found or inaccessible: ${filePath}`);
+            }
+            
+            // Read file with appropriate encoding
+            fileContent = await readFileAsync(filePath);
+          } catch (error) {
+            console.error(`Error reading file: ${filePath}`, error);
             throw new Error(`File not found or inaccessible: ${filePath}`);
           }
-          
-          // Read file with appropriate encoding
-          fileContent = await readFileAsync(filePath);
-        } catch (error) {
-          console.error(`Error reading file: ${filePath}`, error);
-          throw new Error(`File not found or inaccessible: ${filePath}`);
         }
       } else {
         // If filePath is not a string and not binary content, it's invalid
@@ -228,6 +329,7 @@ class ElectronConversionService {
       }
       
       // Determine file category from name or type
+      // Use the category for file organization, which is fine
       const fileCategory = getFileType(options.originalFileName || options.name) || 'text';
       
       // Check if the conversion result has multiple files (for parenturl)
