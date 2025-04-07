@@ -17,11 +17,14 @@ function registerConversionHandlers() {
     ipcMain.handle('codex:convert:file', async (event, input, options) => {
         try {
             // Handle URL conversions
-            if (options && options.type === 'url') {
-                console.log(`IPC: Processing URL conversion: ${input}`);
+            if (options && (options.type === 'url' || options.type === 'parenturl')) {
+                const isParentUrl = options.type === 'parenturl';
+                console.log(`IPC: Processing ${isParentUrl ? 'parent URL' : 'URL'} conversion: ${input}`);
+                
+                // Preserve all options, especially for parent URL
                 return await ElectronConversionService.convert(input, {
                     ...options,
-                    type: 'url'
+                    type: options.type // Preserve original type (url/parenturl)
                 });
             }
             

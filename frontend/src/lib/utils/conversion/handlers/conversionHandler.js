@@ -127,13 +127,42 @@ class ConversionHandler {
             // Get file handling info from centralized system
             const fileInfo = getFileHandlingInfo(item.file || item);
             
-            // Prepare common conversion options
-            const conversionOptions = {
+            // Prepare base conversion options
+            const baseOptions = {
                 ...options,
-                type: fileInfo.converter,
                 isTemporary: fileInfo.isBinary,
                 originalFileName: fileInfo.fileName
             };
+
+            // For URLs, preserve original type and options
+            const conversionOptions = fileInfo.isWeb
+                ? {
+                    ...baseOptions,
+                    type: item.type, // Preserve original type (url/parenturl)
+                    ...item.options, // Include any URL-specific options
+                    // Ensure parent URL specific options are preserved
+                    ...(item.type === 'parenturl' && {
+                        maxDepth: item.options?.maxDepth || 3,
+                        maxPages: item.options?.maxPages || 100,
+                        includeImages: item.options?.includeImages ?? true,
+                        includeMeta: item.options?.includeMeta ?? true
+                    })
+                  }
+                : {
+                    ...baseOptions,
+                    type: fileInfo.converter
+                  };
+
+            // Log extended debug info for URL conversions
+            if (fileInfo.isWeb) {
+                console.log('🌐 Web conversion details:', {
+                    originalType: item.type,
+                    originalOptions: item.options,
+                    finalType: conversionOptions.type,
+                    isParentUrl: item.type === 'parenturl',
+                    finalOptions: conversionOptions
+                });
+            }
 
             if (item.isNative && item.path) {
                 // Native file path - use unified file converter
@@ -170,16 +199,21 @@ class ConversionHandler {
                 );
             } else if (fileInfo.isWeb && item.url) {
                 // For URLs, pass the URL string directly with the correct type
+                // For URLs, pass options directly without modification
                 result = await electronClient.convertFile(
                     item.url,
-                    {
-                        ...conversionOptions,
-                        type: item.type || 'url', // Ensure we pass url or parenturl type
-                    },
+                    conversionOptions,
                     progress => {
                         storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
                     }
                 );
+
+                // Log the conversion options for debugging
+                console.log('🔄 URL conversion options:', {
+                    type: conversionOptions.type,
+                    isParentUrl: conversionOptions.type === 'parenturl',
+                    options: conversionOptions
+                });
             } else {
                 throw new Error(`Unsupported item type: ${item.type || 'unknown'}`);
             }

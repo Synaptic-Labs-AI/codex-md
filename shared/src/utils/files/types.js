@@ -92,7 +92,7 @@ export function getFileHandlingInfo(file) {
       fileType: file.type,
       category: 'web',
       handling: HANDLING_TYPES.URL,
-      converter: 'url',
+      converter: file.type, // Preserve original type (url/parenturl)
       requiresOcr: false,
       isWeb: true,
       isBinary: false

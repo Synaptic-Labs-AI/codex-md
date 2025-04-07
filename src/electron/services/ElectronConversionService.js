@@ -150,7 +150,14 @@ class ElectronConversionService {
         type: fileType,
         isBuffer: Buffer.isBuffer(filePath),
         isTemporary: options.isTemporary,
-        isUrl: options.type === 'url' || options.type === 'parenturl'
+        isUrl: options.type === 'url' || options.type === 'parenturl',
+        isParentUrl: options.type === 'parenturl',
+        options: options.type === 'parenturl' ? {
+          maxDepth: options.maxDepth,
+          maxPages: options.maxPages,
+          includeImages: options.includeImages,
+          includeMeta: options.includeMeta
+        } : undefined
       });
       let fileContent;
       
@@ -158,8 +165,8 @@ class ElectronConversionService {
       if (options.isTemporary && Buffer.isBuffer(filePath)) {
         console.log(`Processing binary content as ${fileType}`);
         fileContent = filePath; // filePath is actually the buffer
-      } else if (options.type === 'url') {
-        console.log(`Processing URL: ${filePath}`);
+      } else if (options.type === 'url' || options.type === 'parenturl') {
+        console.log(`Processing ${options.type === 'parenturl' ? 'parent URL' : 'URL'}: ${filePath}`);
         fileContent = filePath;
       } else if (typeof filePath === 'string') {
         // For file paths, validate file exists and read it
@@ -182,14 +189,34 @@ class ElectronConversionService {
       
       progressTracker.update(10);
       
-      // Use the shared converters module directly
-      const conversionResult = await convertToMarkdown(fileType, fileContent, {
+      // Prepare conversion options
+      const conversionOptions = {
         name: options.originalFileName || options.name,
         apiKey: options.apiKey,
         useOcr: options.useOcr,
         mistralApiKey: options.mistralApiKey,
         onProgress: (progress) => progressTracker.update(progress)
-      });
+      };
+      
+      // Add parenturl specific options if needed
+      if (fileType === 'parenturl') {
+        Object.assign(conversionOptions, {
+          maxDepth: options.maxDepth || 3,
+          maxPages: options.maxPages || 100,
+          includeImages: options.includeImages ?? true,
+          includeMeta: options.includeMeta ?? true
+        });
+        
+        console.log('🌐 [ElectronConversionService] Using parentUrl options:', {
+          maxDepth: conversionOptions.maxDepth,
+          maxPages: conversionOptions.maxPages,
+          includeImages: conversionOptions.includeImages,
+          includeMeta: conversionOptions.includeMeta
+        });
+      }
+      
+      // Use the shared converters module directly
+      const conversionResult = await convertToMarkdown(fileType, fileContent, conversionOptions);
       
       progressTracker.update(90);
       
