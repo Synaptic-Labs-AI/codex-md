@@ -46,9 +46,14 @@ class ElectronClient {
             // Prepare conversion options with file info
             const conversionOptions = {
                 ...options,
-                type: fileInfo.converter,
                 isBinary: fileInfo.isBinary
             };
+            
+            // For non-web files, use the converter type from fileInfo
+            // For web files (url/parenturl), preserve the original type
+            if (!fileInfo.isWeb) {
+                conversionOptions.type = fileInfo.converter;
+            }
 
             // Handle based on input type
             if (input instanceof ArrayBuffer && options.isTemporary) {
@@ -56,15 +61,23 @@ class ElectronClient {
                 console.log(`Converting binary file as ${fileInfo.converter}: ${fileInfo.fileName}`);
                 conversionOptions.buffer = input;
             } else if (typeof input === 'string' && fileInfo.isWeb) {
-                // URL handling
-                console.log(`Converting URL: ${input}`);
-                conversionOptions.content = input;
+            // URL handling
+            console.log(`Converting URL: ${input} with type: ${options.type} (${fileInfo.isWeb ? 'web' : 'non-web'})`);
+            conversionOptions.content = input;
             } else if (typeof input === 'string' && options.originalFileName) {
                 // Text content handling
                 console.log(`Converting text content from: ${fileInfo.fileName}`);
                 conversionOptions.content = input;
             }
 
+            // Log final conversion options for debugging
+            console.log('🚀 Sending conversion request with options:', {
+                type: conversionOptions.type,
+                isWeb: fileInfo.isWeb,
+                originalType: options.type,
+                finalType: conversionOptions.type
+            });
+            
             return await window.electron.convert(input, conversionOptions);
         } catch (error) {
             console.error('Conversion error:', error);
