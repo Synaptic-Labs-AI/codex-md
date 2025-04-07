@@ -53,6 +53,15 @@ function escapeRegExp(string) {
   }
 }
 
+/**
+ * Helper function to check if a path is a URL
+ * @param {string} path - The path to check
+ * @returns {boolean} True if the path is a URL
+ */
+function isUrl(path) {
+  return typeof path === 'string' && (path.startsWith('http://') || path.startsWith('https://'));
+}
+
 class ConversionResultManager {
   constructor() {
     this.fileSystem = FileSystemService;
@@ -101,7 +110,13 @@ class ConversionResultManager {
       });
       
       // Replace generic Markdown image links with Obsidian format if we have a matching image
+      // But preserve URL images in standard Markdown format
       updatedContent = updatedContent.replace(genericMarkdownPattern, (match, alt, src) => {
+        // If it's a URL, keep it in standard Markdown format
+        if (isUrl(src)) {
+          return match;
+        }
+        
         // Extract the image ID from the src
         const imageId = path.basename(src);
         
@@ -141,33 +156,40 @@ class ConversionResultManager {
           
           // First replace standard markdown image syntax
           if (image.src) {
-            const markdownPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(image.src)}[^)]*\\)`, 'g');
-            updatedContent = updatedContent.replace(markdownPattern, `![[${imagePath}]]`);
+            // Skip URL images - keep them in standard Markdown format
+            if (!isUrl(image.src)) {
+              const markdownPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(image.src)}[^)]*\\)`, 'g');
+              updatedContent = updatedContent.replace(markdownPattern, `![[${imagePath}]]`);
+            }
           }
           
           // Replace standard markdown image syntax with any path
-          const markdownAnyPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(imagePath)}[^)]*\\)`, 'g');
-          updatedContent = updatedContent.replace(markdownAnyPattern, `![[${imagePath}]]`);
+          // Skip URL images - keep them in standard Markdown format
+          if (!isUrl(imagePath)) {
+            const markdownAnyPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escapeRegExp(imagePath)}[^)]*\\)`, 'g');
+            updatedContent = updatedContent.replace(markdownAnyPattern, `![[${imagePath}]]`);
+          }
           
           // Replace any existing Obsidian syntax that doesn't match our expected format
           const obsidianPattern = new RegExp(`!\\[\\[[^\\]]*\\]\\]`, 'g');
-          
-          // Only replace if it's not already in the correct format
-          const correctObsidianFormat = `![[${imagePath}]]`;
-          if (!updatedContent.includes(correctObsidianFormat)) {
-            // Find all Obsidian image references
-            const matches = updatedContent.match(obsidianPattern);
-            if (matches) {
-              // Replace only those that contain parts of our image path
-              matches.forEach(match => {
-                // Extract the path from the match
-                const matchPath = match.substring(3, match.length - 2);
-                
-                // Check if this match is related to our image
-                if (matchPath.includes(path.basename(imagePath, path.extname(imagePath)))) {
-                  updatedContent = updatedContent.replace(match, correctObsidianFormat);
-                }
-              });
+          // Only replace if it's not already in the correct format and not a URL
+          if (!isUrl(imagePath)) {
+            const correctObsidianFormat = `![[${imagePath}]]`;
+            if (!updatedContent.includes(correctObsidianFormat)) {
+              // Find all Obsidian image references
+              const matches = updatedContent.match(obsidianPattern);
+              if (matches) {
+                // Replace only those that contain parts of our image path
+                matches.forEach(match => {
+                  // Extract the path from the match
+                  const matchPath = match.substring(3, match.length - 2);
+                  
+                  // Check if this match is related to our image
+                  if (matchPath.includes(path.basename(imagePath, path.extname(imagePath)))) {
+                    updatedContent = updatedContent.replace(match, correctObsidianFormat);
+                  }
+                });
+              }
             }
           }
         } catch (imageError) {

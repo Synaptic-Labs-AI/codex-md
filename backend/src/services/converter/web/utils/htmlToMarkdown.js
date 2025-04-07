@@ -92,7 +92,15 @@ function configureTurndown(options = {}) {
       const alt = node.getAttribute('alt')?.trim() || '';
       const src = node.getAttribute('src')?.trim() || '';
       
-      // Handle attachments differently
+      // First check if it's a URL (http/https)
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        // Always use standard Markdown format for URLs
+        const escapedAlt = alt.replace(/[\[\]]/g, '\\$&');
+        const escapedSrc = src.replace(/[()]/g, '\\$&');
+        return `![${escapedAlt}](${escapedSrc})`;
+      }
+      
+      // Handle local attachments in Obsidian format
       if (src.startsWith('images/')) {
         return `![[${src}]]`;
       }
