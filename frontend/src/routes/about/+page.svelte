@@ -108,9 +108,9 @@
           <span class="social-name">Discord</span>
         </a>
         
-        <a href="https://blog.synapticlabs.ai" class="social-card blog" target="_blank" rel="noopener noreferrer">
-          <span class="social-emoji">📖</span>
-          <span class="social-name">Blog</span>
+        <a href="https://www.linkedin.com/company/synaptic-labs/" class="social-card linkedin" target="_blank" rel="noopener noreferrer">
+          <span class="social-emoji">💼</span>
+          <span class="social-name">LinkedIn</span>
         </a>
         
         <a href="https://www.youtube.com/@SynapticLabs" class="social-card youtube" target="_blank" rel="noopener noreferrer">
@@ -118,9 +118,9 @@
           <span class="social-name">YouTube</span>
         </a>
         
-        <a href="https://www.synapticlabs.ai/bootcamps" class="social-card bootcamps" target="_blank" rel="noopener noreferrer">
-          <span class="social-emoji">🎓</span>
-          <span class="social-name">Bootcamps</span>
+        <a href="https://www.instagram.com/synapticlabs" class="social-card instagram" target="_blank" rel="noopener noreferrer">
+          <span class="social-emoji">📸</span>
+          <span class="social-name">Instagram</span>
         </a>
       </div>
     </div>
@@ -341,11 +341,11 @@
     border-color: var(--color-second);
   }
 
-  .agent-card {
+  .bootcamp-card {
     border-color: var(--color-fourth);
   }
 
-  .knowledge-card {
+  .blog-card {
     border-color: var(--color-fifth);
   }
 

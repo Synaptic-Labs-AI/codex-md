@@ -11,11 +11,13 @@
 const fs = require('fs/promises');
 const path = require('path');
 const { app } = require('electron');
+const { utils } = require('@codex-md/shared');
+const { PathUtils } = utils.paths;
 
 class FileSystemService {
   constructor() {
-    this.appDataPath = app.getPath('userData');
-    this.documentsPath = app.getPath('documents');
+    this.appDataPath = PathUtils.normalizePath(app.getPath('userData'));
+    this.documentsPath = PathUtils.normalizePath(app.getPath('documents'));
   }
 
   /**
@@ -30,20 +32,26 @@ class FileSystemService {
       throw new Error('Invalid file path');
     }
 
-    const normalizedPath = path.normalize(filePath);
-    const absolutePath = path.isAbsolute(normalizedPath) 
-      ? normalizedPath 
-      : path.resolve(this.documentsPath, normalizedPath);
+    try {
+      // Validate path for platform-specific restrictions
+      PathUtils.ensureValidPath(filePath);
+      
+      // Normalize and resolve the path
+      const normalizedPath = PathUtils.normalizePath(filePath);
+      const absolutePath = path.isAbsolute(normalizedPath)
+        ? normalizedPath
+        : PathUtils.resolvePath(this.documentsPath, normalizedPath);
 
-    if (shouldExist) {
-      try {
-        await fs.access(absolutePath);
-      } catch (error) {
-        throw new Error(`Path does not exist or access denied: ${filePath}`);
+      if (shouldExist) {
+        if (!await PathUtils.isAccessible(absolutePath)) {
+          throw new Error(`Path does not exist or access denied: ${filePath}`);
+        }
       }
-    }
 
-    return absolutePath;
+      return absolutePath;
+    } catch (error) {
+      throw new Error(`Path validation failed: ${error.message}`);
+    }
   }
 
   /**

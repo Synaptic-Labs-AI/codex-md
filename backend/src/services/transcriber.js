@@ -6,6 +6,7 @@ import { path as ffprobePath } from '@ffmpeg-installer/ffmpeg';
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
+import { PathUtils } from '@codex-md/shared/utils/paths';
 import { v4 as uuidv4 } from 'uuid';
 import { File, Blob } from 'node:buffer';
 
@@ -109,16 +110,27 @@ class Transcriber {
    * @returns {Promise<{path: string, cleanup: Function}>} Audio file path and cleanup function
    */
   async extractAudioFromVideo(buffer) {
-    const tempDir = path.join(os.tmpdir(), uuidv4());
-    const inputPath = path.join(tempDir, 'input.mp4');
-    const outputPath = path.join(tempDir, 'output.mp3');
+    const tempDir = PathUtils.normalizePath(path.join(os.tmpdir(), uuidv4()));
+    const inputPath = PathUtils.resolvePath(tempDir, 'input.mp4');
+    const outputPath = PathUtils.resolvePath(tempDir, 'output.mp3');
 
-    // Create temp directory
-    await fs.mkdir(tempDir, { recursive: true });
+    // Create temp directory with platform-appropriate permissions
+    try {
+      await fs.mkdir(tempDir, { recursive: true });
+      // Set appropriate permissions on Unix-like systems
+      if (process.platform !== 'win32') {
+        await fs.chmod(tempDir, 0o755);
+      }
+    } catch (error) {
+      throw new Error(`Failed to create temp directory: ${error.message}`);
+    }
     
     try {
-      // Write buffer to temp file (required for ffmpeg)
+      // Write buffer to temp file with platform-appropriate handling
       await fs.writeFile(inputPath, buffer);
+      if (process.platform !== 'win32') {
+        await fs.chmod(inputPath, 0o644);
+      }
 
       console.log('Extracting audio with ffmpeg:', {
         inputPath,
@@ -126,9 +138,9 @@ class Transcriber {
         ffmpegPath: ffmpegStatic
       });
 
-      // Extract audio
+      // Extract audio using platform-specific paths
       await new Promise((resolve, reject) => {
-        ffmpeg(inputPath)
+        ffmpeg(PathUtils.toPlatformPath(inputPath))
           .toFormat('mp3')
           .audioQuality(0) // Best quality
           .on('start', cmd => console.log('Started ffmpeg with command:', cmd))
@@ -140,8 +152,13 @@ class Transcriber {
             console.log('FFmpeg finished extracting audio');
             resolve();
           })
-          .save(outputPath);
+          .save(PathUtils.toPlatformPath(outputPath));
       });
+
+      // Set appropriate permissions for output file on Unix-like systems
+      if (process.platform !== 'win32') {
+        await fs.chmod(outputPath, 0o644);
+      }
 
       // Create cleanup function
       const cleanup = async () => {
