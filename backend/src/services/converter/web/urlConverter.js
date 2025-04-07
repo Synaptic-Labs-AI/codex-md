@@ -91,7 +91,12 @@ export class UrlConverter {
       
       // Clean up the page after content has loaded
       try {
+        console.log('Starting page cleanup process...');
+        
+        // First remove overlays that might interfere with content
         await this.pageCleaner.removeOverlays(page);
+        
+        // Then clean up the page using our simplified approach
         await this.pageCleaner.cleanupPage(page);
         
         // Additional wait for any cleanup-triggered changes
@@ -100,8 +105,12 @@ export class UrlConverter {
         // Check for SPA and wait for dynamic content to load
         const isDynamic = await this.contentExtractor.waitForDynamicContent(page);
         if (isDynamic) {
-          // Final wait after dynamic content changes
+          console.log('Dynamic content detected, waiting for it to stabilize...');
+          // Wait after dynamic content changes
           await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Run cleanup again after dynamic content has loaded
+          await this.pageCleaner.cleanupPage(page);
         }
       } catch (error) {
         console.error('Error during page preparation:', error);

@@ -15,6 +15,25 @@ export async function convertParentUrlToMarkdown(parentUrl, options = {}) {
     let urlObj;
     try {
       urlObj = new URL(parentUrl.startsWith('http') ? parentUrl : `https://${parentUrl}`);
+      
+      // Clean common tracking parameters from the URL
+      const trackingParams = [
+        // HubSpot tracking parameters
+        '_hsenc', '_hsmi', 'hs_preview', 'hsCtaTracking', 'hsLang', '__hstc', '__hssc', '__hsfp',
+        // Google Analytics
+        'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid',
+        // Facebook
+        'fbclid',
+        // Other common tracking parameters
+        'ref', 'source', 'mc_cid', 'mc_eid'
+      ];
+      
+      trackingParams.forEach(param => {
+        if (urlObj.searchParams.has(param)) {
+          urlObj.searchParams.delete(param);
+        }
+      });
+      
       parentUrl = urlObj.toString();
     } catch (error) {
       throw new AppError(`Invalid URL format: ${error.message}`, 400);

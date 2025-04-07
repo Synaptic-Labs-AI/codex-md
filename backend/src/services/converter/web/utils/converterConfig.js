@@ -67,11 +67,26 @@ export const DEFAULT_URL_CONVERTER_OPTIONS = {
   url: {
     // Parameters to remove from URLs
     trackingParams: [
+      // Standard UTM parameters
       'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-      'fbclid', 'gclid', '_ga', 'ref', 'source', 'campaign', '_hsenc', '_hsmi',
-      'mc_cid', 'mc_eid', 'mkt_tok', 'trk', '_openstat', 'yclid', 'fb_action_ids',
-      'action_object_map', 'action_type_map', 'action_ref_map', 'gs_l', 'pd_rd_r',
-      'pd_rd_w', 'pd_rd_wg', 'pf_rd_p', 'pf_rd_r', 'qid', 'sr', 'spm', 'psc'
+      
+      // Social media tracking
+      'fbclid', 'gclid', 'fb_action_ids', 'action_object_map', 'action_type_map', 'action_ref_map',
+      
+      // Google Analytics and search
+      '_ga', 'gs_l', 'qid', 'sr', 
+      
+      // Amazon tracking
+      'pd_rd_r', 'pd_rd_w', 'pd_rd_wg', 'pf_rd_p', 'pf_rd_r',
+      
+      // Email marketing
+      'mc_cid', 'mc_eid', 'mkt_tok',
+      
+      // HubSpot specific
+      '_hsenc', '_hsmi', 'hs_preview', 'hsCtaTracking', 'hsLang', '__hstc', '__hssc', '__hsfp',
+      
+      // Other common tracking
+      'ref', 'source', 'campaign', 'trk', '_openstat', 'yclid', 'spm', 'psc'
     ],
     // Remove fragments from URLs unless they're used for routing
     removeFragments: true,
