@@ -123,6 +123,7 @@ function createMainWindow() {
         height: 800,
         minWidth: 800,
         minHeight: 600,
+        icon: path.join(__dirname, '../../frontend/static/logo.png'),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
