@@ -13,7 +13,7 @@
 const path = require('path');
 const { app } = require('electron');
 const FileSystemService = require('./FileSystemService');
-const { formatMetadata, cleanMetadata } = require('@codex-md/shared/utils/markdown');
+const { formatMetadata, cleanMetadata, extractFrontmatter, mergeMetadata } = require('@codex-md/shared/utils/markdown');
 const { cleanTemporaryFilename, getBasename, generateUrlFilename } = require('@codex-md/shared/utils/files');
 
 /**
@@ -343,22 +343,19 @@ class ConversionResultManager {
       ...metadata
     });
 
-    // Check if content already has frontmatter
-    const hasFrontmatter = updatedContent.trim().startsWith('---');
+    // Extract and merge frontmatter if it exists
+    const { metadata: existingMetadata, content: contentWithoutFrontmatter } = extractFrontmatter(updatedContent);
+    console.log('📝 Extracted existing frontmatter:', existingMetadata);
     
-    let fullContent;
+    // Merge metadata using shared utility
+    const mergedMetadata = mergeMetadata(existingMetadata, fullMetadata, {
+      type: fullMetadata.type, // Ensure type from fullMetadata takes precedence
+      converted: new Date().toISOString() // Always use current timestamp
+    });
     
-    if (hasFrontmatter) {
-      // Content already has frontmatter, use it as is
-      console.log('Content already has frontmatter, using as is');
-      fullContent = updatedContent;
-    } else {
-      // Use the formatMetadata function from the adapter
-      const frontmatter = formatMetadata(fullMetadata);
-      
-      // Combine frontmatter and content
-      fullContent = frontmatter + updatedContent;
-    }
+    // Format and combine with content
+    const frontmatter = formatMetadata(mergedMetadata);
+    const fullContent = frontmatter + contentWithoutFrontmatter;
 
     // Save the markdown content
     await this.fileSystem.writeFile(mainFilePath, fullContent);
