@@ -230,11 +230,19 @@ class ElectronConversionService {
       // Determine file category from name or type
       const fileCategory = getFileType(options.originalFileName || options.name) || 'text';
       
+      // Check if the conversion result has multiple files (for parenturl)
+      const hasMultipleFiles = Array.isArray(conversionResult.files) && conversionResult.files.length > 0;
+      
+      if (hasMultipleFiles) {
+        console.log(`📁 [ElectronConversionService] Conversion result has ${conversionResult.files.length} files`);
+      }
+      
       // Save the conversion result using the ConversionResultManager
       const result = await this.resultManager.saveConversionResult({
         content: content,
         metadata: conversionResult.metadata || {},
         images: conversionResult.images || [],
+        files: conversionResult.files, // Pass the files array if it exists
         name: options.originalFileName || options.name,
         type: fileType,
         outputDir: options.outputDir,
@@ -242,7 +250,8 @@ class ElectronConversionService {
           ...options,
           category: fileCategory,
           pageCount: conversionResult.pageCount,
-          slideCount: conversionResult.slideCount
+          slideCount: conversionResult.slideCount,
+          hasMultipleFiles // Flag to indicate if this is a multi-file conversion
         }
       });
       
