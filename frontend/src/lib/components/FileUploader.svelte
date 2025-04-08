@@ -218,8 +218,9 @@
           <div>
           <DropZone
             acceptedTypes={SUPPORTED_EXTENSIONS}
-            on:filesDropped={(event) => !fileUploaderDisabled && handleFilesAdded(event.detail.files)}
-            on:filesSelected={(event) => !fileUploaderDisabled && handleFilesAdded(event.detail.files)}
+            disabled={fileUploaderDisabled}
+            on:filesDropped={(event) => handleFilesAdded(event.detail.files)}
+            on:filesSelected={(event) => handleFilesAdded(event.detail.files)}
           />
         </div>
       </div>

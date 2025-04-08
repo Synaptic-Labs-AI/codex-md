@@ -40,35 +40,10 @@
     align-items: center;
     justify-content: center;
     font-family: var(--font-mono);
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-2xl);
     color: var(--color-text);
-    background-color: rgba(251, 247, 241, 0.5); /* Light mode: based on --color-surface: #fbf7f1 */
-    backdrop-filter: blur(8px);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--rounded-full);
-    box-shadow: var(--shadow-sm);
-    border: 1px solid rgba(var(--color-prime-rgb), 0.2);
-    transition: all 0.3s ease;
     margin: var(--spacing-md) auto;
     max-width: fit-content;
-  }
-  
-  .timer-display:hover {
-    background-color: rgba(251, 247, 241, 0.7);
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
-  }
-  
-  /* Dark mode support */
-  @media (prefers-color-scheme: dark) {
-    .timer-display {
-      background-color: rgba(42, 42, 42, 0.5); /* Dark mode: based on --color-surface: #1a1a1a in dark mode */
-      border: 1px solid rgba(var(--color-prime-rgb), 0.3);
-    }
-    
-    .timer-display:hover {
-      background-color: rgba(42, 42, 42, 0.7);
-    }
   }
 
   .time-segment {
@@ -94,8 +69,8 @@
 
   @media (max-width: 640px) {
     .timer-display {
-      font-size: var(--font-size-base);
-      padding: var(--spacing-xs);
+    font-size: var(--font-size-xl);
+    padding: var(--spacing-xs) var(--spacing-md);
     }
   }
 </style>
