@@ -397,15 +397,10 @@ async function convertToMarkdown(type, content, options = {}) {
       throw new Error(`Invalid content for ${type} conversion`);
     }
     
-    // Convert the content with timeout and error handling
+    // Convert the content with error handling
     console.log(`Converting content using ${converter.config.name}`);
     
-    const conversionPromise = converter.convert(content, options.name, options.apiKey, options);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Conversion timed out')), 30000); // 30 second timeout
-    });
-    
-    const result = await Promise.race([conversionPromise, timeoutPromise]);
+    const result = await converter.convert(content, options.name, options.apiKey, options);
     
     // Ensure result has all required properties
     const standardizedResult = {

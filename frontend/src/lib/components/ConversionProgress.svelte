@@ -239,14 +239,16 @@
 
     <!-- Conversion Timer and Cancel Button - only show during active conversion -->
     {#if !isPersistentlyCompleted && status !== ConversionState.STATUS.COMPLETED && status !== ConversionState.STATUS.ERROR && status !== ConversionState.STATUS.CANCELLED}
-      <div class="conversion-controls">
+      <div class="conversion-actions">
         <Timer />
         <Button 
-          variant="secondary" 
+          variant="danger"
+          size="medium"
+          fullWidth
           on:click={() => dispatch('cancel')}
-          class="cancel-button"
         >
-          Cancel Conversion
+          <span class="icon">🛑</span>
+          Cancel
         </Button>
       </div>
     {/if}
@@ -254,15 +256,18 @@
 {/if}
 
 <style>
-  .conversion-controls {
+  .conversion-actions {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: var(--spacing-md);
     margin-top: var(--spacing-sm);
+    width: 100%;
+    max-width: 300px;
   }
-  
-  .cancel-button {
-    min-width: 120px;
+
+  .icon {
+    margin-right: var(--spacing-xs);
   }
   
   .conversion-progress {

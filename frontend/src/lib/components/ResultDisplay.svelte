@@ -11,6 +11,13 @@
 
   const dispatch = createEventDispatcher();
   
+  /**
+   * Handles cancellation of the current conversion
+   */
+  function handleCancel() {
+    storeManager.cancelConversion();
+  }
+  
   // Reference to ConversionProgress component
   let conversionProgressComponent;
 
@@ -94,7 +101,10 @@
       <!-- Progress section -->
       <div class="progress-section">
         <!-- Use the simplified conversion progress for all conversion types -->
-        <ConversionProgress bind:this={conversionProgressComponent} />
+        <ConversionProgress 
+          bind:this={conversionProgressComponent} 
+          on:cancel={handleCancel}
+        />
       </div>
 
       <!-- Action buttons - only show when completed -->

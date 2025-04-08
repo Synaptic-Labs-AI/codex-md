@@ -116,7 +116,7 @@ flowchart TD
 - **Progress Tracking**: Unified progress tracking across all conversion types
 - **Extensibility**: Easy to add new converters by registering them with the ConverterRegistry
 - **Fallback Mechanisms**: Implements fallbacks for conversion failures
-- **Timeout Protection**: Prevents conversions from hanging indefinitely
+- **User-Controlled Cancellation**: Allows users to cancel long-running conversions via a dedicated cancel button in the UI
 
 #### Benefits
 - **Maintainability**: Easier to maintain with clear separation of concerns

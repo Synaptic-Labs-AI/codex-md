@@ -6,6 +6,7 @@
     import { formatFileSize, MAX_FILE_SIZE, MAX_VIDEO_SIZE, validateFileSize, getFileType } from '../../utils/fileUtils';
   
     export let acceptedTypes = [];
+    export let disabled = false;
     let fileInput;
     let dragCounter = 0;
     
@@ -13,6 +14,8 @@
   
     function handleDrop(event) {
       event.preventDefault();
+      if (disabled) return;
+      
       uploadStore.setDragOver(false);
       dragCounter = 0;
       
@@ -24,12 +27,16 @@
   
     function handleDragEnter(event) {
       event.preventDefault();
+      if (disabled) return;
+      
       dragCounter++;
       uploadStore.setDragOver(true);
     }
   
     function handleDragLeave(event) {
       event.preventDefault();
+      if (disabled) return;
+      
       dragCounter--;
       if (dragCounter === 0) {
         uploadStore.setDragOver(false);
@@ -37,6 +44,8 @@
     }
   
     function handleFileSelect(event) {
+      if (disabled) return;
+      
       const files = Array.from(event.target.files);
       // Only take the first file if multiple are somehow selected
       const singleFile = files.length > 0 ? [files[0]] : [];
@@ -53,6 +62,7 @@
   <div 
     class="drop-zone"
     class:drag-over={$uploadStore.dragOver}
+    class:disabled={disabled}
     on:dragenter={handleDragEnter}
     on:dragleave={handleDragLeave}
     on:dragover|preventDefault
@@ -131,9 +141,23 @@
       opacity: 1;
     }
   
-    .drop-zone.drag-over {
+    .drop-zone.drag-over:not(.disabled) {
       transform: scale(1.02);
       box-shadow: var(--shadow-md);
+    }
+
+    .drop-zone.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: auto;
+    }
+
+    .drop-zone.disabled:hover::before {
+      opacity: 0.5;
+    }
+
+    .drop-zone.disabled * {
+      pointer-events: none;
     }
 
     .drop-zone.drag-over::before {
