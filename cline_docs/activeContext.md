@@ -5,6 +5,13 @@ Enhancing the converter architecture to improve maintainability, reduce redundan
 
 ## Recent Changes
 
+### OCR Conversion Fix (2025-04-08)
+- Fixed issue where advanced OCR wasn't being used despite OCR being enabled and Mistral API key being present
+- Modified PDF converter registration in ConverterRegistry to use a wrapper function that correctly passes OCR options
+- Ensured consistent OCR option handling throughout the conversion pipeline
+- Added detailed logging to track OCR options through the conversion process
+- Removed unnecessary binary marker check in PDF validation that was causing false positives
+
 ### URL Converter Interface Fix (2025-04-08)
 - Fixed "converter.convert is not a function" error in URL conversion
 - Updated urlConverter.js to add a `convert` method that matches the standardized interface
@@ -101,6 +108,7 @@ Enhancing the converter architecture to improve maintainability, reduce redundan
 - ~~Navigation bar missing in the final Electron build~~ (Fixed)
 - ~~URL conversion failing with "Unsupported file type: ai" error~~ (Fixed)
 - ~~URL conversion failing with "converter.convert is not a function" error~~ (Fixed)
+- ~~Advanced OCR not being used despite OCR being enabled and Mistral API key being present~~ (Fixed)
 
 ## Next Steps
 

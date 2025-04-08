@@ -131,11 +131,8 @@ export class BasePdfConverter {
         throw new Error('Invalid PDF format: Missing PDF header');
       }
 
-      // Check for binary content marker after header
-      const binaryMarker = input.slice(5, 8);
-      if (!binaryMarker.includes(0x80)) {
-        console.warn('PDF may be corrupted: Missing binary marker');
-      }
+      // Note: We previously checked for a binary marker here, but removed it
+      // as it was causing false positives with valid PDFs and affecting OCR selection
 
       // Look for EOF marker
       const trailer = input.slice(-1024).toString('ascii');

@@ -143,7 +143,15 @@ class UnifiedConverterFactory {
       // Get file details - handle URLs differently
       let fileName, fileType;
       
-      if (isUrl) {
+      if (Buffer.isBuffer(filePath)) {
+        // For buffer inputs, use filename from options
+        fileName = options.originalFileName;
+        fileType = options.fileType;
+        
+        if (!fileName || !fileType) {
+          throw new Error('originalFileName and fileType are required when passing buffer input');
+        }
+      } else if (isUrl) {
         // For URLs, use the passed fileType and create a filename from the URL
         fileType = options.fileType; // 'url' or 'parenturl'
         
@@ -162,11 +170,13 @@ class UnifiedConverterFactory {
       }
       
       console.log(`🔄 [UnifiedConverterFactory] Converting file:`, {
-        path: filePath,
         type: fileType,
         isUrl: isUrl,
+        isBuffer: Buffer.isBuffer(filePath),
+        fileName,
         options: {
           hasApiKey: !!options.apiKey,
+          hasMistralKey: !!options.mistralApiKey,
           outputDir: options.outputDir ? 'specified' : 'default'
         }
       });
@@ -200,20 +210,25 @@ class UnifiedConverterFactory {
       }
       
       console.log(`✅ [UnifiedConverterFactory] Conversion completed in ${Date.now() - startTime}ms:`, {
-        path: filePath,
         type: fileType,
+        fileName,
         isUrl: isUrl,
-        success: !!result.success
+        isBuffer: Buffer.isBuffer(filePath),
+        success: !!result.success,
+        timing: `${Date.now() - startTime}ms`
       });
       
       return result;
       
     } catch (error) {
-      console.error('❌ [UnifiedConverterFactory] Conversion failed:', {
-        file: filePath,
+      const errorDetails = {
+        fileType,
+        fileName,
+        isBuffer: Buffer.isBuffer(filePath),
         error: error.message,
         stack: error.stack
-      });
+      };
+      console.error('❌ [UnifiedConverterFactory] Conversion failed:', errorDetails);
       
       return {
         success: false,
@@ -286,8 +301,8 @@ class UnifiedConverterFactory {
         return this.standardizeResult(result, fileType, fileName, category);
       }
       
-      // For all other file types, read the file first
-      const fileContent = fs.readFileSync(filePath);
+      // Read file content if not already a buffer
+      const fileContent = Buffer.isBuffer(filePath) ? filePath : fs.readFileSync(filePath);
       
       if (progressTracker) {
         progressTracker.update(20, { status: `converting_${fileType}` });
@@ -300,6 +315,16 @@ class UnifiedConverterFactory {
           hasMistralApiKey: !!options.mistralApiKey,
           preservePageInfo: true
         });
+        
+        // Add more detailed logging for OCR settings
+        if (options.useOcr) {
+          console.log('🔍 [UnifiedConverterFactory] OCR is enabled for this conversion');
+          if (options.mistralApiKey) {
+            console.log('🔑 [UnifiedConverterFactory] Mistral API key is present');
+          } else {
+            console.warn('⚠️ [UnifiedConverterFactory] OCR is enabled but Mistral API key is missing');
+          }
+        }
       }
       
       // Use the converter registry for all file types

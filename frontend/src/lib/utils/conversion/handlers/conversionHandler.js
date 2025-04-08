@@ -178,7 +178,7 @@ class ConversionHandler {
                 let content;
                 
                 if (fileInfo.isBinary) {
-                    // For binary files (audio/video/pdf/office/etc), read as buffer
+                    // For other binary files (audio/video/office/etc), read as buffer
                     content = await item.file.arrayBuffer();
                 } else if (fileInfo.converter === 'data' && fileInfo.fileType === 'csv') {
                     // Special case for CSV files - handle as text

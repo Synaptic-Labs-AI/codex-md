@@ -105,6 +105,11 @@ contextBridge.exposeInMainWorld('electron', {
 
     //=== Conversion Operations ===//
     convert: async (input, options) => {
+        // Handle ArrayBuffer conversion to Buffer for IPC
+        if (options.buffer instanceof ArrayBuffer) {
+            const buffer = Buffer.from(options.buffer);
+            options.buffer = buffer;
+        }
         return queueCall('codex:convert:file', [input, options]);
     },
     

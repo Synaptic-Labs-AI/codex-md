@@ -87,13 +87,32 @@ class ElectronConversionService {
         throw new Error('Output directory is required for conversion');
       }
       
+      console.log('📥 [ElectronConversionService] Received conversion request:', {
+        inputType: Buffer.isBuffer(filePath) ? 'Buffer' : typeof filePath,
+        inputLength: Buffer.isBuffer(filePath) ? filePath.length : undefined,
+        hasBufferInOptions: !!options.buffer,
+        bufferLength: options.buffer ? options.buffer.length : undefined,
+        options: {
+          ...options,
+          buffer: options.buffer ? `Buffer(${options.buffer.length})` : undefined,
+          apiKey: options.apiKey ? '✓' : '✗',
+          mistralApiKey: options.mistralApiKey ? '✓' : '✗'
+        }
+      });
+
+      // If we have a buffer in options, use that instead of the input
+      if (options.buffer && Buffer.isBuffer(options.buffer)) {
+        console.log('📦 Using buffer from options instead of input');
+        filePath = options.buffer;
+      }
+
       // Create a progress tracker
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
       
       // Determine file type
       const fileType = this.determineFileType(filePath, options);
       
-      console.log('📄 [ElectronConversionService] Processing:', {
+      console.log('🔄 [ElectronConversionService] Processing:', {
         type: fileType,
         isBuffer: Buffer.isBuffer(filePath),
         isTemporary: options.isTemporary,
@@ -157,15 +176,26 @@ class ElectronConversionService {
       return result;
       
     } catch (error) {
-      console.error('❌ Conversion failed:', {
-        file: filePath,
+      const errorInfo = {
+        type: options.fileType || options.type,
+        originalFileName: options.originalFileName,
+        isBuffer: Buffer.isBuffer(filePath),
+        bufferLength: Buffer.isBuffer(filePath) ? filePath.length : undefined,
         error: error.message,
         stack: error.stack
-      });
+      };
+      
+      console.error('❌ Conversion failed:', errorInfo);
+      
+      // Construct a user-friendly error message
+      const errorMessage = Buffer.isBuffer(filePath) 
+        ? `Failed to convert ${options.originalFileName || 'file'}: ${error.message}`
+        : `Failed to convert ${filePath}: ${error.message}`;
       
       return {
         success: false,
-        error: error.message
+        error: errorMessage,
+        details: errorInfo
       };
     }
   }
@@ -175,9 +205,25 @@ class ElectronConversionService {
    * @private
    */
   determineFileType(filePath, options) {
+    // First check if type is explicitly provided in options
+    if (options.fileType) {
+      return options.fileType;
+    }
+
     // For URLs, use the explicit type from options
     if (options.type === 'url' || options.type === 'parenturl') {
       return options.type;
+    }
+
+    // For buffer inputs, we must have fileType or originalFileName
+    if (Buffer.isBuffer(filePath)) {
+      if (options.originalFileName) {
+        const extension = path.extname(options.originalFileName).toLowerCase().slice(1);
+        if (extension) {
+          return extension;
+        }
+      }
+      throw new Error('File type must be specified when passing buffer input');
     }
     
     // Special handling for data files

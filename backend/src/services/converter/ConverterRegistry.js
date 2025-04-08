@@ -66,9 +66,34 @@ const converters = {
 
   // PDF Converter
   pdf: {
-    convert: pdfConverter.convertPdfToMarkdown,
-    validate: (input) => {
-      const converter = pdfConverter.getConverter({});
+    // Use a wrapper function to ensure OCR options are correctly passed
+    convert: async (content, name, apiKey, options = {}) => {
+      console.log('🔄 [ConverterRegistry] Converting PDF with options:', {
+        useOcr: !!options.useOcr,
+        hasMistralKey: !!options.mistralApiKey,
+        name: name
+      });
+      
+      // Ensure OCR options are passed correctly to the converter
+      const result = await pdfConverter.convertPdfToMarkdown(content, name, {
+        useOcr: options.useOcr,
+        mistralApiKey: options.mistralApiKey,
+        preservePageInfo: options.preservePageInfo,
+        ...options
+      });
+      
+      return result;
+    },
+    validate: (input, options = {}) => {
+      // Pass OCR options to the converter factory
+      const converter = pdfConverter.getConverter({
+        useOcr: options?.useOcr,
+        mistralApiKey: options?.mistralApiKey
+      });
+      console.log('🔍 [ConverterRegistry] PDF validation with OCR options:', {
+        useOcr: !!options?.useOcr,
+        hasMistralKey: !!options?.mistralApiKey
+      });
       return converter.validatePdfInput(input);
     },
     config: {
@@ -392,9 +417,16 @@ async function convertToMarkdown(type, content, options = {}) {
       throw new Error(`No converter available for type: ${type}`);
     }
     
-    // Validate the input
-    if (converter.validate && !converter.validate(content)) {
-      throw new Error(`Invalid content for ${type} conversion`);
+    // Validate the input - pass OCR options to validate function
+    if (converter.validate) {
+      console.log(`🔍 [ConverterRegistry] Validating content for ${type} with OCR options:`, {
+        useOcr: !!options.useOcr,
+        hasMistralKey: !!options.mistralApiKey
+      });
+      
+      if (!converter.validate(content, options)) {
+        throw new Error(`Invalid content for ${type} conversion`);
+      }
     }
     
     // Convert the content with error handling
