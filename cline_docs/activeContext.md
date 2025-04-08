@@ -108,8 +108,15 @@ Enhancing the converter architecture to improve maintainability, reduce redundan
 1. ~~Test the build process with the new improvements on Windows~~ (Completed)
 2. ~~Verify that the application builds successfully without file locking errors~~ (Completed)
 3. ~~Fix URL conversion to properly handle URLs without treating them as files~~ (Completed)
-4. Document the solution in the system patterns for future reference
-5. Consider implementing similar improvements in other Electron projects
+4. ~~Fix path validation for URL-based filenames~~ (Completed)
+  - Added isUrl option to path validation in PathUtils
+  - Updated FileSystemService to handle URL paths properly
+  - Updated ConversionResultManager to pass isUrl flag
+  - Fixed illegal characters check for URL filenames
+  - Improved error messages to show specific invalid characters
+  - Eliminated duplicate sanitizeFileName method to reduce confusion
+5. Document the solution in the system patterns for future reference
+6. Consider implementing similar improvements in other Electron projects
 
 ### Long-term Solution: Migration to Plain Svelte + Vite
 We've created a comprehensive migration plan to address the root cause of the asset loading issues by transitioning from SvelteKit to plain Svelte + Vite. This plan is documented in:

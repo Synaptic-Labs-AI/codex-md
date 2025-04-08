@@ -259,6 +259,9 @@ class ConversionResultManager {
     // Generate appropriate filename based on type and metadata
     const filename = generateAppropriateFilename(name, type, metadata);
     
+    // Determine URL status for path validation
+    const isUrl = type === 'url' || type === 'parenturl';
+
     // Get the base name without extension and ensure it's valid for the file system
     const baseName = getBasename(filename).replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
     const outputBasePath = createSubdirectory ? 
@@ -267,9 +270,9 @@ class ConversionResultManager {
 
     console.log(`📁 [ConversionResultManager] Generated output path: ${outputBasePath}`);
 
-    // Create output directory
+    // Create output directory with URL awareness
     try {
-      await this.fileSystem.createDirectory(outputBasePath);
+      await this.fileSystem.createDirectory(outputBasePath, { isUrl });
       console.log(`✅ [ConversionResultManager] Created output directory: ${outputBasePath}`);
     } catch (error) {
       console.error(`❌ [ConversionResultManager] Failed to create output directory: ${error.message}`);
@@ -301,7 +304,7 @@ class ConversionResultManager {
       for (const [dirPath, dirImages] of imagesByDir.entries()) {
         const fullDirPath = path.join(outputBasePath, dirPath);
         console.log(`📁 Creating images directory: ${fullDirPath}`);
-        await this.fileSystem.createDirectory(fullDirPath);
+        await this.fileSystem.createDirectory(fullDirPath, { isUrl });
         
         // Save images to their respective directories
         for (const image of dirImages) {
@@ -317,7 +320,7 @@ class ConversionResultManager {
                   ? Buffer.from(image.data.split(',')[1], 'base64')
                   : Buffer.from(image.data, 'base64');
                   
-              await this.fileSystem.writeFile(imagePath, imageData);
+              await this.fileSystem.writeFile(imagePath, imageData, null, { isUrl });
             } catch (imageError) {
               console.error(`❌ Failed to save image: ${image.path}`, imageError);
             }
@@ -357,8 +360,8 @@ class ConversionResultManager {
     const frontmatter = formatMetadata(mergedMetadata);
     const fullContent = frontmatter + contentWithoutFrontmatter;
 
-    // Save the markdown content
-    await this.fileSystem.writeFile(mainFilePath, fullContent);
+    // Save the markdown content with URL awareness
+    await this.fileSystem.writeFile(mainFilePath, fullContent, 'utf8', { isUrl });
 
     // Handle additional files if provided (for multi-file conversions like parenturl)
     if (files && Array.isArray(files) && files.length > 0) {
@@ -373,7 +376,7 @@ class ConversionResultManager {
         try {
           // Ensure the directory exists
           const fileDirPath = path.dirname(path.join(outputBasePath, file.name));
-          await this.fileSystem.createDirectory(fileDirPath);
+          await this.fileSystem.createDirectory(fileDirPath, { isUrl });
           
           // Save the file
           const filePath = path.join(outputBasePath, file.name);
@@ -394,7 +397,7 @@ class ConversionResultManager {
             fileContent = fileFrontmatter + fileContent;
           }
           
-          await this.fileSystem.writeFile(filePath, fileContent);
+          await this.fileSystem.writeFile(filePath, fileContent, 'utf8', { isUrl });
         } catch (fileError) {
           console.error(`❌ Failed to save file: ${file.name}`, fileError);
         }
