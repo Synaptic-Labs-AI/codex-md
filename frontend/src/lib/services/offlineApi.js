@@ -12,7 +12,7 @@
  * - components/OfflineStatusBar.svelte: UI for offline status
  */
 
-import { offlineStore, canPerformOnlineOperations } from '$lib/stores/offlineStore';
+import { offlineStore, canPerformOnlineOperations } from '@lib/stores/offlineStore';
 import { get } from 'svelte/store';
 
 // Cache TTL defaults (in milliseconds)

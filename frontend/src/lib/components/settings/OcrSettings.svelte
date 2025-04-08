@@ -1,10 +1,10 @@
 <!-- frontend/src/lib/components/settings/OcrSettings.svelte -->
 <script>
   import { onMount } from 'svelte';
-  import { settings, setOcrEnabled } from '$lib/stores/settings.js';
-  import Toggle from '$lib/components/common/Toggle.svelte';
-  import ApiKeyInput from '$lib/components/ApiKeyInput.svelte';
-  import Accordion from '$lib/components/common/Accordion.svelte';
+  import { settings, setOcrEnabled } from '@lib/stores/settings.js';
+  import Toggle from '@lib/components/common/Toggle.svelte';
+  import ApiKeyInput from '@lib/components/ApiKeyInput.svelte';
+  import Accordion from '@lib/components/common/Accordion.svelte';
   
   // Local binding for OCR enabled state
   let ocrEnabled = false;

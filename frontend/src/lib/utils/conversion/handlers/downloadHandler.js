@@ -10,8 +10,8 @@
  */
 
 import { get } from 'svelte/store';
-import { conversionResult } from '$lib/stores/conversionResult.js';
-import { files } from '$lib/stores/files.js';
+import { conversionResult } from '@lib/stores/conversionResult.js';
+import { files } from '@lib/stores/files.js';
 import { storeManager } from '../manager/storeManager.js';
 
 class DownloadHandler {

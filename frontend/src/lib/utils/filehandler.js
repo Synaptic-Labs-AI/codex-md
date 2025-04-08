@@ -1,7 +1,7 @@
 // fileHandler.js - Comprehensive file handling module
 // Handles file type detection, validation, and management
 
-import { files } from '$lib/stores/files.js';
+import { files } from '@lib/stores/files.js';
 import { Document, VideoCamera, MusicalNote, Photo, Link } from 'svelte-hero-icons';
 
 /**

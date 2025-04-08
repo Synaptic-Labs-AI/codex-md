@@ -1,6 +1,6 @@
 <script>
   import { fade } from 'svelte/transition';
-  import { adStore } from '$lib/stores/adStore.js';
+  import { adStore } from '@lib/stores/adStore.js';
   import Container from './common/Container.svelte';
   import Button from './common/Button.svelte';
 
