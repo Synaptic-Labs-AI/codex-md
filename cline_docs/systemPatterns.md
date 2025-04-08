@@ -256,6 +256,45 @@ flowchart TD
 - **Detailed Logging**: Provides comprehensive logging throughout the build process for debugging
 - **Graceful Error Handling**: Continues the build process even when encountering non-critical errors
 
+### OCR Conversion Pattern
+The application implements a specialized pattern for handling PDF conversions with OCR capabilities, ensuring that OCR settings are properly passed through the entire conversion pipeline.
+
+```mermaid
+flowchart TD
+    A[User Interface] -->|OCR Settings| B[Conversion Handler]
+    B -->|OCR Options| C[ElectronConversionService]
+    C -->|OCR Options| D[UnifiedConverterFactory]
+    D -->|OCR Options| E[ConverterRegistry]
+    E -->|OCR Options| F[PDF Converter Factory]
+    F -->|OCR Options| G[Mistral OCR Converter]
+    
+    subgraph OCR Options Flow
+        I[useOcr flag] --> J[mistralApiKey]
+        J --> K[preservePageInfo]
+    end
+    
+    subgraph Converter Selection
+        L[Check OCR Enabled] --> M{API Key Present?}
+        M -->|Yes| N[Use Mistral OCR]
+        M -->|No| O[Use Standard Converter]
+    end
+```
+
+#### Implementation Details
+- **OCR Options Propagation**: Ensures OCR settings are consistently passed through all layers of the conversion pipeline
+- **Wrapper Function Pattern**: Uses a wrapper function in the converter registry to ensure OCR options are correctly passed to the PDF converter
+- **Consistent Parameter Handling**: Ensures parameters are passed in the correct order and with the right structure
+- **Validation with Options**: Passes OCR options to validation functions to ensure consistent converter selection
+- **Detailed Logging**: Logs OCR options at each step of the conversion process for debugging
+- **Fallback Mechanism**: Falls back to standard conversion if OCR fails or if Mistral API key is missing
+
+#### Benefits
+- **Consistency**: Ensures the same converter is used for both validation and conversion
+- **Reliability**: Prevents OCR settings from being lost during the conversion process
+- **Transparency**: Provides clear logging of OCR options throughout the pipeline
+- **Robustness**: Handles edge cases and provides fallbacks when needed
+- **Maintainability**: Clear separation of concerns between converter selection and conversion logic
+
 ### URL Conversion Pattern
 The application implements a specialized pattern for handling URL conversions, ensuring they are processed correctly without being treated as files with extensions.
 

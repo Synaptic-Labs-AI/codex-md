@@ -56,7 +56,26 @@ class ElectronClient {
             }
 
             // Handle based on input type
-            if (input instanceof ArrayBuffer && options.isTemporary) {
+            if (input instanceof File) {
+                // For all File objects, extract the buffer
+                const arrayBuffer = await input.arrayBuffer();
+                
+                if (fileInfo.converter === 'pdf' && options.useOcr) {
+                    // For PDFs with OCR enabled, include additional metadata
+                    console.log(`Converting PDF with OCR: ${fileInfo.fileName}`);
+                    conversionOptions.buffer = arrayBuffer;
+                    conversionOptions.originalFileName = input.name;
+                    conversionOptions.mimeType = input.type;
+                    conversionOptions.size = input.size;
+                    conversionOptions.useOcr = true;
+                } else {
+                    // For all other files, just pass the buffer
+                    conversionOptions.buffer = arrayBuffer;
+                }
+                
+                // Use a string placeholder for the input to avoid cloning issues
+                input = 'buffer-in-options';
+            } else if (input instanceof ArrayBuffer && options.isTemporary) {
                 // Binary buffer handling
                 console.log(`Converting binary file as ${fileInfo.converter}: ${fileInfo.fileName}`);
                 conversionOptions.buffer = input;

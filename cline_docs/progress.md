@@ -90,6 +90,13 @@
   - Ensured proper asset loading in production builds
   - Verified navigation bar appears correctly in packaged application
 
+- **Fixed**: Advanced OCR not being used despite settings
+  - Fixed issue where OCR options weren't being passed to PDF converter during validation
+  - Modified ConverterRegistry to pass OCR options to validate function
+  - Removed unnecessary binary marker check in PDF validation
+  - Added detailed logging to track OCR options through the conversion pipeline
+  - Ensured consistent OCR option handling throughout the conversion process
+
 - **Completed**: Testing and validation of the build process improvements
   - Verified on Windows environment
   - Documented the solution in systemPatterns.md for future reference
@@ -104,6 +111,7 @@
 - ~~SvelteKit asset loading failures in installed application~~ (Fixed)
 - ~~Navigation bar missing in final Electron build~~ (Fixed)
 - ~~URL conversion failing with "converter.convert is not a function" error~~ (Fixed)
+- ~~Advanced OCR not being used despite OCR being enabled and Mistral API key being present~~ (Fixed)
 - Some static assets may not be properly loaded in certain edge cases
 - Error handling could be improved for better user feedback
 - Need to ensure proper cleanup of resources when the app is closed

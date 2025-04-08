@@ -311,6 +311,8 @@ export class MistralPdfConverter extends BasePdfConverter {
    * @override
    */
   async convertPdfToMarkdown(input, originalName, apiKey, options = {}) {
+    console.log('🔍 MistralPdfConverter: Starting OCR conversion process');
+    
     // Validate Mistral API key
     if (!apiKey) {
       throw new Error('Mistral API key is required for OCR conversion. Please add a Mistral API key in Settings.');
@@ -319,7 +321,11 @@ export class MistralPdfConverter extends BasePdfConverter {
     // Check if the API key looks valid (basic format check)
     if (!apiKey.startsWith('mis_') && !apiKey.startsWith('sk-')) {
       console.warn('⚠️ Mistral API key format looks incorrect. Keys typically start with "mis_" or "sk-"');
+    } else {
+      console.log('✅ Mistral API key format looks valid');
     }
+    
+    console.log(`📄 Processing PDF: ${originalName} (${input.length} bytes) with Mistral OCR`);
 
     try {
       // Validate input

@@ -27,6 +27,7 @@ export class PdfConverterFactory {
     if (useOcr) {
       if (mistralApiKey) {
         console.log('🔄 Using Mistral OCR converter');
+        console.log('🔑 Mistral API key is present and OCR is enabled');
         return new MistralPdfConverter();
       } else {
         console.warn('⚠️ OCR is enabled but no Mistral API key provided. Falling back to standard converter.');
@@ -36,6 +37,9 @@ export class PdfConverterFactory {
 
     // Default to standard converter
     console.log('🔄 Using standard PDF converter');
+    if (useOcr) {
+      console.log('ℹ️ OCR setting: enabled=' + useOcr + ', mistralApiKey=' + (mistralApiKey ? 'present' : 'missing'));
+    }
     return new StandardPdfConverter();
   }
 
@@ -50,7 +54,7 @@ export class PdfConverterFactory {
    * @returns {Promise<Object>} Conversion result
    */
   static async convertPdfToMarkdown(input, originalName, options = {}) {
-    const converter = this.getConverter(options);
+    const converter = PdfConverterFactory.getConverter(options);
     
     try {
       // Pass apiKey and conversion options to converter
@@ -85,7 +89,9 @@ export class PdfConverterFactory {
       // If OCR fails, try falling back to standard conversion
       if (options.useOcr && converter instanceof MistralPdfConverter) {
         console.log('⚠️ OCR failed, falling back to standard conversion');
+        // Use the static method to get a standard converter for consistency
         const standardConverter = new StandardPdfConverter();
+        console.log('🔄 Using standard PDF converter as fallback');
         
         try {
           const fallbackResult = await standardConverter.convertPdfToMarkdown(
