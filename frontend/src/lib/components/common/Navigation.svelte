@@ -88,19 +88,26 @@
     color: var(--color-text);
     text-decoration: none;
     font-weight: 500;
-    padding: 0.5rem;
-    border-radius: 4px;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
     transition: all 0.2s ease;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
   }
   
   .nav-link:hover {
     color: var(--color-prime);
     background: var(--color-background);
+    border-color: var(--color-prime);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
   }
   
   .nav-link.active {
     color: var(--color-prime);
     font-weight: 600;
+    border-color: var(--color-prime);
+    background: color-mix(in srgb, var(--color-prime) 5%, var(--color-surface));
   }
   
   @media (max-width: 640px) {

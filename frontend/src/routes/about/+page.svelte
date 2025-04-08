@@ -306,14 +306,6 @@
     color: var(--color-second);
   }
 
-  .agent-card:hover::after {
-    color: var(--color-fourth);
-  }
-
-  .knowledge-card:hover::after {
-    color: var(--color-fifth);
-  }
-
   .card-emoji {
     font-size: 2.5rem;
     margin-bottom: var(--spacing-sm);

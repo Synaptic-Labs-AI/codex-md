@@ -44,7 +44,7 @@ class TrayManager {
       
       // Create the tray icon
       this.tray = new Tray(iconPath);
-      this.tray.setToolTip('mdCode - Markdown Converter');
+      this.tray.setToolTip('Codex.md - Markdown Converter');
       
       // Create and set the context menu
       this.updateContextMenu();
@@ -62,7 +62,7 @@ class TrayManager {
   updateContextMenu() {
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: 'Show mdCode',
+        label: 'Show codex.md',
         click: () => this.showWindow()
       },
       {
