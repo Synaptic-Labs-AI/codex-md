@@ -4,10 +4,10 @@
   import { createEventDispatcher } from 'svelte';
   import { fade, fly } from 'svelte/transition';
 
-  import { files } from '$lib/stores/files.js';
-  import { apiKey } from '$lib/stores/apiKey.js';
-  import { requiresApiKey } from '$lib/utils/fileUtils.js';
-  import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
+  import { files } from '@lib/stores/files.js';
+  import { apiKey } from '@lib/stores/apiKey.js';
+  import { requiresApiKey } from '@lib/utils/fileUtils.js';
+  import { unifiedConversion, ConversionState } from '@lib/stores/unifiedConversion.js';
 
   import ApiKeyInput from './ApiKeyInput.svelte';
   import ConversionProgress from './ConversionProgress.svelte';

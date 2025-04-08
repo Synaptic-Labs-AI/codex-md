@@ -6,10 +6,10 @@
  */
 
 import { get } from 'svelte/store';
-import { files } from '$lib/stores/files.js';
-import apiKeyStore, { apiKey } from '$lib/stores/apiKey.js';
-import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
-import electronClient from '$lib/api/electron';
+import { files } from '@lib/stores/files.js';
+import apiKeyStore, { apiKey } from '@lib/stores/apiKey.js';
+import { unifiedConversion, ConversionState } from '@lib/stores/unifiedConversion.js';
+import electronClient from '@lib/api/electron';
 import { storeManager } from '../manager/storeManager.js';
 import { CONVERSION_STATUSES, FILE_TYPES } from '../constants';
 import { getFileHandlingInfo } from '@codex-md/shared/utils/files';

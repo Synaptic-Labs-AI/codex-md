@@ -12,9 +12,9 @@
  */
 
 import { get } from 'svelte/store';
-import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
-import { conversionResult } from '$lib/stores/conversionResult.js';
-import { files } from '$lib/stores/files.js';
+import { unifiedConversion, ConversionState } from '@lib/stores/unifiedConversion.js';
+import { conversionResult } from '@lib/stores/conversionResult.js';
+import { files } from '@lib/stores/files.js';
 import { CONVERSION_STATUSES, FILE_TYPES } from '../constants';
 
 // Map old status constants to new ones for backward compatibility

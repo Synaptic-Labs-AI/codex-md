@@ -12,7 +12,7 @@
  */
 
 import { writable } from 'svelte/store';
-import electronClient from '$lib/api/electron';
+import electronClient from '@lib/api/electron';
 
 function createConversionResultStore() {
   // Default state with null values
