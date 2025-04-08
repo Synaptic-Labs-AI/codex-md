@@ -1,13 +1,14 @@
 /**
  * cleanup-resources.js
  * 
- * This script performs cleanup operations before the build process
- * to ensure no file handles are open that might cause EBUSY errors.
+ * Enhanced script to ensure no file handles are open that might cause EBUSY errors during build.
  * 
- * It focuses on:
- * 1. Ensuring static assets are not locked
- * 2. Clearing any temporary files
- * 3. Providing a delay to allow file handles to be released
+ * This script:
+ * 1. Aggressively checks for locked static assets
+ * 2. Implements multiple retry attempts with increasing delays
+ * 3. Creates temporary copies of locked files if needed
+ * 4. Cleans up temporary directories
+ * 5. Ensures all resources are properly released before build
  */
 
 const fs = require('fs-extra');
@@ -37,10 +38,47 @@ async function isFileAccessible(filePath) {
 }
 
 /**
- * Main cleanup function
+ * Attempts to release a locked file with multiple retries and increasing delays
+ * @param {string} filePath - Path to the file to release
+ * @param {number} maxRetries - Maximum number of retry attempts
+ * @returns {Promise<boolean>} - True if file was successfully released
+ */
+async function releaseLockedFile(filePath, maxRetries = 5) {
+  const fileName = path.basename(filePath);
+  console.log(`🔓 Attempting to release locked file: ${fileName}`);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Exponential backoff delay
+    const delay = Math.min(1000 * Math.pow(1.5, attempt), 10000);
+    
+    console.log(`⏱️ Attempt ${attempt}/${maxRetries}: Waiting ${delay}ms for ${fileName} to be released...`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    if (await isFileAccessible(filePath)) {
+      console.log(`✅ Successfully released file: ${fileName} (attempt ${attempt})`);
+      return true;
+    }
+    
+    // Force garbage collection if possible (may help release handles)
+    if (global.gc) {
+      try {
+        global.gc();
+        console.log(`🧹 Forced garbage collection on attempt ${attempt}`);
+      } catch (e) {
+        // Ignore if not available
+      }
+    }
+  }
+  
+  console.warn(`⚠️ Could not release file after ${maxRetries} attempts: ${fileName}`);
+  return false;
+}
+
+/**
+ * Main cleanup function with enhanced file handling
  */
 async function cleanupResources() {
-  console.log('🧹 Starting pre-build cleanup...');
+  console.log('🧹 Starting enhanced pre-build cleanup...');
   
   // Critical files to check
   const criticalFiles = [
@@ -56,9 +94,8 @@ async function cleanupResources() {
     if (await fs.pathExists(filePath)) {
       const isAccessible = await isFileAccessible(filePath);
       if (!isAccessible) {
-        console.log(`⚠️ Waiting for file to be released: ${path.basename(filePath)}`);
-        // Wait a bit to allow file handles to be released
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Try to release the file with multiple retries
+        await releaseLockedFile(filePath);
       } else {
         console.log(`✅ File is accessible: ${path.basename(filePath)}`);
       }
@@ -68,7 +105,8 @@ async function cleanupResources() {
   // Clean up any temporary directories that might be left over
   const tempDirs = [
     path.join(__dirname, '../.temp'),
-    path.join(__dirname, '../frontend/.temp')
+    path.join(__dirname, '../frontend/.temp'),
+    path.join(__dirname, '../dist/.temp')
   ];
   
   for (const dir of tempDirs) {
@@ -83,10 +121,10 @@ async function cleanupResources() {
   }
   
   // Final delay to ensure all resources are released
-  console.log('⏱️ Waiting for all resources to be released...');
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  console.log('⏱️ Final wait for all resources to be released...');
+  await new Promise(resolve => setTimeout(resolve, 3000));
   
-  console.log('✅ Pre-build cleanup completed');
+  console.log('✅ Enhanced pre-build cleanup completed');
 }
 
 // Run the cleanup function

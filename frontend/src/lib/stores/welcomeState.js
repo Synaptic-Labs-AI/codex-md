@@ -12,8 +12,9 @@
  */
 
 import { writable } from 'svelte/store';
-import { browser } from '$app/environment';
-import { onMount } from 'svelte';
+
+// Platform checks
+const isBrowser = typeof window !== 'undefined';
 
 // Current app version - update this when you want to show update messages
 const CURRENT_VERSION = '1.0.0';
@@ -39,8 +40,8 @@ const welcomeStateStore = writable(defaultState);
 
 // Initialize store from electron settings
 async function initializeStore() {
-  // Skip initialization if not in browser environment
-  if (!browser) return;
+// Skip initialization if not in browser environment
+  if (!isBrowser) return;
   
   // Only try to access electron API in browser environment
   if (!window?.electron) {
@@ -88,8 +89,8 @@ const hasSeenWelcomeThisSession = writable(false);
 
 // Helper to update electron settings when store changes
 async function updateSettings(state) {
-  // Skip if not in browser environment or not initialized
-  if (!browser || !window?.electron) return;
+// Skip if not in browser environment or not initialized
+  if (!isBrowser || !window?.electron) return;
   
   try {
     // Omit internal tracking state when saving
@@ -105,7 +106,7 @@ async function updateSettings(state) {
 }
 
 // Initialize the store only in browser environment
-if (browser) {
+if (isBrowser) {
   initializeStore();
 }
 

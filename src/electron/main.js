@@ -296,49 +296,15 @@ protocol.registerFileProtocol('file', (request, callback) => {
             return;
         }
         
-        // Special case for SvelteKit _app/immutable paths (common in newer SvelteKit builds)
-        if (filePath.includes('/_app/immutable/') || filePath.includes('\\_app\\immutable\\')) {
-            console.log('Detected _app/immutable path pattern');
-            
-            // Extract the path after _app
-            const appPath = filePath.replace(/^.*?_app[\/\\](.*)$/, '$1');
-            
-            // Map to the correct dist directory with ASAR awareness
-            const distPath = process.env.NODE_ENV === 'development'
-                ? path.join(__dirname, '../frontend/dist/_app', appPath)
-                : path.join(app.getAppPath(), 'frontend/dist/_app', appPath);
+        // Handle Vite/Svelte assets
+        if (filePath.includes('/assets/') || filePath.includes('\\assets\\')) {
+            const assetFile = filePath.substring(filePath.lastIndexOf('/') + 1);
+            const assetPath = process.env.NODE_ENV === 'development'
+                ? path.join(__dirname, '../frontend/dist/assets', assetFile)
+                : path.join(app.getAppPath(), 'frontend/dist/assets', assetFile);
                 
-            const safePath = PathUtils.normalizePath(decodeURI(distPath));
-            console.log('Serving SvelteKit _app/immutable asset from:', safePath);
-            callback(safePath);
-            return;
-        }
-        
-        // Handle SvelteKit assets in the dist directory
-        if (filePath.includes('/immutable/') || 
-            filePath.includes('\\immutable\\') || 
-            filePath.includes('/_app/') || 
-            filePath.includes('\\_app\\')) {
-            
-            console.log('Detected standard SvelteKit asset path pattern');
-            
-            // Determine if this is an immutable or _app path
-            let assetPath;
-            if (filePath.includes('/immutable/') || filePath.includes('\\immutable\\')) {
-                assetPath = filePath.replace(/^.*?(immutable[\/\\].*)$/, '$1');
-                console.log('Extracted immutable asset path:', assetPath);
-            } else {
-                assetPath = filePath.replace(/^.*?_app[\/\\](.*)$/, '$1');
-                console.log('Extracted _app asset path:', assetPath);
-            }
-            
-            // Map to the correct dist directory with ASAR awareness
-            const distPath = process.env.NODE_ENV === 'development'
-                ? path.join(__dirname, '../frontend/dist', assetPath)
-                : path.join(app.getAppPath(), 'frontend/dist', assetPath);
-                
-            const safePath = PathUtils.normalizePath(decodeURI(distPath));
-            console.log('Serving SvelteKit asset from:', safePath);
+            const safePath = PathUtils.normalizePath(decodeURI(assetPath));
+            console.log('Serving Vite asset from:', safePath);
             callback(safePath);
             return;
         }

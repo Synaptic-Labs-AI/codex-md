@@ -1,25 +1,9 @@
-import adapter from '@sveltejs/adapter-static';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
-/** @type {import('@sveltejs/kit').Config} */
+/** @type {import('@sveltejs/vite-plugin-svelte').SvelteConfig} */
 const config = {
-  kit: {
-    adapter: adapter({
-      pages: 'dist',
-      assets: 'dist',
-      fallback: 'index.html',
-      strict: false,
-      precompress: false
-    }),
-    paths: {
-      base: '',
-      assets: '',
-      relative: true
-    },
-    alias: {
-      '@shared': '../shared/src'
-    }
-  },
+  // Consult https://svelte.dev/docs#compile-time-svelte-preprocess
+  // for more information about preprocessors
   preprocess: vitePreprocess()
 };
 

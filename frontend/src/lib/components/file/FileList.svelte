@@ -1,6 +1,6 @@
 <!-- src/lib/components/file/FileList.svelte -->
 <script>
-  import { files, FileStatus } from '$lib/stores/files.js';
+  import { files, FileStatus } from '../../../lib/stores/files.js';
   import { fade, slide } from 'svelte/transition';
   import FileCard from './FileCard.svelte';
   import { createEventDispatcher } from 'svelte';

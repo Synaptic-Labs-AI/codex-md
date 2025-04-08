@@ -13,8 +13,8 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { fade, slide } from 'svelte/transition';
-  import { offlineStore } from '$lib/stores/offlineStore';
-  import electronClient from '$lib/api/electron/client';
+  import { offlineStore } from '../../lib/stores/offlineStore';
+  import electronClient from '../../lib/api/electron/client';
   
   // Local state
   let expanded = false;

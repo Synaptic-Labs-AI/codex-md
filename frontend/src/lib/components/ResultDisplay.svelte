@@ -4,10 +4,10 @@
   import Button from './common/Button.svelte';
   import Container from './common/Container.svelte';
   import ConversionProgress from './ConversionProgress.svelte';
-  import { unifiedConversion, ConversionState, currentFile } from '$lib/stores/unifiedConversion.js';
-  import { conversionResult } from '$lib/stores/conversionResult.js';
-  import { clearFiles, downloadHandler, storeManager } from '$lib/utils/conversion';
-  import { files } from '$lib/stores/files.js';
+  import { unifiedConversion, ConversionState, currentFile } from '../stores/unifiedConversion.js';
+  import { conversionResult } from '../stores/conversionResult.js';
+  import { clearFiles, downloadHandler, storeManager } from '../utils/conversion';
+  import { files } from '../stores/files.js';
 
   const dispatch = createEventDispatcher();
   

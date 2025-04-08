@@ -1,9 +1,48 @@
 # Active Context
 
 ## Current Focus
-Fixing build process issues in the Electron app on Windows, specifically addressing file locking problems that prevent successful packaging. This is a critical issue that prevents the application from being built properly in production.
+Enhancing the converter architecture to improve maintainability, reduce redundancy, and fix URL conversion issues. This work aims to create a more robust and standardized approach to file conversion throughout the application.
 
 ## Recent Changes
+
+### URL Converter Interface Fix (2025-04-08)
+- Fixed "converter.convert is not a function" error in URL conversion
+- Updated urlConverter.js to add a `convert` method that matches the standardized interface
+- Updated parentUrlConverter.js to export `convertToMarkdown` function for registry compatibility
+- Updated ConverterRegistry.js to use the correct method names for URL converters
+- Fixed import reference in ConverterRegistry.js to correctly access `urlConverter.urlConverter.convert`
+- Ensured consistent interface implementation across all converters
+- Improved error handling and validation for converter interfaces
+
+### Converter Architecture Enhancement (2025-04-08)
+- Created a centralized ConverterRegistry to replace textConverterFactory
+- Implemented a standardized interface for all converters
+- Added robust validation to ensure converters implement the required interface
+- Enhanced error handling with detailed logging and fallback mechanisms
+- Simplified UnifiedConverterFactory to use ConverterRegistry exclusively
+- Simplified ElectronConversionService to delegate more to UnifiedConverterFactory
+- Removed direct imports of individual converters
+- Added result standardization to ensure consistent output format
+- Fixed URL conversion by ensuring proper registration in the converter registry
+- Removed redundant code and simplified the converter registration process
+- Created a clear layered architecture: ElectronConversionService → UnifiedConverterFactory → ConverterRegistry → individual converters
+
+
+### Navigation UI Modernization (2025-04-08)
+- Updated Navigation.svelte with a modern, unified design
+- Removed individual bordered boxes for navigation items
+- Implemented subtle hover animations with underline effect
+- Added smooth transitions for active state indicators
+- Maintained accessibility features including high contrast mode support
+- Improved mobile responsiveness with adjusted spacing and sizing
+
+### Build Process EBUSY Error Fix (2025-04-08)
+- Simplified the build process by consolidating extraResources configuration in package.json
+- Removed duplicate extraResources configuration that was causing conflicts
+- Enhanced cleanup-resources.js with exponential backoff retry logic for locked files
+- Improved afterPack.js to safely verify assets without causing file locks
+- Removed manual copy-static-assets.js step from the build process
+- Let electron-builder handle asset copying through a single extraResources configuration
 
 ### Electron Asset Loading Fix (2025-04-08)
 - Reverted to standard file:// protocol with enhanced Windows-specific handling
@@ -41,25 +80,36 @@ Fixing build process issues in the Electron app on Windows, specifically address
 - Added more comprehensive error logging for debugging asset loading issues
 - Improved path normalization utilities to handle Windows-specific path formats
 
+### Navigation Bar Fix (2025-04-08)
+- Fixed missing navigation bar in the final Electron build
+- Added Navigation component import and usage to App.svelte
+- Updated Logo component to use relative path for logo image
+- Ensured proper asset loading in production builds
+
 ## Current Issues
 - ~~The app was failing to load JavaScript assets in production mode~~ (Fixed)
 - ~~Build process was failing with EBUSY errors when copying static assets~~ (Fixed)
 - ~~The installed application was failing to load SvelteKit assets~~ (Fixed)
 - ~~The build process was encountering file locking issues with logo.png~~ (Fixed)
 - ~~The build process was encountering file locking issues with favicon.png~~ (Fixed)
-- The build process was encountering file locking issues on Windows:
+- ~~The build process was encountering file locking issues on Windows~~ (Fixed):
   ```
-  ⨯ EBUSY: resource busy or locked, copyfile 'C:\Users\jrose\Documents\codex-md\frontend\static\logo.png' -> 'C:\Users\jrose\Documents\codex-md\dist\win-unpacked\resources\frontend\static\logo.png'
+  ⨯ EBUSY: resource busy or locked, copyfile 'C:\Users\jrose\Documents\codex-md\frontend\static\favicon-icon.png' -> 'C:\Users\jrose\Documents\codex-md\dist\win-unpacked\resources\frontend\dist\static\favicon-icon.png'
   ```
-- This was caused by static assets being used for multiple purposes (UI, app icons, etc.)
-- The issue specifically affects Windows due to its stricter file locking behavior
+- ~~This was caused by static assets being used for multiple purposes (UI, app icons, etc.)~~ (Fixed)
+- ~~The issue specifically affects Windows due to its stricter file locking behavior~~ (Fixed)
+- ~~Navigation bar missing in the final Electron build~~ (Fixed)
+- ~~URL conversion failing with "Unsupported file type: ai" error~~ (Fixed)
+- ~~URL conversion failing with "converter.convert is not a function" error~~ (Fixed)
 
 ## Next Steps
 
 ### Immediate Actions
-1. Test the build process with the new improvements on Windows
-2. Verify that the application builds successfully without file locking errors
-3. Document the solution in the system patterns for future reference
+1. ~~Test the build process with the new improvements on Windows~~ (Completed)
+2. ~~Verify that the application builds successfully without file locking errors~~ (Completed)
+3. ~~Fix URL conversion to properly handle URLs without treating them as files~~ (Completed)
+4. Document the solution in the system patterns for future reference
+5. Consider implementing similar improvements in other Electron projects
 
 ### Long-term Solution: Migration to Plain Svelte + Vite
 We've created a comprehensive migration plan to address the root cause of the asset loading issues by transitioning from SvelteKit to plain Svelte + Vite. This plan is documented in:
@@ -86,3 +136,4 @@ This approach addresses the root cause of the file locking and asset loading iss
 - **Error Handling**: Enhanced with detailed logging and recovery mechanisms
 - **Build Process**: Enhanced with file locking prevention and retry mechanisms
 - **Resource Management**: Improved with dedicated files for different purposes
+- **URL Handling**: Enhanced to properly distinguish between URLs and files with extensions

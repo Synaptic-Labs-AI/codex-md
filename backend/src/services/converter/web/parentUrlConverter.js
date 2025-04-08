@@ -3,6 +3,9 @@ import { AppError } from '../../../utils/errorHandler.js';
 import { SitemapParser } from './utils/SitemapParser.js';
 import { generateUrlFilename, sanitizeFilename } from '@codex-md/shared/utils/files';
 
+// Export the function with the name expected by ConverterRegistry
+export const convertToMarkdown = convertParentUrlToMarkdown;
+
 /**
  * Convert a parent URL and its child pages to markdown
  * @param {string} parentUrl - Parent URL to convert  

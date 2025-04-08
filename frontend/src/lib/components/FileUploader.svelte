@@ -1,13 +1,13 @@
 <!-- src/lib/components/FileUploader.svelte -->
 <script>
   import { createEventDispatcher } from 'svelte';
-  import { files } from '$lib/stores/files.js';
-  import { uploadStore } from '$lib/stores/uploadStore.js';
+  import { files } from '../stores/files.js';
+  import { uploadStore } from '../stores/uploadStore.js';
   import { fade } from 'svelte/transition';
-  import { apiKey } from '$lib/stores/apiKey.js';
-  import { requiresApiKey, isValidFileType } from '$lib/utils/fileUtils.js';
-  import { fileCategories, generateId, normalizeUrl } from '$lib/api/electron';
-  import electronClient from '$lib/api/electron';
+  import { apiKey } from '../stores/apiKey.js';
+  import { requiresApiKey, isValidFileType } from '../utils/fileUtils.js';
+  import { fileCategories, generateId, normalizeUrl } from '../api/electron';
+  import electronClient from '../api/electron';
   import Container from './common/Container.svelte';
   import TabNavigation from './common/TabNavigation.svelte';
   import UrlInput from './common/UrlInput.svelte';

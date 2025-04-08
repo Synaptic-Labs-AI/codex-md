@@ -1,10 +1,17 @@
-// src/lib/components/stores/uploadStore.js
+/**
+ * Upload Store
+ * Manages the state for file uploads and URL inputs.
+ * Handles drag-and-drop states, error messages, and feedback.
+ */
+
 import { writable } from 'svelte/store';
-import { browser } from '$app/environment';
+
+// Platform check
+const isBrowser = typeof window !== 'undefined';
 
 function createUploadStore() {
   // Clear store on page load
-  if (browser) {
+  if (isBrowser) {
     console.log('🧹 Clearing upload store on page load');
   }
 
