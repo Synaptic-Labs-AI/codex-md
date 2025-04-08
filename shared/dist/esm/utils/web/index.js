@@ -1,0 +1,1 @@
+import*as t from"./metadata.js";export{t as metadata};const{extractMetadata:a,extractContent:e,extractLinks:r}=t,x={extractMetadata:a,extractContent:e,extractLinks:r};var c={extractMetadata:a,extractContent:e,extractLinks:r,metadata:x};export{c as default,e as extractContent,r as extractLinks,a as extractMetadata,x as webMetadata};

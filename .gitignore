@@ -1,15 +1,11 @@
 node_modules
 
-cline_docs
-
-.clinerules
-
 codeSummary.cjs
 
 Electron Docs
 
 .svelte-kit
 
-dist
-
 .roomodes
+
+out/

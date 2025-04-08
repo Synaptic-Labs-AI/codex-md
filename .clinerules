@@ -42,11 +42,27 @@ This file documents important patterns, preferences, and project intelligence th
 - Use IPC for all communication between main and renderer processes
 - Avoid direct Node.js API usage in renderer process
 - Follow the modular pattern in frontend/src/lib/api/electron/
+- Register handlers in appropriate handler files in src/electron/ipc/handlers/
 
 ### File System Operations
 - Always use the FileSystemService for file operations
 - Validate paths before operations
 - Handle errors gracefully with user feedback
+- Use PathUtils.normalizePath for cross-platform path handling
+
+### Protocol Handlers
+- Use enhanced file:// protocol handler for asset loading in production builds
+- Implement ASAR-aware path resolution for packaged applications
+- Add special handling for Windows paths with drive letters
+- Include fallback mechanisms with delayed retries for asset loading failures
+- Use detailed logging for debugging protocol-related issues
+
+### Static Asset Management
+- Copy static assets to dist directory during build process using copy-static-assets.js
+- Verify critical assets exist in the afterPack script
+- Include static assets in extraResources configuration
+- Implement multiple fallback mechanisms for asset loading
+- Use detailed logging for debugging asset loading issues
 
 ## Documentation
 

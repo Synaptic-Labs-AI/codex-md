@@ -130,7 +130,9 @@ function createMainWindow() {
 
     // Get platform-specific icon path
     const iconPath = PathUtils.normalizePath(
-        path.join(__dirname, '../../frontend/static/logo.png')
+        process.env.NODE_ENV === 'development'
+            ? path.join(__dirname, '../frontend/static/logo.png')
+            : path.join(app.getAppPath(), 'frontend/static/logo.png')
     );
 
     // Configure window for platform
@@ -164,9 +166,19 @@ function createMainWindow() {
     } else {
         // Production - load local files using platform-safe paths
         const appPath = PathUtils.normalizePath(
-            path.join(__dirname, '../frontend/dist/index.html')
+            process.env.NODE_ENV === 'development'
+                ? path.join(__dirname, '../frontend/dist/index.html')
+                : path.join(app.getAppPath(), 'frontend/dist/index.html')
         );
         
+        // Enable dev tools in production for debugging if needed
+        mainWindow.webContents.openDevTools();
+        
+        // Log the path being loaded
+        console.log('Loading app from path:', appPath);
+        
+        // Use file:// protocol for loading the main HTML file
+        // This is the standard approach for Electron apps
         mainWindow.loadURL(
             url.format({
                 pathname: appPath,
@@ -174,6 +186,25 @@ function createMainWindow() {
                 slashes: true
             })
         );
+        
+        // Log any page load errors
+        mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+            console.error('Failed to load app:', errorCode, errorDescription);
+            
+            // Attempt to reload with a slight delay as a fallback
+            if (errorCode !== -3) { // Ignore aborted loads
+                console.log('Attempting fallback load after delay...');
+                setTimeout(() => {
+                    mainWindow.loadURL(
+                        url.format({
+                            pathname: appPath,
+                            protocol: 'file:',
+                            slashes: true
+                        })
+                    );
+                }, 1000);
+            }
+        });
     }
 
     // Set platform-specific application menu
@@ -226,11 +257,128 @@ function createMainWindow() {
 // App startup sequence
 app.whenReady().then(async () => {
     try {
-// Register protocols with platform-safe paths
+// Register standard protocols with enhanced error handling
 protocol.registerFileProtocol('media', (request, callback) => {
-    const filePath = request.url.replace('media://', '');
-    const safePath = PathUtils.normalizePath(decodeURI(filePath));
-    callback(safePath);
+    try {
+        const filePath = request.url.replace('media://', '');
+        const safePath = PathUtils.normalizePath(decodeURI(filePath));
+        console.log('Media protocol serving:', safePath);
+        callback(safePath);
+    } catch (error) {
+        console.error('Error in media protocol handler:', error);
+        callback({ error: -2 });
+    }
+});
+
+// Enhanced file protocol handler with proper ASAR-aware path resolution
+protocol.registerFileProtocol('file', (request, callback) => {
+    try {
+        let filePath = request.url.replace('file://', '');
+        console.log('File protocol request:', filePath);
+        
+        // Special handling for Windows absolute paths with drive letters
+        if (process.platform === 'win32' && filePath.match(/^\/[A-Za-z]:\//)) {
+            // Remove the leading slash before the drive letter
+            filePath = filePath.replace(/^\/([A-Za-z]:\/.*?)$/, '$1');
+            console.log('Normalized Windows path:', filePath);
+        }
+        
+        // Handle static assets from frontend/static
+        if (filePath.includes('/static/') || filePath.includes('\\static\\')) {
+            const staticFile = path.basename(filePath);
+            const staticPath = process.env.NODE_ENV === 'development'
+                ? path.join(__dirname, '../frontend/static', staticFile)
+                : path.join(app.getAppPath(), 'frontend/static', staticFile);
+                
+            const safePath = PathUtils.normalizePath(decodeURI(staticPath));
+            console.log('Serving static asset from:', safePath);
+            callback(safePath);
+            return;
+        }
+        
+        // Special case for SvelteKit _app/immutable paths (common in newer SvelteKit builds)
+        if (filePath.includes('/_app/immutable/') || filePath.includes('\\_app\\immutable\\')) {
+            console.log('Detected _app/immutable path pattern');
+            
+            // Extract the path after _app
+            const appPath = filePath.replace(/^.*?_app[\/\\](.*)$/, '$1');
+            
+            // Map to the correct dist directory with ASAR awareness
+            const distPath = process.env.NODE_ENV === 'development'
+                ? path.join(__dirname, '../frontend/dist/_app', appPath)
+                : path.join(app.getAppPath(), 'frontend/dist/_app', appPath);
+                
+            const safePath = PathUtils.normalizePath(decodeURI(distPath));
+            console.log('Serving SvelteKit _app/immutable asset from:', safePath);
+            callback(safePath);
+            return;
+        }
+        
+        // Handle SvelteKit assets in the dist directory
+        if (filePath.includes('/immutable/') || 
+            filePath.includes('\\immutable\\') || 
+            filePath.includes('/_app/') || 
+            filePath.includes('\\_app\\')) {
+            
+            console.log('Detected standard SvelteKit asset path pattern');
+            
+            // Determine if this is an immutable or _app path
+            let assetPath;
+            if (filePath.includes('/immutable/') || filePath.includes('\\immutable\\')) {
+                assetPath = filePath.replace(/^.*?(immutable[\/\\].*)$/, '$1');
+                console.log('Extracted immutable asset path:', assetPath);
+            } else {
+                assetPath = filePath.replace(/^.*?_app[\/\\](.*)$/, '$1');
+                console.log('Extracted _app asset path:', assetPath);
+            }
+            
+            // Map to the correct dist directory with ASAR awareness
+            const distPath = process.env.NODE_ENV === 'development'
+                ? path.join(__dirname, '../frontend/dist', assetPath)
+                : path.join(app.getAppPath(), 'frontend/dist', assetPath);
+                
+            const safePath = PathUtils.normalizePath(decodeURI(distPath));
+            console.log('Serving SvelteKit asset from:', safePath);
+            callback(safePath);
+            return;
+        }
+        
+        // Special case for index.html to avoid SvelteKit routing issues
+        if (filePath.endsWith('index.html') || filePath.endsWith('\\index.html')) {
+            const indexPath = process.env.NODE_ENV === 'development'
+                ? path.join(__dirname, '../frontend/dist/index.html')
+                : path.join(app.getAppPath(), 'frontend/dist/index.html');
+                
+            const safePath = PathUtils.normalizePath(decodeURI(indexPath));
+            console.log('Serving index.html from:', safePath);
+            callback(safePath);
+            return;
+        }
+        
+        // Special case for direct file requests with no path (just a filename)
+        // This handles cases where SvelteKit generates direct references to files in the root
+        if (!filePath.includes('/') && !filePath.includes('\\') && filePath.includes('.')) {
+            console.log('Detected direct file request with no path');
+            
+            // Try to find the file in the dist directory
+            const distPath = process.env.NODE_ENV === 'development'
+                ? path.join(__dirname, '../frontend/dist', filePath)
+                : path.join(app.getAppPath(), 'frontend/dist', filePath);
+                
+            const safePath = PathUtils.normalizePath(decodeURI(distPath));
+            console.log('Serving direct file from dist:', safePath);
+            callback(safePath);
+            return;
+        }
+        
+        // Handle other file:// requests normally
+        const safePath = PathUtils.normalizePath(decodeURI(filePath));
+        console.log('Serving standard file from:', safePath);
+        callback(safePath);
+    } catch (error) {
+        console.error('Error in file protocol handler:', error);
+        callback({ error: -2 }); // Failed to load
+    }
 });
 
         // Initialize app before creating window
