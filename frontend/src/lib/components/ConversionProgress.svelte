@@ -13,8 +13,8 @@
   import { onDestroy, onMount } from 'svelte';
   import ChatBubble from './common/ChatBubble.svelte';
   import Timer from './common/Timer.svelte';
-  import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion';
-  import { getRandomMessage } from '$lib/utils/conversionMessages';
+  import { unifiedConversion, ConversionState } from '../stores/unifiedConversion';
+  import { getRandomMessage } from '../utils/conversionMessages';
   
   // Track bubble position to alternate
   let bubblePosition = 'left';

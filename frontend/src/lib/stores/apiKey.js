@@ -15,7 +15,9 @@
  */
 
 import { writable, get, derived } from 'svelte/store';
-import { browser } from '$app/environment';
+
+// Platform check
+const isBrowser = typeof window !== 'undefined';
 
 // Initial state
 const initialState = {
@@ -32,7 +34,7 @@ const apiKeyStore = writable(initialState);
 
 // Initialize store from electron
 async function initializeStore() {
-  if (!browser) return;
+  if (!isBrowser) return;
 
   try {
     if (!window?.electron) {
@@ -84,7 +86,7 @@ async function initializeStore() {
 }
 
 // Initialize the store in browser environment
-if (browser) {
+if (isBrowser) {
   initializeStore();
 }
 
@@ -95,7 +97,7 @@ export async function getApiKey(provider = 'openai') {
 }
 
 export async function setApiKey(key, provider = 'openai') {
-  if (!browser || !window?.electron) return;
+  if (!isBrowser || !window?.electron) return;
 
   try {
     await window.electron.saveApiKey(key, provider);

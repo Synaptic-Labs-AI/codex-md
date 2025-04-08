@@ -10,13 +10,14 @@
 import { writable, derived } from 'svelte/store';
 import { v4 as uuidv4 } from 'uuid';
 import { requiresApiKey } from '@codex-md/shared/utils/files';
-import { browser } from '$app/environment';
+// Platform check
+const isBrowser = typeof window !== 'undefined';
 
 // Create and export the stores
 export const files = createFilesStore();
 
 // Clear any stored files data on page load
-if (browser) {
+if (isBrowser) {
     // Clear any stored files data
     localStorage.removeItem('codex_md_files');
     sessionStorage.removeItem('codex_md_files');
@@ -132,7 +133,7 @@ function createFilesStore() {
         // Cleanup function that runs when all subscribers unsubscribe
         return () => {
             set([]); // Clear the store
-            if (browser) {
+            if (isBrowser) {
                 // Clear any stored data
                 localStorage.removeItem('codex_md_files');
                 sessionStorage.removeItem('codex_md_files');
@@ -370,7 +371,7 @@ function createFilesStore() {
         clearFiles: createAction('clearFiles', () => {
             console.log('[filesStore] Clearing all files');
             let count = 0;
-            if (browser) {
+            if (isBrowser) {
                 // Clear any stored data
                 localStorage.removeItem('codex_md_files');
                 sessionStorage.removeItem('codex_md_files');

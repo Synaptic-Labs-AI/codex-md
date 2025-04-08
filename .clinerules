@@ -20,6 +20,15 @@ This file documents important patterns, preferences, and project intelligence th
 - Use SvelteKit's client-side navigation rather than full page reloads
 - Avoid window.location.reload() except when explicitly needed for a full reset
 
+### Navigation UI
+- Use a unified, cohesive navigation bar design instead of separate boxes for each item
+- Implement subtle hover effects with animated underlines
+- Use background color transitions for hover and active states
+- Ensure active state is clearly indicated with color and underline
+- Maintain accessibility with high contrast mode support
+- Implement responsive design with appropriate spacing adjustments for mobile
+- Use CSS variables from the theme for consistent styling
+
 ## Code Organization
 
 ### Store Pattern

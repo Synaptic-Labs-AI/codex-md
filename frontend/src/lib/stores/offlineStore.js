@@ -15,7 +15,9 @@
  */
 
 import { writable, derived } from 'svelte/store';
-import { browser } from '$app/environment';
+
+// Platform check
+const isBrowser = typeof window !== 'undefined';
 
 // Create the base store
 function createOfflineStore() {
@@ -37,7 +39,7 @@ function createOfflineStore() {
   
   // Check status with electron
   async function checkStatus() {
-    if (!browser || !window?.electron) return;
+  if (!isBrowser || !window?.electron) return;
     
     try {
       const status = await window.electron.getOfflineStatus();
@@ -58,7 +60,7 @@ function createOfflineStore() {
 
   // Initialize store
   async function initialize() {
-    if (!browser) return;
+  if (!isBrowser) return;
 
     try {
       if (!window?.electron) {
@@ -103,7 +105,7 @@ function createOfflineStore() {
   }
 
   // Clean up on window unload
-  if (browser) {
+  if (isBrowser) {
     window.addEventListener('beforeunload', () => {
       if (statusCheckInterval) {
         clearInterval(statusCheckInterval);

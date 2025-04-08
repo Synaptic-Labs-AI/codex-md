@@ -1,6 +1,6 @@
 <script>
     import { createEventDispatcher } from 'svelte';
-    import { getFileIcon } from '$lib/utils/iconUtils.js';
+    import { getFileIcon } from '../../../lib/utils/iconUtils.js';
     
     export let file;
     

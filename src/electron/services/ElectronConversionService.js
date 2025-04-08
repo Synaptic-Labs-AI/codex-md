@@ -45,79 +45,16 @@ console.log('📄 Initialized with file handling:', {
   fileConfig: CONVERTER_CONFIG
 });
 
+// Import UnifiedConverterFactory
+const unifiedConverterFactory = require('../converters/UnifiedConverterFactory');
+
 // Initialize backend converters
 (async function() {
   try {
-    // Import backend converters
-    const textConverterModule = await import('../../../backend/src/services/converter/textConverterFactory.js');
-    const textConverterFactory = textConverterModule.textConverterFactory;
-    registerConverterFactory('textFactory', textConverterFactory);
-    
-    // Import Office document converters
-    const docxConverterModule = await import('../../../backend/src/services/converter/text/docxConverter.js');
-    if (docxConverterModule.default) {
-      registerConverter('docx', docxConverterModule.default);
-      console.log('✅ Registered DOCX converter');
-    }
-    
-    const pptxConverterModule = await import('../../../backend/src/services/converter/text/pptxConverter.js');
-    if (pptxConverterModule.default) {
-      registerConverter('pptx', pptxConverterModule.default);
-      console.log('✅ Registered PPTX converter');
-    }
-    
-    // Import URL converters
-    const urlConverterModule = await import('../../../backend/src/services/converter/web/urlConverter.js');
-    if (urlConverterModule.urlConverter) {
-      registerConverter('url', urlConverterModule.urlConverter);
-      console.log('✅ Registered URL converter');
-    }
-    
-    const parentUrlConverterModule = await import('../../../backend/src/services/converter/web/parentUrlConverter.js');
-    if (parentUrlConverterModule.convertParentUrlToMarkdown) {
-      registerConverter('parenturl', {
-        convertToMarkdown: parentUrlConverterModule.convertParentUrlToMarkdown
-      });
-      console.log('✅ Registered Parent URL converter');
-    }
-    
-    // Import data converters (CSV and XLSX)
-    const csvConverterModule = await import('../../../backend/src/services/converter/data/csvConverter.js');
-    if (csvConverterModule.default) {
-      registerConverter('csv', csvConverterModule.default);
-      console.log('✅ Registered CSV converter');
-    }
-    
-    const xlsxConverterModule = await import('../../../backend/src/services/converter/data/xlsxConverter.js');
-    if (xlsxConverterModule.default) {
-      registerConverter('xlsx', xlsxConverterModule.default);
-      console.log('✅ Registered XLSX converter');
-    }
-    
-    // Import PDF converter
-    const pdfConverterModule = await import('../../../backend/src/services/converter/pdf/PdfConverterFactory.js');
-    if (pdfConverterModule.default) {
-      registerConverter('pdf', pdfConverterModule.default);
-      console.log('✅ Registered PDF converter factory');
-    }
-    
-    // Import audio converter
-    const audioConverterModule = await import('../../../backend/src/services/converter/multimedia/audioconverter.js');
-    if (audioConverterModule.default) {
-      registerConverter('audio', audioConverterModule.default);
-      ['mp3', 'wav', 'ogg', 'flac'].forEach(format => {
-        registerConverter(format, audioConverterModule.default);
-      });
-    }
-    
-    // Import video converter  
-    const videoConverterModule = await import('../../../backend/src/services/converter/multimedia/videoConverter.js');
-    if (videoConverterModule.default) {
-      registerConverter('video', videoConverterModule.default);
-      ['mp4', 'webm', 'avi', 'mov'].forEach(format => {
-        registerConverter(format, videoConverterModule.default);
-      });
-    }
+    // Import converter registry
+    const converterRegistryModule = await import('../../../backend/src/services/converter/ConverterRegistry.js');
+    const converterRegistry = converterRegistryModule.ConverterRegistry;
+    registerConverterFactory('converterRegistry', converterRegistry);
     
     console.log('✅ Backend converters registered successfully');
   } catch (error) {
@@ -136,6 +73,9 @@ class ElectronConversionService {
 
   /**
    * Converts a file to markdown format
+   * @param {string|Buffer} filePath - Path to the file or file content as buffer
+   * @param {Object} options - Conversion options
+   * @returns {Promise<Object>} - Conversion result
    */
   async convert(filePath, options = {}) {
     const startTime = Date.now();
@@ -149,188 +89,40 @@ class ElectronConversionService {
       
       // Create a progress tracker
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
-      progressTracker.update(5);
       
-      // For URLs, use the explicit type from options
-      // For files, use the file extension directly instead of the category
-      const fileType = options.type === 'url' || options.type === 'parenturl'
-        ? options.type
-        : (() => {
-            // Special handling for data files
-            if (options.type === 'data') {
-              // Try to get the file extension from the filename
-              const fileName = options.originalFileName || options.name;
-              if (fileName) {
-                const extension = fileName.split('.').pop().toLowerCase();
-                if (extension === 'csv' || extension === 'xlsx' || extension === 'xls') {
-                  console.log(`📊 [ElectronConversionService] Detected data file type: ${extension}`);
-                  return extension;
-                }
-              }
-              
-              // If we can't determine the specific data file type, default to CSV
-              // This is safer than using 'data' which isn't a registered converter
-              console.log(`📊 [ElectronConversionService] Using default 'csv' for data file with unknown extension`);
-              return 'csv';
-            }
-            
-            // For other files, try to get the file extension directly
-            const fileName = options.originalFileName || options.name;
-            if (fileName) {
-              const extension = fileName.split('.').pop().toLowerCase();
-              if (extension && extension !== fileName) {
-                return extension;
-              }
-            }
-            
-            // If we can't get the extension, fall back to the category
-            return getFileType({
-              name: fileName,
-              type: options.type,
-              path: typeof filePath === 'string' ? filePath : undefined
-            });
-          })();
+      // Determine file type
+      const fileType = this.determineFileType(filePath, options);
       
       console.log('📄 [ElectronConversionService] Processing:', {
         type: fileType,
         isBuffer: Buffer.isBuffer(filePath),
         isTemporary: options.isTemporary,
         isUrl: options.type === 'url' || options.type === 'parenturl',
-        isParentUrl: options.type === 'parenturl',
-        options: options.type === 'parenturl' ? {
-          maxDepth: options.maxDepth,
-          maxPages: options.maxPages,
-          includeImages: options.includeImages,
-          includeMeta: options.includeMeta
-        } : undefined
+        isParentUrl: options.type === 'parenturl'
       });
-      let fileContent;
       
-      // Handle content based on input type
-      if (options.isTemporary && Buffer.isBuffer(filePath)) {
-        console.log(`Processing binary content as ${fileType}`);
-        fileContent = filePath; // filePath is actually the buffer
-      } else if (options.type === 'url' || options.type === 'parenturl') {
-        console.log(`Processing ${options.type === 'parenturl' ? 'parent URL' : 'URL'}: ${filePath}`);
-        fileContent = filePath;
-      } else if (typeof filePath === 'string') {
-        // Special handling for data files
-        if (options.type === 'data') {
-          // Determine the specific data file type based on the filename and content
-          const fileName = options.originalFileName || options.name || '';
-          const fileExtension = fileName.split('.').pop().toLowerCase();
-          
-          // Check if this is CSV content
-          const isCSVContent = (filePath.includes(',') || filePath.includes('\t')) &&
-                              filePath.includes('\n');
-          
-          if (isCSVContent || fileExtension === 'csv') {
-            console.log('Detected CSV content, processing directly');
-            fileContent = filePath;
-            
-            // Use the csv converter instead of data
-            if (fileType === 'data') {
-              console.log('Changing fileType from "data" to "csv" for CSV content');
-              fileType = 'csv';
-            }
-          } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-            console.log(`Detected Excel file (${fileExtension}), using xlsx converter`);
-            
-            // For XLSX files, we still need to validate the file path
-            try {
-              const fileStats = await this.fileSystem.getStats(filePath);
-              if (!fileStats.success) {
-                throw new Error(`File not found or inaccessible: ${filePath}`);
-              }
-              
-              fileContent = await readFileAsync(filePath);
-              
-              // Use the xlsx converter instead of data
-              if (fileType === 'data') {
-                console.log('Changing fileType from "data" to "xlsx" for Excel content');
-                fileType = 'xlsx';
-              }
-            } catch (error) {
-              console.error(`Error reading Excel file: ${filePath}`, error);
-              throw new Error(`File not found or inaccessible: ${filePath}`);
-            }
-          } else {
-            // For other data files or unknown formats, try to read as a file
-            try {
-              const fileStats = await this.fileSystem.getStats(filePath);
-              if (!fileStats.success) {
-                throw new Error(`File not found or inaccessible: ${filePath}`);
-              }
-              
-              fileContent = await readFileAsync(filePath);
-            } catch (error) {
-              console.error(`Error reading file: ${filePath}`, error);
-              throw new Error(`File not found or inaccessible: ${filePath}`);
-            }
-          }
-        } else {
-          // For non-data files, validate file exists and read it
-          try {
-            const fileStats = await this.fileSystem.getStats(filePath);
-            if (!fileStats.success) {
-              throw new Error(`File not found or inaccessible: ${filePath}`);
-            }
-            
-            // Read file with appropriate encoding
-            fileContent = await readFileAsync(filePath);
-          } catch (error) {
-            console.error(`Error reading file: ${filePath}`, error);
-            throw new Error(`File not found or inaccessible: ${filePath}`);
-          }
-        }
-      } else {
-        // If filePath is not a string and not binary content, it's invalid
-        throw new Error('Invalid input: Expected a file path or buffer');
+      // Delegate to UnifiedConverterFactory
+      const conversionResult = await unifiedConverterFactory.convertFile(filePath, {
+        ...options,
+        fileType,
+        progressTracker
+      });
+      
+      if (!conversionResult.success) {
+        throw new Error(conversionResult.error || 'Conversion failed');
       }
-      
-      progressTracker.update(10);
-      
-      // Prepare conversion options
-      const conversionOptions = {
-        name: options.originalFileName || options.name,
-        apiKey: options.apiKey,
-        useOcr: options.useOcr,
-        mistralApiKey: options.mistralApiKey,
-        onProgress: (progress) => progressTracker.update(progress)
-      };
-      
-      // Add parenturl specific options if needed
-      if (fileType === 'parenturl') {
-        Object.assign(conversionOptions, {
-          maxDepth: options.maxDepth || 3,
-          maxPages: options.maxPages || 100,
-          includeImages: options.includeImages ?? true,
-          includeMeta: options.includeMeta ?? true
-        });
-        
-        console.log('🌐 [ElectronConversionService] Using parentUrl options:', {
-          maxDepth: conversionOptions.maxDepth,
-          maxPages: conversionOptions.maxPages,
-          includeImages: conversionOptions.includeImages,
-          includeMeta: conversionOptions.includeMeta
-        });
-      }
-      
-      // Use the shared converters module directly
-      const conversionResult = await convertToMarkdown(fileType, fileContent, conversionOptions);
-      
-      progressTracker.update(90);
       
       // Extract content from result
-      const content = conversionResult.content || (conversionResult.buffer ? conversionResult.buffer.toString() : '');
+      const content = conversionResult.content || '';
       
       if (!content) {
         throw new Error('Conversion produced empty content');
       }
       
       // Determine file category from name or type
-      // Use the category for file organization, which is fine
-      const fileCategory = getFileType(options.originalFileName || options.name) || 'text';
+      const fileCategory = conversionResult.category || 
+                          getFileType(options.originalFileName || options.name) || 
+                          'text';
       
       // Check if the conversion result has multiple files (for parenturl)
       const hasMultipleFiles = Array.isArray(conversionResult.files) && conversionResult.files.length > 0;
@@ -344,20 +136,18 @@ class ElectronConversionService {
         content: content,
         metadata: conversionResult.metadata || {},
         images: conversionResult.images || [],
-        files: conversionResult.files, // Pass the files array if it exists
-        name: options.originalFileName || options.name,
-        type: fileType,
+        files: conversionResult.files,
+        name: conversionResult.name || options.originalFileName || options.name,
+        type: conversionResult.type || fileType,
         outputDir: options.outputDir,
         options: {
           ...options,
           category: fileCategory,
           pageCount: conversionResult.pageCount,
           slideCount: conversionResult.slideCount,
-          hasMultipleFiles // Flag to indicate if this is a multi-file conversion
+          hasMultipleFiles
         }
       });
-      
-      progressTracker.update(100);
       
       console.log(`✅ File conversion completed in ${Date.now() - startTime}ms:`, {
         file: filePath,
@@ -378,6 +168,50 @@ class ElectronConversionService {
         error: error.message
       };
     }
+  }
+  
+  /**
+   * Determines the file type based on the input and options
+   * @private
+   */
+  determineFileType(filePath, options) {
+    // For URLs, use the explicit type from options
+    if (options.type === 'url' || options.type === 'parenturl') {
+      return options.type;
+    }
+    
+    // Special handling for data files
+    if (options.type === 'data') {
+      // Try to get the file extension from the filename
+      const fileName = options.originalFileName || options.name;
+      if (fileName) {
+        const extension = fileName.split('.').pop().toLowerCase();
+        if (extension === 'csv' || extension === 'xlsx' || extension === 'xls') {
+          console.log(`📊 [ElectronConversionService] Detected data file type: ${extension}`);
+          return extension;
+        }
+      }
+      
+      // If we can't determine the specific data file type, default to CSV
+      console.log(`📊 [ElectronConversionService] Using default 'csv' for data file with unknown extension`);
+      return 'csv';
+    }
+    
+    // For other files, try to get the file extension directly
+    const fileName = options.originalFileName || options.name;
+    if (fileName) {
+      const extension = fileName.split('.').pop().toLowerCase();
+      if (extension && extension !== fileName) {
+        return extension;
+      }
+    }
+    
+    // If we can't get the extension, fall back to the category
+    return getFileType({
+      name: fileName,
+      type: options.type,
+      path: typeof filePath === 'string' ? filePath : undefined
+    });
   }
 
   /**

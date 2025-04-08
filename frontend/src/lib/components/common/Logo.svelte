@@ -6,7 +6,7 @@
 
 <div class="logo {size} {className}">
   <div class="logo-icon">
-    <img src="/logo.png" alt="codex.md Logo" />
+    <img src="./logo.png" alt="codex.md Logo" />
   </div>
   {#if showText}
     <div class="logo-text">

@@ -2,7 +2,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { slide, fade } from 'svelte/transition';
-  import { getApiKey, setApiKey } from '$lib/stores/apiKey.js';
+  import { getApiKey, setApiKey } from '../stores/apiKey.js';
   import Button from './common/Button.svelte';
 
   // Props

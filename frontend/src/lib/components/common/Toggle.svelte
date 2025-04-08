@@ -1,106 +1,136 @@
-<!-- frontend/src/lib/components/common/Toggle.svelte -->
+<!-- 
+  Toggle.svelte - Reusable toggle switch component
+  Used for boolean settings and preferences throughout the application.
+  
+  Features:
+  - Custom styling with CSS variables
+  - Label support
+  - Animation for state changes
+  - Keyboard accessibility
+  
+  Props:
+  - checked: boolean - Current state of the toggle
+  - label: string - Optional label text
+  - disabled: boolean - Optional disabled state
+  
+  Events:
+  - change: Dispatched when toggle state changes
+-->
 <script>
+  import { createEventDispatcher } from 'svelte';
+  
   export let checked = false;
   export let label = '';
-  export let id = `toggle-${Math.random().toString(36).substring(2)}`;
   export let disabled = false;
   
-  import { createEventDispatcher } from 'svelte';
   const dispatch = createEventDispatcher();
   
-  function handleChange(event) {
-    checked = event.target.checked;
-    dispatch('change', { checked });
+  function handleChange() {
+    if (!disabled) {
+      checked = !checked;
+      dispatch('change', { checked });
+    }
+  }
+  
+  function handleKeydown(event) {
+    if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      handleChange();
+    }
   }
 </script>
 
-<div class="toggle-container">
-  <label for={id} class="toggle-label">
-    <input
-      type="checkbox"
-      {id}
-      class="toggle-input"
-      bind:checked
-      on:change={handleChange}
-      {disabled}
-    />
-    <span class="toggle-switch" aria-hidden="true"></span>
-    {#if label}
-      <span class="label-text">{label}</span>
-    {/if}
-  </label>
-</div>
+<label class="toggle-container" class:disabled>
+  <input
+    type="checkbox"
+    bind:checked
+    {disabled}
+    on:change={handleChange}
+    on:keydown={handleKeydown}
+  />
+  <span class="toggle-track">
+    <span class="toggle-thumb" />
+  </span>
+  {#if label}
+    <span class="toggle-label">{label}</span>
+  {/if}
+</label>
 
 <style>
   .toggle-container {
-    display: flex;
-    align-items: center;
-    margin-bottom: var(--spacing-sm);
-  }
-  
-  .toggle-label {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     cursor: pointer;
     user-select: none;
+    gap: var(--spacing-sm);
   }
   
-  .toggle-input {
+  .toggle-container.disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  
+  input {
     position: absolute;
     opacity: 0;
     width: 0;
     height: 0;
   }
   
-  .toggle-switch {
+  .toggle-track {
     position: relative;
     display: inline-block;
-    width: 40px;
-    height: 22px;
-    background-color: var(--color-border);
-    border-radius: 11px;
-    transition: all 0.3s;
-    margin-right: var(--spacing-sm);
+    width: 36px;
+    height: 20px;
+    background-color: var(--color-surface-variant);
+    border-radius: 10px;
+    transition: background-color 0.2s ease;
   }
   
-  .toggle-switch::after {
-    content: '';
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background-color: white;
-    top: 2px;
-    left: 2px;
-    transition: all 0.3s;
-  }
-  
-  .toggle-input:checked + .toggle-switch {
+  input:checked + .toggle-track {
     background-color: var(--color-prime);
   }
   
-  .toggle-input:checked + .toggle-switch::after {
-    transform: translateX(18px);
+  .toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background-color: var(--color-surface);
+    border-radius: 50%;
+    transition: transform 0.2s ease;
   }
   
-  .toggle-input:disabled + .toggle-switch {
-    opacity: 0.5;
-    cursor: not-allowed;
+  input:checked + .toggle-track .toggle-thumb {
+    transform: translateX(16px);
   }
   
-  .label-text {
-    font-size: var(--font-size-sm);
+  .toggle-label {
     color: var(--color-text);
+    font-size: var(--font-size-sm);
   }
   
-  /* Accessibility */
-  .toggle-input:focus + .toggle-switch {
-    outline: 2px solid var(--color-prime);
-    outline-offset: 1px;
+  /* Focus styles */
+  input:focus-visible + .toggle-track {
+    box-shadow: 0 0 0 2px var(--color-prime-light);
   }
   
+  /* High Contrast */
+  @media (prefers-contrast: high) {
+    .toggle-track {
+      border: 2px solid currentColor;
+    }
+    
+    .toggle-thumb {
+      border: 1px solid currentColor;
+    }
+  }
+  
+  /* Reduced Motion */
   @media (prefers-reduced-motion: reduce) {
-    .toggle-switch, .toggle-switch::after {
+    .toggle-track,
+    .toggle-thumb {
       transition: none;
     }
   }

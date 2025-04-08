@@ -1,12 +1,30 @@
+<!-- 
+  WelcomeChat.svelte - Welcome and announcement modal component
+  Provides interactive welcome messages and announcements to users.
+  
+  Features:
+  - Animated message display
+  - Multiple message types (welcome, update, announcement)
+  - Progress tracking
+  - API key integration
+  - Client-side navigation
+  
+  Dependencies:
+  - svelte-spa-router for navigation
+  - ChatBubble component for message display
+  - Button component for actions
+  - welcomeState store for state management
+  - apiKey store for API key status
+-->
 <script>
   import { fade, fly } from 'svelte/transition';
   import { elasticOut, backOut } from 'svelte/easing';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { push } from 'svelte-spa-router';
   import ChatBubble from './ChatBubble.svelte';
   import Button from './Button.svelte';
-  import welcomeState, { MESSAGE_TYPES } from '$lib/stores/welcomeState';
-  import { apiKey } from '$lib/stores/apiKey';
+  import welcomeState, { MESSAGE_TYPES } from '../../../lib/stores/welcomeState';
+  import { apiKey } from '../../../lib/stores/apiKey';
   
   const dispatch = createEventDispatcher();
   
@@ -115,12 +133,12 @@
 
   function goToHelp() {
     handleMinimize(); // Close modal first
-    goto('/help');
+    push('/help');
   }
 
   function goToSettings() {
     handleMinimize(); // Close modal first
-    goto('/settings');
+    push('/settings');
   }
 
   function handleContinue() {
@@ -331,7 +349,6 @@
     border-top: 1px solid var(--color-border-light);
   }
 
-
   .action-buttons :global(button) {
     min-width: 140px;
     flex: 0 1 auto;
@@ -386,5 +403,35 @@
   .api-key-notice .link-button:hover {
     color: var(--color-fourth);
     border-color: var(--color-fourth);
+  }
+
+  /* High Contrast Mode */
+  @media (prefers-contrast: high) {
+    .modal-overlay {
+      background-color: rgba(0, 0, 0, 0.8);
+      backdrop-filter: none;
+    }
+
+    .chat-modal {
+      border-width: 2px;
+    }
+
+    .close-button {
+      border: 1px solid currentColor;
+      border-radius: var(--rounded-sm);
+      opacity: 1;
+    }
+
+    .api-key-notice .link-button {
+      text-decoration: underline;
+      border-bottom: none;
+    }
+  }
+
+  /* Reduced Motion */
+  @media (prefers-reduced-motion: reduce) {
+    .progress-fill {
+      transition: none;
+    }
   }
 </style>

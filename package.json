@@ -9,72 +9,71 @@
     "backend",
     "shared"
   ],
-    "scripts": {
-        "start": "electron .",
-        "dev": "npm run build:shared && cross-env NODE_ENV=development concurrently \"npm run dev:svelte\" \"npm run dev:electron\"",
-        "dev:svelte": "cd frontend && npm run dev",
-        "dev:electron": "electron-forge start",
-        "build": "npm run build:shared && npm run build:svelte && npm run build:electron",
-        "build:shared": "cd shared && npm run build",
-        "build:svelte": "cd frontend && npm run build && node ../scripts/copy-static-assets.js",
-        "prebuild:electron": "node scripts/cleanup-resources.js",
-        "build:electron": "electron-builder",
-        "package": "electron-forge package",
-        "make": "npm run build:shared && npm run prebuild:electron && electron-builder --win",
-        "lint": "eslint src/electron"
-    },
+  "scripts": {
+    "start": "electron .",
+    "dev": "npm run build:shared && cross-env NODE_ENV=development concurrently \"npm run dev:svelte\" \"npm run dev:electron\"",
+    "dev:svelte": "cd frontend && npm run dev",
+    "dev:electron": "electron-forge start",
+    "build": "npm run build:shared && npm run build:svelte && npm run build:electron",
+    "build:shared": "cd shared && npm run build",
+    "build:svelte": "cd frontend && npm run build",
+    "prebuild:electron": "node scripts/cleanup-resources.js",
+    "build:electron": "electron-builder",
+    "package": "electron-forge package",
+    "make": "npm run build:shared && npm run prebuild:electron && electron-builder --win",
+    "lint": "eslint src/electron"
+  },
   "build": {
-        "appId": "com.codexmd.app",
-        "productName": "codex.md",
-        "directories": {
-            "output": "dist"
-        },
-        "publish": [{
-            "provider": "github",
-            "owner": "Synaptic-Labs-AI",
-            "repo": "codex-md"
-        }],
-        "files": [
-            "src/electron/**/*",
-            "frontend/dist/**/*",
-            "frontend/static/**/*",
-            "backend/dist/**/*",
-            "shared/**/*",
-            "node_modules/@codex-md/shared/**/*",
-            "package.json"
-        ],
-        "afterPack": "./scripts/afterPack.js",
-        "asar": true,
-        "asarUnpack": [
-            "node_modules/@ffmpeg-installer/**/*",
-            "node_modules/@codex-md/**/*",
-            "shared/**/*"
-        ],
-        "win": {
-            "target": ["nsis"],
-            "icon": "frontend/static/app-icon.png",
-            "extraResources": [
-                {
-                    "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
-                    "to": "ffmpeg.exe"
-                },
-                {
-                    "from": "frontend/static",
-                    "to": "frontend/static"
-                }
-            ],
-            "artifactName": "${productName}-Setup-${version}.${ext}"
-        },
-        "extraResources": [
-            {
-                "from": "frontend/static",
-                "to": "frontend/static"
-            }
-        ],
-        "protocols": {
-            "name": "codex-md",
-            "schemes": ["codex-md"]
-        }
+    "appId": "com.codexmd.app",
+    "productName": "codex.md",
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Synaptic-Labs-AI",
+        "repo": "codex-md"
+      }
+    ],
+    "files": [
+      "src/electron/**/*",
+      "frontend/dist/**/*",
+      "backend/dist/**/*",
+      "shared/**/*",
+      "node_modules/@codex-md/shared/**/*",
+      "package.json"
+    ],
+    "afterPack": "./scripts/afterPack.js",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@ffmpeg-installer/**/*",
+      "node_modules/@codex-md/**/*",
+      "shared/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "frontend/static/app-icon.png",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "extraResources": [
+      {
+        "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
+        "to": "ffmpeg.exe"
+      },
+      {
+        "from": "frontend/static",
+        "to": "frontend/dist/static"
+      }
+    ],
+    "protocols": {
+      "name": "codex-md",
+      "schemes": [
+        "codex-md"
+      ]
+    }
   },
   "config": {
     "forge": {
@@ -102,9 +101,12 @@
     "@duckduckgo/autoconsent": "^1.0.8",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@mistralai/mistralai": "^1.2.0",
+    "@sec-ant/readable-stream": "^0.6.0",
     "chokidar": "^4.0.3",
+    "colorette": "^2.0.20",
     "cross-fetch": "^4.1.0",
     "crypto": "^1.0.1",
+    "defer-to-connect": "^2.0.1",
     "electron-squirrel-startup": "^1.0.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.1.7",
@@ -122,6 +124,7 @@
     "puppeteer": "^23.11.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "quick-lru": "^7.0.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

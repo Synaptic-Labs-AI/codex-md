@@ -5,117 +5,100 @@
  * 
  * Responsibilities:
  * - Verify critical files exist in the packaged app
- * - Ensure static assets are properly copied
- * - Implement fallbacks for missing files if needed
+ * - Validate extraResources were properly copied
+ * - Log detailed information about the packaged application
  */
 
 const fs = require('fs-extra');
 const path = require('path');
 
+/**
+ * Safely checks if a file exists without causing file locks
+ * @param {string} filePath - Path to check
+ * @returns {Promise<boolean>} - True if file exists
+ */
+async function safePathExists(filePath) {
+  try {
+    return await fs.pathExists(filePath);
+  } catch (error) {
+    console.warn(`⚠️ Error checking path: ${filePath}`, error.message);
+    return false;
+  }
+}
+
+/**
+ * Main afterPack function
+ */
 exports.default = async function(context) {
-    const { appOutDir, packager } = context;
-    const isWindows = packager.platform.nodeName === 'win32';
+  const { appOutDir, packager } = context;
+  const isWindows = packager.platform.nodeName === 'win32';
 
-    console.log('Running afterPack script...');
-    console.log(`Platform: ${packager.platform.nodeName}`);
-    console.log(`Output directory: ${appOutDir}`);
+  console.log('Running afterPack script...');
+  console.log(`Platform: ${packager.platform.nodeName}`);
+  console.log(`Output directory: ${appOutDir}`);
 
-    try {
-        // Verify ffmpeg.exe exists (Windows-specific)
-        if (isWindows) {
-            const ffmpegPath = path.join(appOutDir, 'resources', 'ffmpeg.exe');
-            if (await fs.pathExists(ffmpegPath)) {
-                console.log('✅ Verified ffmpeg.exe');
-            } else {
-                console.warn('⚠️ ffmpeg.exe not found in resources');
-            }
-        }
-
-        // Verify critical static assets
-        const staticAssets = [
-            'favicon-icon.png', // Using dedicated icon file to avoid file locking
-            'app-icon.png',     // Using dedicated icon file to avoid file locking
-            'logo.png',
-            'synaptic-labs-logo.png'
-        ];
-
-        // First check if the static directory exists in the packaged app
-        const staticDir = path.join(appOutDir, 'frontend', 'static');
-        const distDir = path.join(appOutDir, 'frontend', 'dist');
-        
-        // Ensure the dist directory exists
-        await fs.ensureDir(distDir);
-        
-        // Check if the static directory exists in the packaged app
-        const hasStaticDir = await fs.pathExists(staticDir);
-        
-        if (hasStaticDir) {
-            console.log('✅ Static directory found in packaged app');
-            
-            // Check static assets in both possible locations
-            for (const asset of staticAssets) {
-                // Check in frontend/static (original location)
-                const staticPath = path.join(staticDir, asset);
-                const hasStaticAsset = await fs.pathExists(staticPath);
-                
-                // Check in frontend/dist (where they should be copied)
-                const distPath = path.join(distDir, asset);
-                const hasDistAsset = await fs.pathExists(distPath);
-                
-                if (hasStaticAsset) {
-                    console.log(`✅ Verified static asset: ${asset}`);
-                    
-                    // If asset exists in static but not in dist, copy it
-                    if (!hasDistAsset) {
-                        console.log(`Copying ${asset} to dist directory...`);
-                        await fs.copy(staticPath, distPath);
-                    }
-                } else if (hasDistAsset) {
-                    console.log(`✅ Verified dist asset: ${asset}`);
-                } else {
-                    console.warn(`⚠️ Asset not found in packaged app: ${asset}`);
-                    
-                    // Try to copy from the project's static directory
-                    const projectStaticPath = path.join(process.cwd(), 'frontend', 'static', asset);
-                    if (await fs.pathExists(projectStaticPath)) {
-                        console.log(`Found ${asset} in project static directory, copying to packaged app...`);
-                        await fs.copy(projectStaticPath, distPath);
-                        console.log(`✅ Copied ${asset} to dist directory`);
-                    } else {
-                        console.error(`❌ Could not find ${asset} in any location`);
-                    }
-                }
-            }
-        } else {
-            console.warn('⚠️ Static directory not found in packaged app');
-            
-            // Try to copy assets from the project's static directory
-            const projectStaticDir = path.join(process.cwd(), 'frontend', 'static');
-            
-            if (await fs.pathExists(projectStaticDir)) {
-                console.log('Found project static directory, copying assets...');
-                
-                for (const asset of staticAssets) {
-                    const projectStaticPath = path.join(projectStaticDir, asset);
-                    const distPath = path.join(distDir, asset);
-                    
-                    if (await fs.pathExists(projectStaticPath)) {
-                        console.log(`Copying ${asset} to dist directory...`);
-                        await fs.copy(projectStaticPath, distPath);
-                        console.log(`✅ Copied ${asset} to dist directory`);
-                    } else {
-                        console.warn(`⚠️ Asset not found in project: ${asset}`);
-                    }
-                }
-            } else {
-                console.error('❌ Could not find static directory in project');
-            }
-        }
-
-        console.log('✅ afterPack completed successfully');
-    } catch (error) {
-        console.error('❌ Error in afterPack:', error);
-        // Don't throw the error, just log it
-        console.log('Continuing despite error...');
+  try {
+    // Verify ffmpeg.exe exists (Windows-specific)
+    if (isWindows) {
+      const ffmpegPath = path.join(appOutDir, 'resources', 'ffmpeg.exe');
+      if (await safePathExists(ffmpegPath)) {
+        console.log('✅ Verified ffmpeg.exe');
+      } else {
+        console.warn('⚠️ ffmpeg.exe not found in resources');
+      }
     }
+
+    // Verify critical static assets - these should now be in extraResources
+    const staticAssets = [
+      'favicon-icon.png',
+      'app-icon.png',
+      'logo.png',
+      'synaptic-labs-logo.png'
+    ];
+
+    // Check in the extraResources destination path
+    const resourcesDir = path.join(appOutDir, 'resources');
+    const extraResourcesDir = path.join(resourcesDir, 'frontend', 'dist', 'static');
+    
+    console.log(`Checking for assets in extraResources path: ${extraResourcesDir}`);
+    
+    // Verify the extraResources directory exists
+    if (await safePathExists(extraResourcesDir)) {
+      console.log('✅ extraResources directory found');
+      
+      // Check each asset
+      let missingAssets = 0;
+      for (const asset of staticAssets) {
+        const assetPath = path.join(extraResourcesDir, asset);
+        if (await safePathExists(assetPath)) {
+          console.log(`✅ Verified asset in extraResources: ${asset}`);
+        } else {
+          console.warn(`⚠️ Asset not found in extraResources: ${asset}`);
+          missingAssets++;
+        }
+      }
+      
+      if (missingAssets === 0) {
+        console.log('✅ All assets verified in extraResources');
+      } else {
+        console.warn(`⚠️ ${missingAssets} assets missing from extraResources`);
+      }
+    } else {
+      console.warn('⚠️ extraResources directory not found');
+      
+      // Log all directories in resources to help diagnose
+      try {
+        const resourcesContents = await fs.readdir(resourcesDir);
+        console.log('Resources directory contents:', resourcesContents);
+      } catch (error) {
+        console.warn('⚠️ Could not read resources directory:', error.message);
+      }
+    }
+
+    console.log('✅ afterPack verification completed');
+  } catch (error) {
+    console.error('❌ Error in afterPack:', error);
+    // Don't throw the error, just log it
+    console.log('Continuing despite error...');
+  }
 };

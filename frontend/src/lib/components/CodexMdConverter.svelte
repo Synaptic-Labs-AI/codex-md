@@ -3,11 +3,11 @@
   import WelcomeChat from './common/WelcomeChat.svelte';
   import FileUploader from './FileUploader.svelte';
   import Container from './common/Container.svelte';
-  import { files } from '$lib/stores/files.js';
-  import { startConversion } from '$lib/utils/conversion';
-  import { conversionResult } from '$lib/stores/conversionResult.js';
-  import { unifiedConversion, ConversionState } from '$lib/stores/unifiedConversion.js';
-  import welcomeState, { MESSAGE_TYPES } from '$lib/stores/welcomeState.js';
+  import { files } from '../stores/files.js';
+  import { startConversion } from '../utils/conversion';
+  import { conversionResult } from '../stores/conversionResult.js';
+  import { unifiedConversion, ConversionState } from '../stores/unifiedConversion.js';
+  import welcomeState, { MESSAGE_TYPES } from '../stores/welcomeState.js';
   import ResultDisplay from './ResultDisplay.svelte';
 
   let mode = 'welcome'; // Start with welcome mode

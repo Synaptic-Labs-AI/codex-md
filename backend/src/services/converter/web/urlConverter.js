@@ -262,6 +262,12 @@ export async function convertUrlToMarkdown(url, options = {}) {
 
 // Singleton instance
 export const urlConverter = {
+  // Add convert method to match the standardized converter interface expected by ConverterRegistry
+  convert: async (url, options = {}) => {
+    const converter = new UrlConverter();
+    return converter.convertToMarkdown(url, options);
+  },
+  // Keep the original method for backward compatibility
   convertToMarkdown: async (url, options = {}) => {
     const converter = new UrlConverter();
     return converter.convertToMarkdown(url, options);

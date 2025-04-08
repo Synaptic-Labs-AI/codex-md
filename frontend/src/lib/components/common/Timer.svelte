@@ -8,7 +8,7 @@
   - frontend/src/lib/components/ConversionProgress.svelte: Primary consumer
 -->
 <script>
-  import { unifiedConversion } from '$lib/stores/unifiedConversion';
+  import { unifiedConversion } from '../../../lib/stores/unifiedConversion';
   
   export let time = '00:00:00';
   export let label = 'Time elapsed';

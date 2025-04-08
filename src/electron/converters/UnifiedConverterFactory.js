@@ -12,7 +12,7 @@
  * Related files:
  * - src/electron/services/ElectronConversionService.js: Uses this factory for conversions
  * - src/electron/ipc/handlers/conversion/index.js: Exposes conversion to renderer process
- * - backend/src/services/converter/textConverterFactory.js: Backend converter implementations
+ * - backend/src/services/converter/ConverterRegistry.js: Backend converter implementations
  */
 
 const path = require('path');
@@ -25,88 +25,60 @@ const { getFileType } = require('@codex-md/shared/utils/files');
 const { ProgressTracker } = require('@codex-md/shared/utils/conversion');
 
 // Backend services - will be initialized asynchronously
-let textConverterFactory = null;
-let audioConverter = null;
-let videoConverter = null;
-let pdfConverter = null;
-let urlConverter = null;
-let parentUrlConverter = null;
+let converterRegistry = null;
 
 // Initialize backend services
 (async function loadBackendServices() {
   try {
-    // Import text converter factory
-    const textConverterModule = await import('../../../backend/src/services/converter/textConverterFactory.js');
-    textConverterFactory = textConverterModule.textConverterFactory;
-    console.log('✅ Successfully loaded backend text converter factory');
-    
-    // Import audio converter
-    const audioConverterModule = await import('../../../backend/src/services/converter/multimedia/audioconverter.js');
-    audioConverter = audioConverterModule.default;
-    console.log('✅ Successfully loaded backend audio converter');
-    
-    // Import video converter
-    const videoConverterModule = await import('../../../backend/src/services/converter/multimedia/videoConverter.js');
-    videoConverter = videoConverterModule.default;
-    console.log('✅ Successfully loaded backend video converter');
-    
-    // Import PDF converter
-    const pdfConverterModule = await import('../../../backend/src/services/converter/pdf/PdfConverterFactory.js');
-    pdfConverter = pdfConverterModule.default;
-    console.log('✅ Successfully loaded backend PDF converter');
-    
-    // Import URL converter
-    const urlConverterModule = await import('../../../backend/src/services/converter/web/urlConverter.js');
-    urlConverter = urlConverterModule.urlConverter;
-    console.log('✅ Successfully loaded backend URL converter');
-    
-    // Import parent URL converter
-    const parentUrlConverterModule = await import('../../../backend/src/services/converter/web/parentUrlConverter.js');
-    parentUrlConverter = parentUrlConverterModule.convertParentUrlToMarkdown;
-    console.log('✅ Successfully loaded backend parent URL converter');
+    // Import converter registry - the only import we need now
+    const converterRegistryModule = await import('../../../backend/src/services/converter/ConverterRegistry.js');
+    converterRegistry = converterRegistryModule.ConverterRegistry;
+    console.log('✅ Successfully loaded backend converter registry');
   } catch (error) {
     console.error('❌ Failed to load backend services:', error);
     console.error('Some conversion functionality may be limited');
   }
 })();
 
+/**
+ * Categorize file types for better organization
+ */
+const FILE_TYPE_CATEGORIES = {
+  // Audio files
+  mp3: 'audio',
+  wav: 'audio',
+  ogg: 'audio',
+  flac: 'audio',
+  
+  // Video files
+  mp4: 'video',
+  webm: 'video',
+  avi: 'video',
+  mov: 'video',
+  
+  // Document files
+  pdf: 'document',
+  docx: 'document',
+  pptx: 'document',
+  
+  // Data files
+  xlsx: 'data',
+  csv: 'data',
+  
+  // Web content
+  url: 'web',
+  parenturl: 'web',
+};
+
 class UnifiedConverterFactory {
   constructor() {
-    // Initialize converter registry
-    this.converters = {
-      // Media files
-      mp3: { handler: this.handleAudioConversion.bind(this), type: 'audio' },
-      wav: { handler: this.handleAudioConversion.bind(this), type: 'audio' },
-      ogg: { handler: this.handleAudioConversion.bind(this), type: 'audio' },
-      flac: { handler: this.handleAudioConversion.bind(this), type: 'audio' },
-      
-      // Video files
-      mp4: { handler: this.handleVideoConversion.bind(this), type: 'video' },
-      webm: { handler: this.handleVideoConversion.bind(this), type: 'video' },
-      avi: { handler: this.handleVideoConversion.bind(this), type: 'video' },
-      mov: { handler: this.handleVideoConversion.bind(this), type: 'video' },
-      
-      // Document files - handled by textConverterFactory
-      pdf: { handler: this.handleGenericConversion.bind(this), type: 'document' },
-      docx: { handler: this.handleGenericConversion.bind(this), type: 'document' },
-      pptx: { handler: this.handleGenericConversion.bind(this), type: 'document' },
-      
-      // Data files
-      xlsx: { handler: this.handleGenericConversion.bind(this), type: 'data' },
-      csv: { handler: this.handleGenericConversion.bind(this), type: 'data' },
-      
-      // Web content
-      url: { handler: this.handleUrlConversion.bind(this), type: 'web' },
-      parenturl: { handler: this.handleParentUrlConversion.bind(this), type: 'web' },
-    };
-    
-    console.log('UnifiedConverterFactory initialized with converters for:', Object.keys(this.converters));
+    console.log('UnifiedConverterFactory initialized');
   }
 
   /**
    * Get the appropriate converter for a file type
    * @param {string} fileType - File extension without the dot
-   * @returns {Object|null} - Converter handler or null if not supported
+   * @returns {Object|null} - Converter info or null if not supported
    */
   getConverter(fileType) {
     if (!fileType) return null;
@@ -114,22 +86,41 @@ class UnifiedConverterFactory {
     // Normalize file type (remove dot, lowercase)
     const normalizedType = fileType.toLowerCase().replace(/^\./, '');
     
-    // Return the converter if we have a direct match
-    if (this.converters[normalizedType]) {
-      return this.converters[normalizedType];
+    // Check if converter registry is available
+    if (!converterRegistry) {
+      console.warn(`Converter registry not available yet, cannot check for converter for: ${fileType}`);
+      return null;
     }
     
-    // Try to find a converter using textConverterFactory if available
-    if (textConverterFactory) {
-      const backendConverter = textConverterFactory.getConverterByExtension(normalizedType);
-      if (backendConverter) {
+    // Special handling for URL types
+    if (normalizedType === 'url' || normalizedType === 'parenturl') {
+      console.log(`🔗 [UnifiedConverterFactory] Using direct URL converter for: ${normalizedType}`);
+      
+      // For URL types, we want to use the converter directly by type, not by extension
+      const converter = converterRegistry.converters[normalizedType];
+      if (converter) {
         return {
-          handler: this.handleGenericConversion.bind(this),
-          type: 'document'
+          converter: {
+            ...converter,
+            type: normalizedType
+          },
+          type: normalizedType,
+          category: 'web'
         };
       }
-    } else {
-      console.warn(`Text converter factory not available yet, cannot check for converter for: ${fileType}`);
+    }
+    
+    // For all other types, get converter from registry by extension
+    const converter = converterRegistry.getConverterByExtension(normalizedType);
+    if (converter) {
+      // Get category for the file type
+      const category = FILE_TYPE_CATEGORIES[normalizedType] || 'document';
+      
+      return {
+        converter,
+        type: normalizedType,
+        category
+      };
     }
     
     console.warn(`No converter found for file type: ${fileType}`);
@@ -138,7 +129,7 @@ class UnifiedConverterFactory {
 
   /**
    * Convert a file to markdown using the appropriate converter
-   * @param {string} filePath - Path to the file
+   * @param {string} filePath - Path to the file or URL string
    * @param {Object} options - Conversion options
    * @returns {Promise<Object>} - Conversion result
    */
@@ -146,13 +137,34 @@ class UnifiedConverterFactory {
     const startTime = Date.now();
     
     try {
-      // Get file details
-      const fileName = path.basename(filePath);
-      const fileExt = path.extname(fileName).slice(1).toLowerCase();
+      // Determine if this is a URL or a file
+      const isUrl = options.fileType === 'url' || options.fileType === 'parenturl';
+      
+      // Get file details - handle URLs differently
+      let fileName, fileType;
+      
+      if (isUrl) {
+        // For URLs, use the passed fileType and create a filename from the URL
+        fileType = options.fileType; // 'url' or 'parenturl'
+        
+        // Create a reasonable filename from the URL
+        try {
+          const urlObj = new URL(filePath);
+          fileName = urlObj.hostname + (urlObj.pathname !== '/' ? urlObj.pathname : '');
+        } catch (e) {
+          // If URL parsing fails, use the raw string
+          fileName = filePath;
+        }
+      } else {
+        // For regular files, extract details from the path
+        fileName = path.basename(filePath);
+        fileType = options.fileType || path.extname(fileName).slice(1).toLowerCase();
+      }
       
       console.log(`🔄 [UnifiedConverterFactory] Converting file:`, {
         path: filePath,
-        type: fileExt,
+        type: fileType,
+        isUrl: isUrl,
         options: {
           hasApiKey: !!options.apiKey,
           outputDir: options.outputDir ? 'specified' : 'default'
@@ -160,9 +172,9 @@ class UnifiedConverterFactory {
       });
       
       // Get the appropriate converter
-      const converter = this.getConverter(fileExt);
-      if (!converter) {
-        throw new Error(`Unsupported file type: ${fileExt}`);
+      const converterInfo = this.getConverter(fileType);
+      if (!converterInfo) {
+        throw new Error(`Unsupported file type: ${fileType}`);
       }
       
       // Create a progress tracker if callback provided
@@ -170,15 +182,17 @@ class UnifiedConverterFactory {
         new ProgressTracker(options.onProgress, 250) : null;
       
       if (progressTracker) {
-        progressTracker.update(5, { status: 'initializing', fileType: fileExt });
+        progressTracker.update(5, { status: 'initializing', fileType: fileType });
       }
       
-      // Call the appropriate handler
-      const result = await converter.handler(filePath, {
+      // Handle the conversion based on file type
+      const result = await this.handleConversion(filePath, {
         ...options,
-        fileType: fileExt,
+        fileType: fileType,
         fileName,
-        progressTracker
+        progressTracker,
+        converterInfo,
+        isUrl
       });
       
       if (progressTracker) {
@@ -187,7 +201,8 @@ class UnifiedConverterFactory {
       
       console.log(`✅ [UnifiedConverterFactory] Conversion completed in ${Date.now() - startTime}ms:`, {
         path: filePath,
-        type: fileExt,
+        type: fileType,
+        isUrl: isUrl,
         success: !!result.success
       });
       
@@ -208,291 +223,106 @@ class UnifiedConverterFactory {
   }
 
   /**
-   * Handle audio file conversion
-   * @private
+   * Standardize conversion result to ensure consistent format
+   * @param {Object} result - Raw conversion result
+   * @param {string} fileType - File type
+   * @param {string} fileName - File name
+   * @param {string} category - File category
+   * @returns {Object} - Standardized result
    */
-  async handleAudioConversion(filePath, options) {
-    const { progressTracker, fileName } = options;
-    
-    if (progressTracker) {
-      progressTracker.update(10, { status: 'preparing_audio' });
-    }
-    
-    // Check if audio converter is available
-    if (!audioConverter) {
-      console.error('Audio converter not available');
-      return {
-        success: false,
-        error: 'Audio converter not available. Backend services may still be initializing.'
-      };
-    }
-    
-    try {
-      // Read the file
-      const fileContent = fs.readFileSync(filePath);
-      
-      // Create a new instance of the audio converter
-      const converter = new audioConverter();
-      
-      // Convert the audio
-      const result = await converter.convertToMarkdown(fileContent, {
-        name: fileName,
-        apiKey: options.apiKey
-      });
-      
-      if (progressTracker) {
-        progressTracker.update(95, { status: 'finalizing' });
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('Audio conversion error:', error);
-      return {
-        success: false,
-        error: `Audio conversion failed: ${error.message}`
-      };
-    }
+  standardizeResult(result, fileType, fileName, category) {
+    // Ensure the result has all required properties
+    return {
+      success: result.success !== false,
+      content: result.content || '',
+      type: result.type || fileType,
+      name: result.name || fileName,
+      category: result.category || category,
+      metadata: {
+        ...(result.metadata || {}),
+        converter: result.converter || 'unknown'
+      },
+      images: result.images || [],
+      ...result
+    };
   }
 
   /**
-   * Handle video file conversion
+   * Unified conversion handler for all file types
    * @private
    */
-  async handleVideoConversion(filePath, options) {
-    const { progressTracker, fileName } = options;
+  async handleConversion(filePath, options) {
+    const { progressTracker, fileType, fileName, converterInfo, isUrl } = options;
+    const { converter, category } = converterInfo;
     
     if (progressTracker) {
-      progressTracker.update(10, { status: 'preparing_video' });
-    }
-    
-    // Check if video converter is available
-    if (!videoConverter) {
-      console.error('Video converter not available');
-      return {
-        success: false,
-        error: 'Video converter not available. Backend services may still be initializing.'
-      };
+      progressTracker.update(10, { status: `reading_${fileType}` });
     }
     
     try {
-      // Read the file
-      const fileContent = fs.readFileSync(filePath);
-      
-      // Create a new instance of the video converter
-      const converter = new videoConverter();
-      
-      // Convert the video
-      const result = await converter.convertToMarkdown(fileContent, {
-        name: fileName,
-        apiKey: options.apiKey,
-        onProgress: (progress) => {
-          if (progressTracker) {
-            progressTracker.updateScaled(progress, 10, 90, { status: 'transcribing_video' });
-          }
+      // Handle URL and parent URL differently since they don't need file reading
+      if (isUrl) {
+        if (progressTracker) {
+          progressTracker.update(20, { status: `processing_${fileType}` });
         }
-      });
-      
-      if (progressTracker) {
-        progressTracker.update(95, { status: 'finalizing' });
+        
+        // For URLs, filePath is actually the URL string
+        const result = await converterRegistry.convertToMarkdown(fileType, filePath, {
+          ...options,
+          name: fileName,
+          onProgress: (progress) => {
+            if (progressTracker) {
+              progressTracker.updateScaled(progress, 20, 90, { 
+                status: typeof progress === 'object' ? progress.status : `processing_${fileType}`
+              });
+            }
+          }
+        });
+        
+        if (progressTracker) {
+          progressTracker.update(95, { status: 'finalizing' });
+        }
+        
+        return this.standardizeResult(result, fileType, fileName, category);
       }
       
-      return result;
-    } catch (error) {
-      console.error('Video conversion error:', error);
-      return {
-        success: false,
-        error: `Video conversion failed: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Handle generic file conversion using textConverterFactory
-   * @private
-   */
-  async handleGenericConversion(filePath, options) {
-    const { progressTracker, fileType, fileName } = options;
-    
-    if (progressTracker) {
-      progressTracker.update(10, { status: 'reading_file' });
-    }
-    
-    // Special handling for PDF files
-    if (fileType === 'pdf') {
-      return await this.handlePdfConversion(filePath, options);
-    }
-    
-    // Special handling for data files (CSV, XLSX)
-    if (fileType === 'csv' || fileType === 'xlsx') {
-      return await this.handleDataFileConversion(filePath, options);
-    }
-    
-    // Check if text converter factory is available
-    if (!textConverterFactory) {
-      console.error('Text converter factory not available');
-      return {
-        success: false,
-        error: 'Text converter factory not available. Backend services may still be initializing.'
-      };
-    }
-    
-    try {
-      // Read the file
-      const fileContent = fs.readFileSync(filePath);
-      
-      if (progressTracker) {
-        progressTracker.update(20, { status: 'converting' });
-      }
-      
-      // Use the text converter factory
-      const result = await textConverterFactory.convertToMarkdown(fileType, fileContent, {
-        name: fileName,
-        apiKey: options.apiKey
-      });
-      
-      if (progressTracker) {
-        progressTracker.update(90, { status: 'finalizing' });
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('Generic conversion error:', error);
-      return {
-        success: false,
-        error: `Conversion failed: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Handle data file conversion (CSV, XLSX)
-   * @private
-   */
-  async handleDataFileConversion(filePath, options) {
-    const { progressTracker, fileType, fileName } = options;
-    
-    if (progressTracker) {
-      progressTracker.update(10, { status: `reading_${fileType}_file` });
-    }
-    
-    console.log(`🔄 [UnifiedConverterFactory] Converting data file (${fileType}):`, {
-      path: filePath,
-      fileName,
-      outputDir: options.outputDir
-    });
-    
-    // Validate output directory
-    if (!options.outputDir) {
-      console.error('❌ [UnifiedConverterFactory] No output directory provided for data file conversion!');
-      throw new Error('Output directory is required for data file conversion');
-    }
-    
-    try {
-      // Read the file
+      // For all other file types, read the file first
       const fileContent = fs.readFileSync(filePath);
       
       if (progressTracker) {
         progressTracker.update(20, { status: `converting_${fileType}` });
       }
       
-      // Try to get the converter directly from the registered converters
-      // This is the preferred approach after our updates
-      let result;
-      let converter;
-      
-      // Import the converters directly if needed
-      if (fileType === 'csv') {
-        try {
-          const csvConverterModule = await import('../../../backend/src/services/converter/data/csvConverter.js');
-          converter = csvConverterModule.default;
-          console.log('✅ [UnifiedConverterFactory] Using direct CSV converter');
-        } catch (importError) {
-          console.warn('⚠️ [UnifiedConverterFactory] Could not import CSV converter directly:', importError.message);
-        }
-      } else if (fileType === 'xlsx') {
-        try {
-          const xlsxConverterModule = await import('../../../backend/src/services/converter/data/xlsxConverter.js');
-          converter = xlsxConverterModule.default;
-          console.log('✅ [UnifiedConverterFactory] Using direct XLSX converter');
-        } catch (importError) {
-          console.warn('⚠️ [UnifiedConverterFactory] Could not import XLSX converter directly:', importError.message);
-        }
-      }
-      
-      // If we have a direct converter, use it
-      if (converter && converter.convertToMarkdown) {
-        console.log(`🔄 [UnifiedConverterFactory] Using direct ${fileType.toUpperCase()} converter`);
-        result = await converter.convertToMarkdown(fileContent, fileName, options.apiKey);
-      } 
-      // Fallback to textConverterFactory if direct converter not available
-      else if (textConverterFactory && textConverterFactory.converters && textConverterFactory.converters[fileType]) {
-        console.log(`🔄 [UnifiedConverterFactory] Using textConverterFactory for ${fileType.toUpperCase()}`);
-        converter = textConverterFactory.converters[fileType];
-        
-        if (converter.convert) {
-          result = await converter.convert(fileContent, fileName, options.apiKey);
-        } else if (converter.convertToMarkdown) {
-          result = await converter.convertToMarkdown(fileContent, fileName, options.apiKey);
-        } else {
-          throw new Error(`Converter for ${fileType} does not implement required methods`);
-        }
-      } 
-      // Last resort: use textConverterFactory.convertToMarkdown directly
-      else if (textConverterFactory && textConverterFactory.convertToMarkdown) {
-        console.log(`🔄 [UnifiedConverterFactory] Using textConverterFactory.convertToMarkdown for ${fileType.toUpperCase()}`);
-        result = await textConverterFactory.convertToMarkdown(fileType, fileContent, {
-          name: fileName,
-          apiKey: options.apiKey
+      // Special handling for PDF files to include OCR options
+      if (fileType === 'pdf') {
+        console.log('🔄 [UnifiedConverterFactory] Converting PDF with options:', {
+          useOcr: options.useOcr,
+          hasMistralApiKey: !!options.mistralApiKey,
+          preservePageInfo: true
         });
-      } else {
-        throw new Error(`No converter found for ${fileType} files`);
       }
+      
+      // Use the converter registry for all file types
+      const conversionOptions = {
+        name: fileName,
+        apiKey: options.apiKey,
+        useOcr: options.useOcr,
+        mistralApiKey: options.mistralApiKey,
+        preservePageInfo: true,
+        onProgress: (progress) => {
+          if (progressTracker) {
+            progressTracker.updateScaled(progress, 20, 90, { status: `converting_${fileType}` });
+          }
+        }
+      };
+      
+      const result = await converterRegistry.convertToMarkdown(fileType, fileContent, conversionOptions);
       
       if (progressTracker) {
-        progressTracker.update(90, { status: `finalizing_${fileType}` });
+        progressTracker.update(95, { status: 'finalizing' });
       }
       
-      // Validate and enhance the result
-      if (!result) {
-        throw new Error(`No result returned from ${fileType.toUpperCase()} converter`);
-      }
-      
-      // Ensure the result has all required properties
-      if (result.success === undefined) {
-        console.warn(`⚠️ [UnifiedConverterFactory] ${fileType.toUpperCase()} conversion result missing success flag, adding it`);
-        result.success = true;
-      }
-      
-      if (!result.content) {
-        console.error(`❌ [UnifiedConverterFactory] ${fileType.toUpperCase()} conversion result missing content!`);
-        throw new Error(`${fileType.toUpperCase()} conversion failed: No content returned`);
-      }
-      
-      // Ensure type and name are set
-      if (!result.type) {
-        result.type = fileType;
-      }
-      
-      if (!result.name) {
-        result.name = fileName;
-      }
-      
-      if (!result.category) {
-        result.category = 'data';
-      }
-      
-      // Log the result structure
-      console.log(`✅ [UnifiedConverterFactory] Successfully converted ${fileType} file:`, {
-        fileName,
-        hasContent: !!result.content,
-        contentLength: result.content ? result.content.length : 0,
-        success: result.success,
-        hasType: !!result.type,
-        hasName: !!result.name,
-        hasCategory: !!result.category
-      });
-      
-      return result;
+      return this.standardizeResult(result, fileType, fileName, category);
     } catch (error) {
       console.error(`❌ [UnifiedConverterFactory] ${fileType.toUpperCase()} conversion error:`, error);
       return {
@@ -501,159 +331,7 @@ class UnifiedConverterFactory {
         content: `# Conversion Error\n\nFailed to convert ${fileType.toUpperCase()} file: ${error.message}`,
         type: fileType,
         name: fileName,
-        category: 'data'
-      };
-    }
-  }
-
-  /**
-   * Handle PDF conversion using PdfConverterFactory
-   * @private
-   */
-  async handlePdfConversion(filePath, options) {
-    const { progressTracker, fileName } = options;
-    
-    if (progressTracker) {
-      progressTracker.update(10, { status: 'reading_pdf' });
-    }
-    
-    // Check if PDF converter is available
-    if (!pdfConverter) {
-      console.error('PDF converter not available');
-      return {
-        success: false,
-        error: 'PDF converter not available. Backend services may still be initializing.'
-      };
-    }
-    
-    try {
-      // Read the file
-      const fileContent = fs.readFileSync(filePath);
-      
-      if (progressTracker) {
-        progressTracker.update(20, { status: 'converting_pdf' });
-      }
-      
-      console.log('🔄 [UnifiedConverterFactory] Converting PDF with options:', {
-        useOcr: options.useOcr,
-        hasMistralApiKey: !!options.mistralApiKey,
-        preservePageInfo: true
-      });
-      
-      // Use the PDF converter factory with OCR options
-      const result = await pdfConverter.convertPdfToMarkdown(fileContent, fileName, {
-        useOcr: options.useOcr,
-        mistralApiKey: options.mistralApiKey,
-        preservePageInfo: true
-      });
-      
-      if (progressTracker) {
-        progressTracker.update(90, { status: 'finalizing_pdf' });
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('PDF conversion error:', error);
-      return {
-        success: false,
-        error: `PDF conversion failed: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Handle URL conversion
-   * @private
-   */
-  async handleUrlConversion(urlString, options) {
-    const { progressTracker } = options;
-    
-    if (progressTracker) {
-      progressTracker.update(10, { status: 'fetching_url' });
-    }
-    
-    // Check if URL converter is available
-    if (!urlConverter) {
-      console.error('URL converter not available');
-      return {
-        success: false,
-        error: 'URL converter not available. Backend services may still be initializing.'
-      };
-    }
-    
-    try {
-      // Use the URL converter
-      const result = await urlConverter.convertToMarkdown(urlString, {
-        ...options,
-        onProgress: (progress) => {
-          if (progressTracker) {
-            progressTracker.updateScaled(progress, 10, 90, { status: 'processing_url' });
-          }
-        }
-      });
-      
-      if (progressTracker) {
-        progressTracker.update(95, { status: 'finalizing' });
-      }
-      
-      // Add type and category properties to match expected structure
-      return {
-        ...result,
-        type: 'url',
-        category: 'web'
-      };
-    } catch (error) {
-      console.error('URL conversion error:', error);
-      return {
-        success: false,
-        error: `URL conversion failed: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Handle parent URL (website) conversion
-   * @private
-   */
-  async handleParentUrlConversion(urlString, options) {
-    const { progressTracker } = options;
-    
-    if (progressTracker) {
-      progressTracker.update(10, { status: 'analyzing_website' });
-    }
-    
-    // Check if parent URL converter is available
-    if (!parentUrlConverter) {
-      console.error('Parent URL converter not available');
-      return {
-        success: false,
-        error: 'Parent URL converter not available. Backend services may still be initializing.'
-      };
-    }
-    
-    try {
-      // Use the parent URL converter
-      const result = await parentUrlConverter(urlString, {
-        ...options,
-        onProgress: (progress) => {
-          if (progressTracker) {
-            progressTracker.updateScaled(progress, 10, 90, { 
-              status: typeof progress === 'object' ? progress.status : 'processing_website'
-            });
-          }
-        }
-      });
-      
-      if (progressTracker) {
-        progressTracker.update(95, { status: 'finalizing' });
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('Parent URL conversion error:', error);
-      return {
-        success: false,
-        error: `Parent URL conversion failed: ${error.message}`
+        category: category || 'unknown'
       };
     }
   }

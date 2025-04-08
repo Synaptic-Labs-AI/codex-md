@@ -1,32 +1,81 @@
+<!-- 
+  Accordion.svelte - Collapsible content component
+  Provides an expandable/collapsible section for organizing content.
+  
+  Features:
+  - Smooth animation for expand/collapse
+  - Customizable title and icon
+  - Keyboard accessibility
+  - ARIA attributes for screen readers
+  
+  Props:
+  - title: string - Title text for the accordion header
+  - icon: string - Optional icon (emoji) to display before title
+  - open: boolean - Optional initial open state
+  
+  Usage:
+  <Accordion title="Section Title" icon="ℹ️">
+    Content goes here
+  </Accordion>
+-->
 <script>
   import { slide } from 'svelte/transition';
+  import { createEventDispatcher } from 'svelte';
   
   export let title = '';
   export let icon = '';
-  export let expandedIcon = icon;
-  export let isGradientParent = false;
-  let expanded = false;
+  export let open = false;
+  
+  const dispatch = createEventDispatcher();
+  
+  function toggle() {
+    open = !open;
+    dispatch('toggle', { open });
+  }
+  
+  function handleKeydown(event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggle();
+    }
+  }
 </script>
 
-<div class="accordion-wrapper" class:gradient-parent={isGradientParent}>
-  <button class="accordion-header" on:click={() => expanded = !expanded}>
-    <span class="icon">{expanded ? expandedIcon : icon}</span>
+<div class="accordion">
+  <button
+    class="accordion-header"
+    on:click={toggle}
+    on:keydown={handleKeydown}
+    aria-expanded={open}
+    aria-controls="accordion-content"
+  >
+    {#if icon}
+      <span class="icon">{icon}</span>
+    {/if}
     <span class="title">{title}</span>
-    <span class="arrow" class:expanded>{expanded ? '▼' : '▶'}</span>
+    <span class="chevron" class:open>▼</span>
   </button>
-  {#if expanded}
-    <div class="accordion-content" transition:slide>
+  
+  {#if open}
+    <div
+      class="accordion-content"
+      id="accordion-content"
+      transition:slide={{ duration: 200 }}
+    >
       <slot />
     </div>
   {/if}
 </div>
 
 <style>
-  .accordion-wrapper {
+  .accordion {
     width: 100%;
-    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    background-color: var(--color-surface);
+    margin-bottom: var(--spacing-sm);
   }
-
+  
   .accordion-header {
     width: 100%;
     display: flex;
@@ -35,44 +84,61 @@
     padding: var(--spacing-sm);
     background: none;
     border: none;
-    color: inherit;
     cursor: pointer;
-    font-size: var(--font-size-base);
-    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
     text-align: left;
-    border-radius: var(--rounded-md);
     transition: background-color 0.2s ease;
   }
-
+  
   .accordion-header:hover {
-    background: rgba(var(--color-prime-rgb), 0.1);
+    background-color: var(--color-surface-hover);
   }
-
-  .title {
-    flex: 1;
+  
+  .accordion-header:focus-visible {
+    outline: 2px solid var(--color-prime);
+    outline-offset: -2px;
   }
-
+  
   .icon {
+    flex-shrink: 0;
     font-size: 1.2em;
   }
-
-  .arrow {
+  
+  .title {
+    flex-grow: 1;
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .chevron {
+    flex-shrink: 0;
     font-size: 0.8em;
     transition: transform 0.2s ease;
   }
-
-  .arrow.expanded {
-    transform: rotate(0deg);
+  
+  .chevron.open {
+    transform: rotate(180deg);
   }
-
+  
   .accordion-content {
-    margin-top: var(--spacing-xs);
-    background: transparent;
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
   }
-
+  
+  /* High Contrast */
+  @media (prefers-contrast: high) {
+    .accordion {
+      border-width: 2px;
+    }
+    
+    .accordion-content {
+      border-top-width: 2px;
+    }
+  }
+  
   /* Reduced Motion */
   @media (prefers-reduced-motion: reduce) {
-    .accordion-header {
+    .chevron {
       transition: none;
     }
   }

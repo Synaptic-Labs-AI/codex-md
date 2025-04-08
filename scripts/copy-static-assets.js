@@ -63,13 +63,17 @@ async function copyStaticAssets() {
     // Ensure the dist directory exists
     await fs.ensureDir(distDir);
     
+    // Create a static directory in dist for better organization
+    const distStaticDir = path.join(distDir, 'static');
+    await fs.ensureDir(distStaticDir);
+    
     // Get list of files in static directory
     const files = await fs.readdir(staticDir);
     
-    // Copy each file to the dist directory
+    // Copy each file to the dist/static directory
     for (const file of files) {
       const srcPath = path.join(staticDir, file);
-      const destPath = path.join(distDir, file);
+      const destPath = path.join(distStaticDir, file);
       
       // Check if it's a file (not a directory)
       const stats = await fs.stat(srcPath);

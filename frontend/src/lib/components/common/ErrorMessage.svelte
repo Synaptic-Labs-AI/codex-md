@@ -1,7 +1,7 @@
 <!-- src/lib/components/common/ErrorMessage.svelte -->
 <script>
   import { fly } from 'svelte/transition';
-  import { uploadStore } from '$lib/stores/uploadStore';
+  import { uploadStore } from '../../../lib/stores/uploadStore';
 </script>
 
 {#if $uploadStore.message}
