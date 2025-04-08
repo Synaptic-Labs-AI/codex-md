@@ -112,6 +112,9 @@
 - ~~Navigation bar missing in final Electron build~~ (Fixed)
 - ~~URL conversion failing with "converter.convert is not a function" error~~ (Fixed)
 - ~~Advanced OCR not being used despite OCR being enabled and Mistral API key being present~~ (Fixed)
+- ~~MP3 conversion failing with "fileType is not defined" error~~ (Fixed)
+- ~~Video conversion failing with "PathUtils.resolvePath is not a function" error~~ (Fixed)
+- ~~Video conversion failing with "PathUtils.toPlatformPath is not a function" error~~ (Fixed)
 - Some static assets may not be properly loaded in certain edge cases
 - Error handling could be improved for better user feedback
 - Need to ensure proper cleanup of resources when the app is closed
@@ -124,8 +127,17 @@
 3. ~~Enhance converter architecture for better maintainability~~ (Done)
 4. ~~Fix URL conversion issues~~ (Done)
 5. ~~Simplify ElectronConversionService to delegate to UnifiedConverterFactory~~ (Done)
-6. Implement automated tests for the build process
-7. Apply similar build process optimizations to other Electron projects
+6. ~~Fix MP3 and video conversion by registering converters in ConverterRegistry~~ (Done)
+7. ~~Fix video conversion "PathUtils.resolvePath is not a function" error~~ (Done)
+   - Replaced non-existent `PathUtils.resolvePath()` calls with `path.join()` in transcriber.js
+   - Updated FileSystemService.js to use `PathUtils.normalizePath(path.join())` instead of `PathUtils.resolvePath()`
+   - Ensured consistent path handling across the application
+8. ~~Fix video conversion "PathUtils.toPlatformPath is not a function" error~~ (Done)
+   - Removed calls to non-existent `PathUtils.toPlatformPath()` method in transcriber.js
+   - Used direct path variables instead, which were already normalized earlier in the function
+   - Simplified ffmpeg input/output path handling
+9. Implement automated tests for the build process
+10. Apply similar build process optimizations to other Electron projects
 
 ### Long-term Strategy: SvelteKit to Plain Svelte Migration
 We've developed a comprehensive migration plan to address the root causes of our asset loading and file locking issues by transitioning from SvelteKit to plain Svelte + Vite. This plan is documented in:

@@ -39,8 +39,61 @@ import * as xlsxConverter from './data/xlsxConverter.js';
 import * as csvConverter from './data/csvConverter.js';
 import * as urlConverter from './web/urlConverter.js';
 import * as parentUrlConverter from './web/parentUrlConverter.js';
+import AudioConverter from './multimedia/audioconverter.js';
+import VideoConverter from './multimedia/videoConverter.js';
+
+// Create instances of multimedia converters
+const audioConverter = new AudioConverter();
+const videoConverter = new VideoConverter();
 
 const converters = {
+  // Audio Converter
+  audio: {
+    convert: async (content, name, apiKey, options) => {
+      return await audioConverter.convertToMarkdown(content, {
+        name,
+        apiKey,
+        ...options
+      });
+    },
+    validate: (input) => Buffer.isBuffer(input) && input.length > 0,
+    config: {
+      name: 'Audio File',
+      extensions: ['.mp3', '.wav', '.ogg', '.m4a', '.mpga'],
+      mimeTypes: [
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/wav',
+        'audio/ogg',
+        'audio/m4a'
+      ],
+      maxSize: 100 * 1024 * 1024, // 100MB
+    }
+  },
+
+  // Video Converter
+  video: {
+    convert: async (content, name, apiKey, options) => {
+      return await videoConverter.convertToMarkdown(content, {
+        name,
+        apiKey,
+        ...options
+      });
+    },
+    validate: (input) => Buffer.isBuffer(input) && input.length > 0,
+    config: {
+      name: 'Video File',
+      extensions: ['.mp4', '.webm', '.avi', '.mov'],
+      mimeTypes: [
+        'video/mp4',
+        'video/webm',
+        'video/avi',
+        'video/quicktime'
+      ],
+      maxSize: 500 * 1024 * 1024, // 500MB
+    }
+  },
+
   // Web Content
   url: {
     convert: urlConverter.urlConverter.convert,
