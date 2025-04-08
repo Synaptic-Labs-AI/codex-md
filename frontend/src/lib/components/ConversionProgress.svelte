@@ -10,9 +10,12 @@
   - frontend/src/lib/stores/unifiedConversion.js: Basic conversion state
 -->
 <script>
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, createEventDispatcher } from 'svelte';
   import ChatBubble from './common/ChatBubble.svelte';
   import Timer from './common/Timer.svelte';
+  import Button from './common/Button.svelte';
+  
+  const dispatch = createEventDispatcher();
   import { unifiedConversion, ConversionState } from '../stores/unifiedConversion';
   import { getRandomMessage } from '../utils/conversionMessages';
   
@@ -234,14 +237,34 @@
       {/if}
     </div>
 
-    <!-- Conversion Timer - only show during active conversion -->
+    <!-- Conversion Timer and Cancel Button - only show during active conversion -->
     {#if !isPersistentlyCompleted && status !== ConversionState.STATUS.COMPLETED && status !== ConversionState.STATUS.ERROR && status !== ConversionState.STATUS.CANCELLED}
-      <Timer />
+      <div class="conversion-controls">
+        <Timer />
+        <Button 
+          variant="secondary" 
+          on:click={() => dispatch('cancel')}
+          class="cancel-button"
+        >
+          Cancel Conversion
+        </Button>
+      </div>
     {/if}
   </div>
 {/if}
 
 <style>
+  .conversion-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-sm);
+  }
+  
+  .cancel-button {
+    min-width: 120px;
+  }
+  
   .conversion-progress {
     display: flex;
     flex-direction: column;

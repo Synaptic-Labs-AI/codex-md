@@ -24,28 +24,44 @@ class FileSystemService {
    * Validates and normalizes a file path for security
    * @param {string} filePath - The path to validate
    * @param {boolean} shouldExist - Whether the path should already exist
+   * @param {Object} options - Additional validation options
+   * @param {boolean} options.isUrl - Whether the path originated from a URL
    * @returns {Promise<string>} Normalized absolute path
    * @throws {Error} If path is invalid or access is denied
    */
-  async validatePath(filePath, shouldExist = true) {
+  async validatePath(filePath, shouldExist = true, options = {}) {
     if (!filePath || typeof filePath !== 'string') {
       throw new Error('Invalid file path');
     }
 
     try {
-      // Validate path for platform-specific restrictions
-      PathUtils.ensureValidPath(filePath);
-      
-      // Normalize and resolve the path
-      const normalizedPath = PathUtils.normalizePath(filePath);
-      const absolutePath = path.isAbsolute(normalizedPath)
-        ? normalizedPath
-        : PathUtils.resolvePath(this.documentsPath, normalizedPath);
+      const isAbsolute = path.isAbsolute(filePath);
+      const isUrl = options.isUrl || /^https?:\/\//.test(filePath);
 
-      if (shouldExist) {
-        if (!await PathUtils.isAccessible(absolutePath)) {
+      // First normalize the path using Node's path module
+      const normalizedPath = path.normalize(filePath);
+      
+      // For absolute Windows paths, validate the path directly
+      if (process.platform === 'win32' && isAbsolute) {
+        const validatedPath = await PathUtils.ensureValidPath(normalizedPath);
+        
+        if (shouldExist && !await PathUtils.isAccessible(normalizedPath)) {
           throw new Error(`Path does not exist or access denied: ${filePath}`);
         }
+        
+        return normalizedPath;
+      }
+      
+      // For non-absolute or non-Windows paths, validate with URL awareness
+      PathUtils.ensureValidPath(filePath, { isUrl });
+      
+      // Convert to absolute path as needed
+      const absolutePath = isAbsolute ? 
+        normalizedPath : 
+        PathUtils.resolvePath(this.documentsPath, normalizedPath);
+
+      if (shouldExist && !await PathUtils.isAccessible(absolutePath)) {
+        throw new Error(`Path does not exist or access denied: ${filePath}`);
       }
 
       return absolutePath;
