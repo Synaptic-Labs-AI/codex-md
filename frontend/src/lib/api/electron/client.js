@@ -182,6 +182,19 @@ class ElectronClient {
         
         return await window.electron.setSetting(key, value);
     }
+    
+    /**
+     * Register a callback for file drop events
+     * @param {Function} callback - Callback function to handle dropped files
+     * @returns {Function} Cleanup function
+     */
+    onFileDropped(callback) {
+        if (!window.electron) {
+            throw new Error('Electron API not available');
+        }
+        
+        return window.electron.onFileDropped(callback);
+    }
 }
 
 // Export singleton instance
