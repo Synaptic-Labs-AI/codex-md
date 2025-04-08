@@ -58,7 +58,7 @@ class FileSystemService {
       // Convert to absolute path as needed
       const absolutePath = isAbsolute ? 
         normalizedPath : 
-        PathUtils.resolvePath(this.documentsPath, normalizedPath);
+        PathUtils.normalizePath(path.join(this.documentsPath, normalizedPath));
 
       if (shouldExist && !await PathUtils.isAccessible(absolutePath)) {
         throw new Error(`Path does not exist or access denied: ${filePath}`);

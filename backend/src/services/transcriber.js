@@ -111,8 +111,8 @@ class Transcriber {
    */
   async extractAudioFromVideo(buffer) {
     const tempDir = PathUtils.normalizePath(path.join(os.tmpdir(), uuidv4()));
-    const inputPath = PathUtils.resolvePath(tempDir, 'input.mp4');
-    const outputPath = PathUtils.resolvePath(tempDir, 'output.mp3');
+    const inputPath = path.join(tempDir, 'input.mp4');
+    const outputPath = path.join(tempDir, 'output.mp3');
 
     // Create temp directory with platform-appropriate permissions
     try {
@@ -140,7 +140,7 @@ class Transcriber {
 
       // Extract audio using platform-specific paths
       await new Promise((resolve, reject) => {
-        ffmpeg(PathUtils.toPlatformPath(inputPath))
+        ffmpeg(inputPath)
           .toFormat('mp3')
           .audioQuality(0) // Best quality
           .on('start', cmd => console.log('Started ffmpeg with command:', cmd))
@@ -152,7 +152,7 @@ class Transcriber {
             console.log('FFmpeg finished extracting audio');
             resolve();
           })
-          .save(PathUtils.toPlatformPath(outputPath));
+          .save(outputPath);
       });
 
       // Set appropriate permissions for output file on Unix-like systems

@@ -31,6 +31,8 @@ flowchart TD
         C --> G[URL Converter]
         C --> H[Data Converters]
         C --> I[Media Converters]
+        I --> I1[Audio Converter]
+        I --> I2[Video Converter]
     end
     
     subgraph Standardization
@@ -44,6 +46,12 @@ flowchart TD
         O --> P[Skip File Extension Parsing]
         P --> Q[URL-specific Processing]
     end
+    
+    subgraph Media Handling
+        R[Buffer Processing] --> S[API Key Validation]
+        S --> T[Chunking for Large Files]
+        T --> U[Transcription]
+    end
 ```
 
 #### Implementation Details
@@ -53,11 +61,65 @@ flowchart TD
   - ConverterRegistry: Converter registry, interface standardization
   - Individual converters: Actual conversion logic
 
+- **Converter Registration Pattern**: All converters must be registered in the ConverterRegistry
+  ```javascript
+  // Import converter implementation
+  import AudioConverter from './multimedia/audioconverter.js';
+  
+  // Create instance if needed
+  const audioConverter = new AudioConverter();
+  
+  // Register in converters object
+  const converters = {
+    audio: {
+      convert: async (content, name, apiKey, options) => {
+        return await audioConverter.convertToMarkdown(content, {
+          name,
+          apiKey,
+          ...options
+        });
+      },
+      validate: (input) => Buffer.isBuffer(input) && input.length > 0,
+      config: {
+        name: 'Audio File',
+        extensions: ['.mp3', '.wav', '.ogg', '.m4a', '.mpga'],
+        mimeTypes: [
+          'audio/mpeg',
+          'audio/mp3',
+          'audio/wav',
+          'audio/ogg',
+          'audio/m4a'
+        ],
+        maxSize: 100 * 1024 * 1024, // 100MB
+      }
+    },
+    // Other converters...
+  }
+  ```
+
 - **URL Handling Pattern**: Special handling for URLs to prevent treating them as files
   - URL Detection: Identify URLs early in the conversion process
   - Direct Converter Access: Access URL converters directly by type rather than by extension
   - Skip File Extension Parsing: Avoid parsing URLs as filenames with extensions
   - URL-specific Processing: Use specialized processing path for web content
+
+- **Media Handling Pattern**: Special handling for audio and video files
+  - Buffer Processing: Handle binary data efficiently
+  - API Key Validation: Ensure required API keys are present for transcription
+  - Chunking for Large Files: Split large audio/video files into manageable chunks
+  - Transcription: Convert audio to text using external APIs
+  - Progress Tracking: Provide detailed progress updates during lengthy conversions
+  - Path Handling: Use Node.js built-in path functions instead of custom methods
+    ```javascript
+    // Correct approach - use built-in Node.js path functions
+    const tempDir = PathUtils.normalizePath(path.join(os.tmpdir(), uuidv4()));
+    const inputPath = path.join(tempDir, 'input.mp4');
+    const outputPath = path.join(tempDir, 'output.mp3');
+    
+    // Incorrect approach - using non-existent methods
+    const inputPath = PathUtils.resolvePath(tempDir, 'input.mp4');
+    const outputPath = PathUtils.toPlatformPath(outputPath);
+    ```
 
 - **Standardized Interface**: All converters must implement a consistent interface:
   ```javascript

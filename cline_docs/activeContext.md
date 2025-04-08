@@ -109,6 +109,9 @@ Enhancing the converter architecture to improve maintainability, reduce redundan
 - ~~URL conversion failing with "Unsupported file type: ai" error~~ (Fixed)
 - ~~URL conversion failing with "converter.convert is not a function" error~~ (Fixed)
 - ~~Advanced OCR not being used despite OCR being enabled and Mistral API key being present~~ (Fixed)
+- ~~MP3 conversion failing with "fileType is not defined" error~~ (Fixed)
+- ~~Video conversion failing with "PathUtils.resolvePath is not a function" error~~ (Fixed)
+- ~~Video conversion failing with "PathUtils.toPlatformPath is not a function" error~~ (Fixed)
 
 ## Next Steps
 
@@ -123,8 +126,22 @@ Enhancing the converter architecture to improve maintainability, reduce redundan
   - Fixed illegal characters check for URL filenames
   - Improved error messages to show specific invalid characters
   - Eliminated duplicate sanitizeFileName method to reduce confusion
-5. Document the solution in the system patterns for future reference
-6. Consider implementing similar improvements in other Electron projects
+5. ~~Fix MP3 and video conversion by registering converters in ConverterRegistry~~ (Completed)
+  - Added imports for AudioConverter and VideoConverter in ConverterRegistry
+  - Created instances of both converters
+  - Registered them in the converters object with proper configuration
+  - Ensured they follow the standardized interface pattern
+  - Added support for all audio and video formats defined in the converters
+6. ~~Fix video conversion "PathUtils.resolvePath is not a function" error~~ (Completed)
+  - Replaced non-existent `PathUtils.resolvePath()` calls with `path.join()` in transcriber.js
+  - Updated FileSystemService.js to use `PathUtils.normalizePath(path.join())` instead of `PathUtils.resolvePath()`
+  - Ensured consistent path handling across the application
+7. ~~Fix video conversion "PathUtils.toPlatformPath is not a function" error~~ (Completed)
+  - Removed calls to non-existent `PathUtils.toPlatformPath()` method in transcriber.js
+  - Used direct path variables instead, which were already normalized earlier in the function
+  - Simplified ffmpeg input/output path handling
+8. Document the solution in the system patterns for future reference
+9. Consider implementing similar improvements in other Electron projects
 
 ### Long-term Solution: Migration to Plain Svelte + Vite
 We've created a comprehensive migration plan to address the root cause of the asset loading issues by transitioning from SvelteKit to plain Svelte + Vite. This plan is documented in:
