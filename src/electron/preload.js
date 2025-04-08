@@ -378,12 +378,25 @@ contextBridge.exposeInMainWorld('electron', {
     clearCache: async () => {
         return queueCall('codex:offline:clear-cache', []);
     },
-    
     // Event handlers don't need queueing since they just register callbacks
     onOfflineEvent: (callback) => {
         ipcRenderer.on('codex:offline:event', (_, data) => callback(data));
         return () => {
             ipcRenderer.removeListener('codex:offline:event', callback);
+        };
+    },
+    
+    /**
+     * Register callback for file drop events
+     * @param {Function} callback - File drop callback
+     */
+    onFileDropped: (callback) => {
+        ipcRenderer.on('codex:file-dropped', (_, files) => {
+            console.log('File dropped event received:', files);
+            callback(files);
+        });
+        return () => {
+            ipcRenderer.removeListener('codex:file-dropped', callback);
         };
     },
     

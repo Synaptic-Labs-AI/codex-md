@@ -33,9 +33,14 @@
   // Reactive declarations for UI state
   $: showFileList = $files.length > 0;
   $: needsApiKey = $files.some(file => requiresApiKey(file));
-  
   // Check if there's a URL in the files store (to disable file uploader if a URL exists)
   $: hasUrl = $files.length > 0 && $files[0].url;
+  $: fileUploaderDisabled = hasUrl;
+  
+  // Debug log for disabled state
+  $: if (fileUploaderDisabled) {
+    console.log('DropZone disabled because hasUrl is true:', $files);
+  }
   $: fileUploaderDisabled = hasUrl;
 
   function showFeedback(message, type = 'info') {
@@ -219,8 +224,14 @@
           <DropZone
             acceptedTypes={SUPPORTED_EXTENSIONS}
             disabled={fileUploaderDisabled}
-            on:filesDropped={(event) => handleFilesAdded(event.detail.files)}
-            on:filesSelected={(event) => handleFilesAdded(event.detail.files)}
+            on:filesDropped={(event) => {
+              console.log('Files dropped event received:', event.detail);
+              handleFilesAdded(event.detail.files);
+            }}
+            on:filesSelected={(event) => {
+              console.log('Files selected event received:', event.detail);
+              handleFilesAdded(event.detail.files);
+            }}
           />
         </div>
       </div>

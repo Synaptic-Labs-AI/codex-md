@@ -19,6 +19,8 @@
       uploadStore.setDragOver(false);
       dragCounter = 0;
       
+      console.log('Drop event triggered');
+      
       const files = Array.from(event.dataTransfer.files);
       // Only take the first file if multiple are dropped
       const singleFile = files.length > 0 ? [files[0]] : [];
@@ -31,6 +33,7 @@
       
       dragCounter++;
       uploadStore.setDragOver(true);
+      console.log('DragEnter event triggered, dragCounter:', dragCounter);
     }
   
     function handleDragLeave(event) {
@@ -41,6 +44,13 @@
       if (dragCounter === 0) {
         uploadStore.setDragOver(false);
       }
+      console.log('DragLeave event triggered, dragCounter:', dragCounter);
+    }
+    
+    function handleDragOver(event) {
+      event.preventDefault();
+      if (disabled) return;
+      // No need to update state on every dragover event as it fires continuously
     }
   
     function handleFileSelect(event) {
@@ -65,7 +75,7 @@
     class:disabled={disabled}
     on:dragenter={handleDragEnter}
     on:dragleave={handleDragLeave}
-    on:dragover|preventDefault
+    on:dragover={handleDragOver}
     on:drop={handleDrop}
     on:click={() => fileInput.click()}
     on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); }}
@@ -149,15 +159,12 @@
     .drop-zone.disabled {
       opacity: 0.5;
       cursor: not-allowed;
-      pointer-events: auto;
+      /* Allow pointer events but disable interactions */
+      pointer-events: none;
     }
 
     .drop-zone.disabled:hover::before {
       opacity: 0.5;
-    }
-
-    .drop-zone.disabled * {
-      pointer-events: none;
     }
 
     .drop-zone.drag-over::before {
