@@ -160,8 +160,16 @@ const converters = {
   // Word Documents
   docx: {
     convert: docxConverter.convert,
-    validate: docxConverter.validate,
-    config: docxConverter.config
+    validate: (input) => Buffer.isBuffer(input) && input.length > 0,
+    config: {
+      name: 'Word Document',
+      extensions: ['.docx', '.doc'],
+      mimeTypes: [
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword'
+      ],
+      maxSize: 50 * 1024 * 1024, // 50MB
+    }
   },
 
   // PowerPoint Presentations
