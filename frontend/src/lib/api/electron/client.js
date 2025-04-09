@@ -55,6 +55,14 @@ class ElectronClient {
                 conversionOptions.type = fileInfo.converter;
             }
 
+            // Special handling for CSV files - set isContent flag to trigger special handling in the backend
+            if (fileInfo.converter === 'csv' ||
+                (options.originalFileName && options.originalFileName.toLowerCase().endsWith('.csv'))) {
+                console.log('📊 Detected CSV file, setting isContent flag to trigger special handling');
+                conversionOptions.isContent = true;
+                conversionOptions.type = 'csv';
+            }
+
             // Handle based on input type
             if (input instanceof File) {
                 // For all File objects, extract the buffer
