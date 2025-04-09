@@ -12,8 +12,30 @@
 - Enhanced offline functionality
 - Additional file format support
 - Performance optimizations
+- Complete codebase streamlining (in progress)
 
 ## Current Status
+
+- **Optimized**: Legacy Code Cleanup (Phase 5)
+  - Removed file size limits across the codebase
+  - Simplified validation.js to focus on file type validation only
+  - Removed unused file size validation functions and constants
+  - Cleaned up config.js to remove size-related settings
+  - Updated DropZone component to remove size validation
+  - Improved code maintainability by removing unnecessary restrictions
+  - Removed redundant getFileIconFullConfig function
+  - Cleaned up commented-out YouTube code from uploadStore and iconUtils
+  - Streamlined files for better readability and maintenance
+  - Removed legacy status mappings from unifiedConversion.js
+  - Simplified batchUpdate method to remove unused compatibility code
+
+- **Improved**: File Handling Consolidation (Phase 2)
+  - Removed duplicate file type handling from filehandler.js
+  - Utilized shared utilities from @codex-md/shared/utils/files
+  - Maintained clean separation between store management and file operations
+  - Improved code maintainability by reducing duplication
+  - Preserved essential UI-specific functionality (icon mapping)
+
 - **Fixed**: URL Converter Interface
   - Fixed "converter.convert is not a function" error in URL conversion
   - Updated urlConverter.js to add a `convert` method that matches the standardized interface
@@ -49,6 +71,12 @@
   - Maintained accessibility features including high contrast mode
   - Improved mobile responsiveness with adjusted spacing
 
+- **Improved**: Codebase Streamlining (Phase 1)
+  - Removed unused ProfessorSynapseAd.svelte component
+  - Removed legacy OcrSettings.svelte component (OCR settings now handled through unified Settings interface)
+  - Simplified component structure for better maintainability
+  - Reduced codebase size by removing unused code
+  
 - **Fixed**: Asset loading issues in Windows production builds
   - Implemented enhanced protocol handlers with Windows-specific path handling
   - Added ASAR-aware path resolution for packaged apps

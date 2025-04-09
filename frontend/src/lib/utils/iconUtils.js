@@ -39,8 +39,6 @@ export const FILE_ICONS = {
   // Special Types
   url: { icon: '🔗', color: '#4AE2B5', label: 'URL Link' },
   parenturl: { icon: '🗺️', color: '#9E4AE2', label: 'Parent URL' },
-  // youtube: { icon: '▶️', color: '#E24A4A', label: 'YouTube Video' },
-
   // Default Fallback
   default: { icon: '🗎', color: '#B8B8B8', label: 'File' }
 };
@@ -148,14 +146,4 @@ function getBaseFileType(extension) {
  */
 export function getFileIcon(type) {
   return getFileIconConfig(type).icon;
-}
-
-/**
- * Additional utility to get full icon config (if needed)
- *
- * @param {string} type
- * @returns {Object} Icon configuration object
- */
-export function getFileIconFullConfig(type) {
-  return getFileIconConfig(type);
 }

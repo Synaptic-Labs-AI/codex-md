@@ -3,7 +3,7 @@
     import { createEventDispatcher } from 'svelte';
     import { fade, scale } from 'svelte/transition';
     import { uploadStore } from '../../stores/uploadStore';
-    import { formatFileSize, MAX_FILE_SIZE, MAX_VIDEO_SIZE, validateFileSize, getFileType } from '../../utils/fileUtils';
+    import { getFileType } from '../../utils/fileUtils';
   
     export let acceptedTypes = [];
     export let disabled = false;
