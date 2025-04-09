@@ -33,22 +33,6 @@ export const ConversionState = {
   }
 };
 
-// Legacy status mapping for backward compatibility
-const legacyStatusMap = {
-  'initializing': ConversionState.STATUS.INITIALIZING,
-  'preparing': ConversionState.STATUS.PREPARING,
-  'finding_sitemap': ConversionState.STATUS.PREPARING,
-  'parsing_sitemap': ConversionState.STATUS.PREPARING,
-  'crawling_pages': ConversionState.STATUS.PREPARING,
-  'processing': ConversionState.STATUS.CONVERTING,
-  'section': ConversionState.STATUS.CONVERTING,
-  'converting': ConversionState.STATUS.CONVERTING,
-  'generating_index': ConversionState.STATUS.CONVERTING,
-  'completed': ConversionState.STATUS.COMPLETED,
-  'complete': ConversionState.STATUS.COMPLETED,
-  'error': ConversionState.STATUS.ERROR,
-  'failed': ConversionState.STATUS.ERROR
-};
 
 // Initial state with essential properties
 const initialState = {
@@ -215,11 +199,6 @@ function createUnifiedConversionStore() {
           ...updates
         };
 
-        // Map legacy status to normalized values if present
-        if (updates.status) {
-          const normalizedStatus = legacyStatusMap[updates.status] || updates.status;
-          newState.status = normalizedStatus;
-        }
 
         return newState;
       });

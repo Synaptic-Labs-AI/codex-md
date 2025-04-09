@@ -3,7 +3,7 @@ const ENV = {
     API_BASE_URL: import.meta.env.PROD ? 
         'https://backend-production-6e08.up.railway.app/api/v1' : 
         'http://localhost:3000/api/v1',
-    MAX_PAYLOAD_SIZE: 50 * 1024 * 1024, // 50MB
+    // No size limits
     CORS_ORIGIN: import.meta.env.VITE_CORS_ORIGIN || '*'
 };
 
@@ -54,7 +54,7 @@ export const CONFIG = {
             AUDIO: '/multimedia/audio',
             VIDEO: '/multimedia/video'
         },
-        MAX_FILE_SIZE: ENV.MAX_PAYLOAD_SIZE
+        // No size limits
     },
 
     CORS: {
@@ -121,7 +121,7 @@ export const CONFIG = {
             convertLinks: true
         },
         BATCH_SIZE_LIMIT: 10,
-        FILE_SIZE_LIMIT: 50 * 1024 * 1024, // 50MB
+        // No size limits
     },
 
     UI: {
@@ -172,7 +172,6 @@ export const CONFIG = {
 if (import.meta.env.DEV) {
     console.log('API Configuration:', {
         baseUrl: CONFIG.API.BASE_URL,
-        maxFileSize: CONFIG.API.MAX_FILE_SIZE,
         corsOrigin: CONFIG.CORS.ORIGIN
     });
 }

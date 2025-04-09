@@ -19,7 +19,6 @@ function createUploadStore() {
     activeTab: 'single',
     dragOver: false,
     urlInput: '',
-    // youtubeUrlInput: '',
     errorMessage: '',
     message: '',
     messageType: '',
@@ -31,7 +30,6 @@ function createUploadStore() {
     setActiveTab: (tab) => update(state => ({ ...state, activeTab: tab })),
     setDragOver: (value) => update(state => ({ ...state, dragOver: value })),
     setUrlInput: (value) => update(state => ({ ...state, urlInput: value })),
-    // setYoutubeInput: (value) => update(state => ({ ...state, youtubeUrlInput: value })),
     setError: (message) => update(state => ({ ...state, errorMessage: message })),
     clearError: () => update(state => ({ ...state, errorMessage: '' })),
     setMessage: (message, type = 'info') => update(state => ({ 
@@ -48,7 +46,6 @@ function createUploadStore() {
       activeTab: 'single',
       dragOver: false,
       urlInput: '',
-      // youtubeUrlInput: '',
       errorMessage: '',
       message: '',
       messageType: '',
