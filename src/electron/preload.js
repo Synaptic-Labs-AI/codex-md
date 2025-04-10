@@ -434,3 +434,4 @@ contextBridge.exposeInMainWorld('electron', {
 
 // Clean up when window unloads
 window.addEventListener('unload', cleanupEventListeners);
+

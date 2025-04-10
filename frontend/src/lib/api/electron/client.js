@@ -22,26 +22,49 @@ class ElectronClient {
      * @param {Function} onProgress - Progress callback
      */
     async convertFile(input, options, onProgress) {
+        console.log('🔄 [VERBOSE] ElectronClient.convertFile called');
+        console.time('🕒 [VERBOSE] Total frontend conversion time');
+        
         if (!window.electron) {
+            console.error('❌ [VERBOSE] Electron API not available');
             throw new Error('Electron API not available');
         }
 
+        // Log input type and options
+        console.log('📥 [VERBOSE] Conversion input:', {
+            type: typeof input,
+            isFile: input instanceof File,
+            isArrayBuffer: input instanceof ArrayBuffer,
+            isString: typeof input === 'string',
+            length: input instanceof ArrayBuffer ? input.byteLength : 
+                   typeof input === 'string' ? input.length : 
+                   input instanceof File ? input.size : 'unknown',
+            options: {
+                ...options,
+                apiKey: options.apiKey ? '✓' : '✗',
+                mistralApiKey: options.mistralApiKey ? '✓' : '✗'
+            }
+        });
+
         // Handle progress updates
         if (onProgress) {
+            console.log('🔄 [VERBOSE] Setting up progress tracking');
             window.electron.onConversionProgress((progress) => {
+                console.log('📊 [VERBOSE] Progress update:', progress);
                 onProgress(progress);
             });
         }
 
         try {
             // Get comprehensive file handling info
+            console.log('🔍 [VERBOSE] Getting file handling info');
             const fileInfo = getFileHandlingInfo({
                 name: options.originalFileName,
                 type: options.type,
                 path: typeof input === 'string' ? input : undefined
             });
 
-            console.log('🔍 File handling info:', fileInfo);
+            console.log('🔍 [VERBOSE] File handling info:', fileInfo);
 
             // Prepare conversion options with file info
             const conversionOptions = {
@@ -55,7 +78,7 @@ class ElectronClient {
                 conversionOptions.type = fileInfo.converter;
             }
 
-            // Special handling for CSV files - set isContent flag to trigger special handling in the backend
+            // Special handling for CSV files - set isContent flag to trigger special handling
             if (fileInfo.converter === 'csv' ||
                 (options.originalFileName && options.originalFileName.toLowerCase().endsWith('.csv'))) {
                 console.log('📊 Detected CSV file, setting isContent flag to trigger special handling');
@@ -105,9 +128,39 @@ class ElectronClient {
                 finalType: conversionOptions.type
             });
             
-            return await window.electron.convert(input, conversionOptions);
+            console.time('🕒 [VERBOSE] Electron IPC conversion call');
+            const result = await window.electron.convert(input, conversionOptions);
+            console.timeEnd('🕒 [VERBOSE] Electron IPC conversion call');
+            
+            console.log('✅ [VERBOSE] Conversion completed successfully:', {
+                success: result.success,
+                hasContent: !!result.content,
+                contentLength: result.content ? result.content.length : 0,
+                hasOutputPath: !!result.outputPath,
+                hasImages: Array.isArray(result.images) && result.images.length > 0,
+                imageCount: Array.isArray(result.images) ? result.images.length : 0
+            });
+            
+            console.timeEnd('🕒 [VERBOSE] Total frontend conversion time');
+            return result;
         } catch (error) {
-            console.error('Conversion error:', error);
+            console.timeEnd('🕒 [VERBOSE] Electron IPC conversion call');
+            console.timeEnd('🕒 [VERBOSE] Total frontend conversion time');
+            
+            console.error('❌ [VERBOSE] Conversion error caught in ElectronClient.convertFile:', error);
+            
+            // Log detailed error information
+            console.log('🔍 [VERBOSE] Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                isConversionError: error instanceof ConversionError,
+                details: error.details || 'none',
+                fileType: options.type || 'unknown',
+                fileName: options.originalFileName || 'unknown'
+            });
+            
+            // Rethrow the error for the caller to handle
             throw error;
         }
     }

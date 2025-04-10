@@ -224,8 +224,8 @@ class ConversionResultManager {
    * @param {Object} [options.options={}] - Additional options
    * @returns {Promise<Object>} Result of the save operation
    */
-  async saveConversionResult({ content, metadata = {}, images = [], files = [], name, type, outputDir, options = {} }) {
-    console.log(`🔄 [ConversionResultManager] Saving conversion result for ${name} (${type})`);
+  async saveConversionResult({ content, metadata = {}, images = [], files = [], name, type, fileType, outputDir, options = {} }) {
+    console.log(`🔄 [ConversionResultManager] Saving conversion result for ${name} (${type || fileType})`);
     
     // Validate required parameters
     if (!content) {
@@ -238,10 +238,13 @@ class ConversionResultManager {
       throw new Error('Name is required for conversion result');
     }
     
-    if (!type) {
-      console.error('❌ [ConversionResultManager] No type provided!');
-      throw new Error('Type is required for conversion result');
+    if (!type && !fileType) {
+      console.error('❌ [ConversionResultManager] No type or fileType provided!');
+      throw new Error('Type or fileType is required for conversion result');
     }
+    
+    // Use fileType as fallback for type if type is not provided
+    const contentType = type || fileType;
     
     if (!outputDir) {
       console.error('❌ [ConversionResultManager] No output directory provided!');
@@ -255,12 +258,12 @@ class ConversionResultManager {
     const userProvidedOutputDir = !!outputDir;
     const createSubdirectory = userProvidedOutputDir ? false : 
                              (options.createSubdirectory !== undefined ? options.createSubdirectory : true);
-    
-    // Generate appropriate filename based on type and metadata
-    const filename = generateAppropriateFilename(name, type, metadata);
-    
-    // Determine URL status for path validation
-    const isUrl = type === 'url' || type === 'parenturl';
+   
+   // Generate appropriate filename based on type and metadata
+   const filename = generateAppropriateFilename(name, contentType, metadata);
+   
+   // Determine URL status for path validation
+   const isUrl = contentType === 'url' || contentType === 'parenturl';
 
     // Get the base name without extension and ensure it's valid for the file system
     const baseName = getBasename(filename).replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
@@ -341,7 +344,8 @@ class ConversionResultManager {
 
     // Clean metadata fields and create metadata object
     const fullMetadata = cleanMetadata({
-      type,
+      type: contentType,
+      fileType: fileType || type, // Ensure fileType is included in metadata
       converted: new Date().toISOString(),
       ...metadata
     });
@@ -415,7 +419,8 @@ class ConversionResultManager {
     });
     
     // Special handling for data files (CSV, XLSX)
-    const isDataFile = type === 'csv' || type === 'xlsx';
+    const isDataFile = contentType === 'csv' || contentType === 'xlsx' ||
+                      fileType === 'csv' || fileType === 'xlsx';
     if (isDataFile) {
       console.log(`📊 [ConversionResultManager] Special handling for data file: ${type}`);
       
@@ -447,7 +452,8 @@ class ConversionResultManager {
     };
     
     console.log(`✅ [ConversionResultManager] Successfully saved conversion result:`, {
-      type,
+      type: contentType,
+      fileType: fileType || type,
       outputPath: outputBasePath,
       mainFile: mainFilePath
     });

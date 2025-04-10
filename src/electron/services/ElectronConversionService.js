@@ -20,6 +20,7 @@
 
 const path = require('path');
 const { app } = require('electron');
+const { PathUtils } = require('../utils/paths');
 const { promisify } = require('util');
 const fs = require('fs');
 const readFileAsync = promisify(fs.readFile);
@@ -48,30 +49,121 @@ console.log('📄 Initialized with file handling:', {
 // Import UnifiedConverterFactory
 const unifiedConverterFactory = require('../converters/UnifiedConverterFactory');
 
-// Function to get correct backend path
-const getBackendPath = () => {
+// Initialize the converter factory
+unifiedConverterFactory.initialize().catch(error => {
+  console.error('❌ Failed to initialize converter factory:', error);
+});
+
+// Function to get correct converter registry path for CommonJS
+const getConverterRegistryPath = () => {
   // In development
   if (process.env.NODE_ENV === 'development') {
-    return path.join(__dirname, '../../../backend/src/services/converter/ConverterRegistry.js');
+    return path.join(__dirname, 'conversion/ConverterRegistry.js');
   }
   // In production
-  return path.join(app.getAppPath(), 'backend/src/services/converter/ConverterRegistry.js');
+  return path.join(app.getAppPath(), 'src/electron/services/conversion/ConverterRegistry.js');
 };
 
-// Initialize backend converters
-(async function() {
+// Initialize converters using CommonJS require
+(function() {
   try {
-    const converterRegistryPath = getBackendPath();
-    console.log('Loading converter registry from:', converterRegistryPath);
+    console.log('🔄 [VERBOSE] Starting converters initialization');
+    console.time('🕒 [VERBOSE] Converters initialization time');
     
-    const converterRegistryModule = await import(converterRegistryPath);
-    const converterRegistry = converterRegistryModule.ConverterRegistry;
+    const converterRegistryPath = getConverterRegistryPath();
+    console.log('🔍 [VERBOSE] Loading converter registry from path:', converterRegistryPath);
+    console.log('🔍 [VERBOSE] Environment details:', {
+      environment: process.env.NODE_ENV || 'unknown',
+      appPath: app.getAppPath(),
+      currentDir: __dirname,
+      isPackaged: app.isPackaged
+    });
+    
+    // Check if the file exists
+    const fileExists = fs.existsSync(converterRegistryPath);
+    console.log('🔍 [VERBOSE] Registry file exists check:', fileExists);
+    
+    if (!fileExists) {
+      console.error('❌ [VERBOSE] Registry file does not exist at path:', converterRegistryPath);
+      console.log('📂 [VERBOSE] Directory contents:', {
+        dirname: fs.existsSync(__dirname) ? fs.readdirSync(__dirname) : 'directory not found',
+        appPath: fs.existsSync(app.getAppPath()) ? fs.readdirSync(app.getAppPath()) : 'directory not found',
+        services: fs.existsSync(path.join(__dirname, '..')) ?
+          fs.readdirSync(path.join(__dirname, '..')) : 'directory not found',
+        conversion: fs.existsSync(path.join(__dirname, 'conversion')) ?
+          fs.readdirSync(path.join(__dirname, 'conversion')) : 'directory not found',
+        data: fs.existsSync(path.join(__dirname, 'conversion/data')) ?
+          fs.readdirSync(path.join(__dirname, 'conversion/data')) : 'directory not found'
+      });
+    }
+    
+    // Use CommonJS require instead of dynamic import
+    console.log('🔄 [VERBOSE] Using CommonJS require for converter registry');
+    
+    let converterRegistryModule;
+    try {
+      // Try the primary path first
+      converterRegistryModule = require(converterRegistryPath);
+      console.log('📦 [VERBOSE] Require successful. Module structure:', {
+        keys: Object.keys(converterRegistryModule),
+        hasConverterRegistry: 'ConverterRegistry' in converterRegistryModule,
+        hasDefaultExport: 'default' in converterRegistryModule,
+        exportTypes: Object.entries(converterRegistryModule).map(([key, value]) =>
+          `${key}: ${typeof value}${value && typeof value === 'object' ? ` with keys [${Object.keys(value).join(', ')}]` : ''}`
+        )
+      });
+    } catch (requireError) {
+      console.error('❌ [VERBOSE] Require failed with error:', requireError);
+      console.log('🔍 [VERBOSE] Require error details:', {
+        name: requireError.name,
+        message: requireError.message,
+        stack: requireError.stack,
+        code: requireError.code,
+        path: converterRegistryPath
+      });
+      
+      // Try the direct path as a fallback
+      console.log('🔄 [VERBOSE] Trying direct path as fallback');
+      try {
+        converterRegistryModule = require(path.join(__dirname, 'conversion', 'ConverterRegistry.js'));
+        console.log('✅ [VERBOSE] Direct path require successful');
+      } catch (directError) {
+        console.error('❌ [VERBOSE] Direct path require also failed:', directError.message);
+        throw new Error(`Could not load ConverterRegistry: ${requireError.message}`);
+      }
+    }
+    
+    const converterRegistry = converterRegistryModule.ConverterRegistry || converterRegistryModule.default || converterRegistryModule;
+    
+    // Log detailed information about the converter registry
+    console.log('🔍 [VERBOSE] Converter registry structure:', {
+      hasConverters: !!(converterRegistry && converterRegistry.converters),
+      hasConvertToMarkdown: typeof converterRegistry?.convertToMarkdown === 'function',
+      hasGetConverterByExtension: typeof converterRegistry?.getConverterByExtension === 'function',
+      hasGetConverterByMimeType: typeof converterRegistry?.getConverterByMimeType === 'function',
+      availableConverters: converterRegistry && converterRegistry.converters ?
+        Object.keys(converterRegistry.converters) : 'none'
+    });
+    
+    // Register the converter factory
     registerConverterFactory('converterRegistry', converterRegistry);
     
-    console.log('✅ Backend converters registered successfully');
+    console.timeEnd('🕒 [VERBOSE] Converters initialization time');
+    console.log('✅ [VERBOSE] Converters registered successfully');
+    
+    // Store in global for error checking
+    global.converterRegistry = converterRegistry;
   } catch (error) {
-    console.error('❌ Failed to register backend converters:', error);
-    console.error('Error details:', error.stack);
+    console.timeEnd('🕒 [VERBOSE] Converters initialization time');
+    console.error('❌ [VERBOSE] Failed to register converters:', error);
+    console.error('❌ [VERBOSE] Error details:', error.stack);
+    console.log('🔍 [VERBOSE] Error object:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      type: typeof error,
+      hasStack: !!error.stack
+    });
   }
 })();
 
@@ -91,18 +183,24 @@ class ElectronConversionService {
    * @returns {Promise<Object>} - Conversion result
    */
   async convert(filePath, options = {}) {
+    console.log('🔄 [VERBOSE] ElectronConversionService.convert called');
+    console.time('🕒 [VERBOSE] Total conversion time');
+    console.trace('🔄 [VERBOSE] Convert method stack trace');
+    
     const startTime = Date.now();
     
     try {
       // Validate output directory
       if (!options.outputDir) {
-        console.error('❌ [ElectronConversionService] No output directory provided!');
+        console.error('❌ [VERBOSE] No output directory provided!');
+        console.timeEnd('🕒 [VERBOSE] Total conversion time');
         throw new Error('Output directory is required for conversion');
       }
       
-      console.log('📥 [ElectronConversionService] Received conversion request:', {
+      console.log('📥 [VERBOSE] Received conversion request:', {
         inputType: Buffer.isBuffer(filePath) ? 'Buffer' : typeof filePath,
         inputLength: Buffer.isBuffer(filePath) ? filePath.length : undefined,
+        fileType: options.fileType, // Log the fileType we received from frontend
         hasBufferInOptions: !!options.buffer,
         bufferLength: options.buffer ? options.buffer.length : undefined,
         options: {
@@ -111,6 +209,15 @@ class ElectronConversionService {
           apiKey: options.apiKey ? '✓' : '✗',
           mistralApiKey: options.mistralApiKey ? '✓' : '✗'
         }
+      });
+      
+      console.log('🔍 [VERBOSE] Conversion environment:', {
+        environment: process.env.NODE_ENV || 'unknown',
+        isPackaged: app.isPackaged,
+        appPath: app.getAppPath(),
+        converterRegistryLoaded: !!global.converterRegistry,
+        unifiedConverterFactoryLoaded: !!unifiedConverterFactory,
+        hasConvertFile: unifiedConverterFactory ? typeof unifiedConverterFactory.convertFile === 'function' : false
       });
 
       // If we have a buffer in options, use that instead of the input
@@ -122,8 +229,8 @@ class ElectronConversionService {
       // Create a progress tracker
       const progressTracker = new ProgressTracker(options.onProgress, this.progressUpdateInterval);
       
-      // Determine file type
-      const fileType = this.determineFileType(filePath, options);
+      // Use the fileType provided by the frontend - no redetermination
+      const fileType = options.fileType;
       
       console.log('🔄 [ElectronConversionService] Processing:', {
         type: fileType,
@@ -133,7 +240,7 @@ class ElectronConversionService {
         isParentUrl: options.type === 'parenturl'
       });
       
-      // Delegate to UnifiedConverterFactory
+      // Delegate to UnifiedConverterFactory with the fileType from frontend
       const conversionResult = await unifiedConverterFactory.convertFile(filePath, {
         ...options,
         fileType,
@@ -151,10 +258,10 @@ class ElectronConversionService {
         throw new Error('Conversion produced empty content');
       }
       
-      // Determine file category from name or type
-      const fileCategory = conversionResult.category || 
-                          getFileType(options.originalFileName || options.name) || 
-                          'text';
+      // Use category from frontend if available
+      const fileCategory = options.category || 
+                         conversionResult.category || 
+                         'text';
       
       // Check if the conversion result has multiple files (for parenturl)
       const hasMultipleFiles = Array.isArray(conversionResult.files) && conversionResult.files.length > 0;
@@ -171,6 +278,7 @@ class ElectronConversionService {
         files: conversionResult.files,
         name: conversionResult.name || options.originalFileName || options.name,
         type: conversionResult.type || fileType,
+        fileType: fileType, // Always use the fileType from frontend
         outputDir: options.outputDir,
         options: {
           ...options,
@@ -189,16 +297,43 @@ class ElectronConversionService {
       return result;
       
     } catch (error) {
+      console.timeEnd('🕒 [VERBOSE] Total conversion time');
+      console.error('❌ [VERBOSE] Conversion error caught in ElectronConversionService.convert');
+      
+      // Always include fileType in error results
+      const fileType = options.fileType || 'unknown';
+      
+      // Detailed error logging
+      console.log('🔍 [VERBOSE] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        type: typeof error
+      });
+      
+      // Check converter registry state
+      console.log('🔍 [VERBOSE] Converter registry state at error time:', {
+        converterRegistryLoaded: !!global.converterRegistry,
+        hasConverters: !!(global.converterRegistry && global.converterRegistry.converters),
+        availableConverters: global.converterRegistry && global.converterRegistry.converters ? 
+          Object.keys(global.converterRegistry.converters) : 'none',
+        unifiedConverterFactoryLoaded: !!unifiedConverterFactory,
+        hasConvertFile: unifiedConverterFactory ? typeof unifiedConverterFactory.convertFile === 'function' : false
+      });
+      
       const errorInfo = {
-        type: options.fileType || options.type,
+        fileType: fileType, // Always include fileType
+        type: options.type,
         originalFileName: options.originalFileName,
         isBuffer: Buffer.isBuffer(filePath),
         bufferLength: Buffer.isBuffer(filePath) ? filePath.length : undefined,
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
+        convertersLoaded: !!global.converterRegistry // Check if converters were loaded
       };
       
-      console.error('❌ Conversion failed:', errorInfo);
+      console.error('❌ [VERBOSE] Conversion failed:', errorInfo);
       
       // Construct a user-friendly error message
       const errorMessage = Buffer.isBuffer(filePath) 
@@ -208,69 +343,10 @@ class ElectronConversionService {
       return {
         success: false,
         error: errorMessage,
-        details: errorInfo
+        details: errorInfo,
+        fileType: fileType // Explicitly include fileType in error result
       };
     }
-  }
-  
-  /**
-   * Determines the file type based on the input and options
-   * @private
-   */
-  determineFileType(filePath, options) {
-    // First check if type is explicitly provided in options
-    if (options.fileType) {
-      return options.fileType;
-    }
-
-    // For URLs, use the explicit type from options
-    if (options.type === 'url' || options.type === 'parenturl') {
-      return options.type;
-    }
-
-    // For buffer inputs, we must have fileType or originalFileName
-    if (Buffer.isBuffer(filePath)) {
-      if (options.originalFileName) {
-        const extension = path.extname(options.originalFileName).toLowerCase().slice(1);
-        if (extension) {
-          return extension;
-        }
-      }
-      throw new Error('File type must be specified when passing buffer input');
-    }
-    
-    // Special handling for data files
-    if (options.type === 'data') {
-      // Try to get the file extension from the filename
-      const fileName = options.originalFileName || options.name;
-      if (fileName) {
-        const extension = fileName.split('.').pop().toLowerCase();
-        if (extension === 'csv' || extension === 'xlsx' || extension === 'xls') {
-          console.log(`📊 [ElectronConversionService] Detected data file type: ${extension}`);
-          return extension;
-        }
-      }
-      
-      // If we can't determine the specific data file type, default to CSV
-      console.log(`📊 [ElectronConversionService] Using default 'csv' for data file with unknown extension`);
-      return 'csv';
-    }
-    
-    // For other files, try to get the file extension directly
-    const fileName = options.originalFileName || options.name;
-    if (fileName) {
-      const extension = fileName.split('.').pop().toLowerCase();
-      if (extension && extension !== fileName) {
-        return extension;
-      }
-    }
-    
-    // If we can't get the extension, fall back to the category
-    return getFileType({
-      name: fileName,
-      type: options.type,
-      path: typeof filePath === 'string' ? filePath : undefined
-    });
   }
 
   /**

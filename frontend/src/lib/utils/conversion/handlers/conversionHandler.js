@@ -26,17 +26,34 @@ class ConversionHandler {
      * Starts the conversion process
      */
     async startConversion() {
+        console.log('🔄 [VERBOSE] ConversionHandler.startConversion called');
+        console.time('🕒 [VERBOSE] Total conversion handler time');
+        
         const currentFiles = get(files);
         const currentApiKey = get(apiKey);
+
+        console.log('🔍 [VERBOSE] Conversion starting with:', {
+            fileCount: currentFiles.length,
+            hasApiKey: !!currentApiKey,
+            files: currentFiles.map(f => ({
+                id: f.id,
+                name: f.name,
+                type: f.type,
+                size: f.size,
+                hasUrl: !!f.url
+            }))
+        });
 
         if (currentFiles.length === 0) {
             const error = new Error('No files available for conversion.');
             storeManager.setError(error.message);
-            console.error(error);
+            console.error('❌ [VERBOSE] No files available for conversion');
+            console.timeEnd('🕒 [VERBOSE] Total conversion handler time');
             return;
         }
 
         // Reset and start the unified conversion timer
+        console.log('🔄 [VERBOSE] Resetting and starting unified conversion timer');
         unifiedConversion.reset();
         unifiedConversion.startTimer();
         
@@ -44,14 +61,20 @@ class ConversionHandler {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         try {
+            console.log('🔄 [VERBOSE] Initializing conversion');
             storeManager.updateConversionStatus(CONVERSION_STATUSES.INITIALIZING, 0);
+            
+            console.log('🔄 [VERBOSE] Starting Electron conversion for file:', currentFiles[0].name);
             await this.handleElectronConversion(currentFiles[0], currentApiKey);
 
+            console.log('✅ [VERBOSE] Electron conversion completed successfully');
             storeManager.updateConversionStatus(CONVERSION_STATUSES.PROCESSING, 50);
             this.showFeedback('✨ Processing started! You will be notified when the conversion is complete.', 'success');
             
+            console.timeEnd('🕒 [VERBOSE] Total conversion handler time');
         } catch (error) {
-            console.error('Conversion error:', error);
+            console.timeEnd('🕒 [VERBOSE] Total conversion handler time');
+            console.error('❌ [VERBOSE] Conversion error in startConversion:', error);
             
             // Check for API key related errors
             const errorMessage = error.message || '';
@@ -76,19 +99,41 @@ class ConversionHandler {
      * @private
      */
     async handleElectronConversion(item, openaiApiKey) {
+        console.log('🔄 [VERBOSE] handleElectronConversion called with item:', {
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            size: item.size,
+            hasUrl: !!item.url,
+            hasPath: !!item.path,
+            hasFile: !!item.file,
+            hasApiKey: !!openaiApiKey
+        });
+        console.time('🕒 [VERBOSE] Electron conversion time');
+        
         try {
             // First prompt for output directory
+            console.log('🔄 [VERBOSE] Prompting for output directory');
             storeManager.updateConversionStatus(CONVERSION_STATUSES.SELECTING_OUTPUT, 0);
             const outputResult = await electronClient.selectOutputDirectory();
             
+            console.log('🔍 [VERBOSE] Output directory selection result:', {
+                success: outputResult.success,
+                path: outputResult.path ? outputResult.path.substring(0, 50) + '...' : 'none'
+            });
+            
             if (!outputResult.success) {
+                console.log('ℹ️ [VERBOSE] Conversion cancelled: No output directory selected');
                 storeManager.updateConversionStatus(CONVERSION_STATUSES.CANCELLED, 0);
                 this.showFeedback('Conversion cancelled: No output directory selected', 'info');
+                console.timeEnd('🕒 [VERBOSE] Electron conversion time');
                 return;
             }
 
             // Get current OCR settings
+            console.log('🔄 [VERBOSE] Getting OCR settings');
             const ocrEnabled = await window.electron.getSetting('ocr.enabled');
+            console.log('🔍 [VERBOSE] OCR enabled:', ocrEnabled);
             
             // Get Mistral API key from store
             const apiKeyState = get(apiKeyStore);
@@ -104,11 +149,28 @@ class ConversionHandler {
                 useOcr: ocrEnabled,
                 mistralApiKey: mistralApiKey // Dedicated Mistral key for OCR
             };
+            
+            console.log('🔍 [VERBOSE] Conversion options prepared:', {
+                outputDir: options.outputDir ? options.outputDir.substring(0, 50) + '...' : 'none',
+                createSubdirectory: options.createSubdirectory,
+                hasApiKey: !!options.apiKey,
+                useOcr: options.useOcr,
+                hasMistralApiKey: !!options.mistralApiKey
+            });
 
+            console.log('🔄 [VERBOSE] Starting single item conversion');
             await this.handleSingleItemConversion(item, options);
-
+            console.log('✅ [VERBOSE] Single item conversion completed');
+            
+            console.timeEnd('🕒 [VERBOSE] Electron conversion time');
         } catch (error) {
-            console.error('Electron conversion error:', error);
+            console.timeEnd('🕒 [VERBOSE] Electron conversion time');
+            console.error('❌ [VERBOSE] Electron conversion error:', error);
+            console.log('🔍 [VERBOSE] Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
             storeManager.setError(error.message);
             throw error;
         }
@@ -119,17 +181,34 @@ class ConversionHandler {
      * @private
      */
     async handleSingleItemConversion(item, options) {
+        console.log('🔄 [VERBOSE] handleSingleItemConversion called with item:', {
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            size: item.size,
+            hasUrl: !!item.url,
+            hasPath: !!item.path,
+            hasFile: !!item.file
+        });
+        console.time('🕒 [VERBOSE] Single item conversion time');
+        
         storeManager.updateCurrentFile(item.name || item.url || 'File');
         storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, 0);
         
         try {
-            let result;
-            // Get file handling info from centralized system
+            // Determine file type ONCE at the beginning
+            console.log('🔍 [VERBOSE] Getting file handling info');
             const fileInfo = getFileHandlingInfo(item.file || item);
+            console.log('🔍 [VERBOSE] File handling info:', fileInfo);
             
-            // Prepare base conversion options
+            let result;
+            
+            // Explicitly include fileType in conversion options
             const baseOptions = {
                 ...options,
+                fileType: fileInfo.fileType, // Single source of truth
+                category: fileInfo.category,
+                handling: fileInfo.handling,
                 isTemporary: fileInfo.isBinary,
                 originalFileName: fileInfo.fileName
             };
@@ -157,6 +236,7 @@ class ConversionHandler {
             if (fileInfo.isWeb) {
                 console.log('🌐 Web conversion details:', {
                     originalType: item.type,
+                    fileType: conversionOptions.fileType, // Log the fileType we're sending
                     originalOptions: item.options,
                     finalType: conversionOptions.type,
                     isParentUrl: item.type === 'parenturl',
@@ -231,7 +311,7 @@ class ConversionHandler {
                 hasContent: !!result.content,
                 hasError: !!result.error,
                 type: result.type,
-                fileType: fileInfo.fileType,
+                fileType: result.fileType,
                 category: fileInfo.category,
                 handlingType: fileInfo.handling
             });
@@ -254,7 +334,17 @@ class ConversionHandler {
             storeManager.updateFileStatus(item.id, CONVERSION_STATUSES.COMPLETED, result.outputPath);
             return result;
         } catch (error) {
-            console.error(`Error converting ${item.name || item.url}:`, error);
+            console.error(`Error converting ${item.name || item.url}:`, {
+                error: error.message,
+                stack: error.stack,
+                item: {
+                    id: item.id,
+                    type: item.type,
+                    name: item.name,
+                    url: item.url
+                }
+                // No reference to fileInfo here
+            });
             
             // Check for API key related errors
             const errorMessage = error.message || '';

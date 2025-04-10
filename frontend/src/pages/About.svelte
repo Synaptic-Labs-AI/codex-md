@@ -46,7 +46,7 @@
 
     <h2>Development</h2>
     <p>
-      <span class="codex-md-brand">codex.md</span> is an open-source project developed by Synaptic Labs, leveraging modern web technologies to create powerful desktop software. The application combines Electron for native desktop capabilities, Svelte for a responsive user interface, and Node.js for backend processing.
+      <span class="codex-md-brand">codex.md</span> is an open-source project developed by Synaptic Labs, leveraging modern web technologies to create powerful desktop software. The application combines Electron for native desktop capabilities, Svelte for a responsive user interface, and Node.js for processing.
     </p>
 
     <h3>Contribution</h3>
