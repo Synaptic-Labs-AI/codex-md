@@ -1,7 +1,11 @@
 import { textConverterFactory } from './converter/textConverterFactory.js';
 import { determineCategory } from '../utils/fileTypeUtils.js';
-// Using folder-based approach instead of ZIP for file organization
 import path from 'path';
+import { PathUtils } from '../utils/paths/index.js';
+import { fileURLToPath } from 'url';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 export class ConversionService {
   constructor() {
@@ -158,7 +162,7 @@ export class ConversionService {
         data.type = 'pptx';
       }
 
-      const fileType = path.extname(name).slice(1).toLowerCase();
+      const fileType = PathUtils.getExtension(name).toLowerCase();
       const category = determineCategory(type, fileType);
       
       if (this.requiresApiKey(fileType) && !apiKey) {
@@ -249,7 +253,7 @@ export class ConversionService {
         });
 
         // Always use folder-based approach
-        const baseName = path.basename(name, path.extname(name));
+        const baseName = PathUtils.getBaseName(name);
         
         // Create a result object with the content and metadata
         let finalResult = {
@@ -326,7 +330,7 @@ export class ConversionService {
 
       // Validate API key requirements upfront
       for (const item of items) {
-        const fileType = path.extname(item.name || '').slice(1).toLowerCase();
+        const fileType = PathUtils.getExtension(item.name || '').toLowerCase();
         if (this.requiresApiKey(fileType) && !item.apiKey) {
           throw new Error(`API key required for ${item.name} (${fileType}) conversion. Please add an API key in Settings.`);
         }
@@ -342,7 +346,7 @@ export class ConversionService {
             try {
               if (!item) return null;
               
-              const fileType = path.extname(item.name || '').slice(1).toLowerCase();
+              const fileType = PathUtils.getExtension(item.name || '').toLowerCase();
               const category = determineCategory(item.type, fileType);
               
               console.log(`Converting item: ${item.name} (${item.type})`);
@@ -417,7 +421,7 @@ export class ConversionService {
     
     try {
       const { type, content, name, options = {} } = item;
-      const fileType = path.extname(name).slice(1).toLowerCase();
+      const fileType = PathUtils.getExtension(name).toLowerCase();
       const category = determineCategory(type, fileType);
       const converterType = this.getConverterType(type, fileType);
 
@@ -605,7 +609,7 @@ export class ConversionService {
         chunkSize: content?.length > 50 * 1024 * 1024 ? 25 * 1024 * 1024 : undefined
       });
 
-      const category = determineCategory(type, path.extname(name).slice(1));
+      const category = determineCategory(type, PathUtils.getExtension(name));
       
       const endMemory = process.memoryUsage();
       console.log('✅ File processed:', {

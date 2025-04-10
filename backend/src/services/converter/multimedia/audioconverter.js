@@ -3,6 +3,12 @@ import { generateMarkdown } from "../../../utils/markdownGenerator.js";
 import { FormData } from "formdata-node";
 import { AppError } from "../../../utils/errorHandler.js";
 import { AudioChunker } from "../../../utils/audioChunker.js";
+import { PathUtils } from "../../../utils/paths/index.js";
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB (OpenAI's current limit)
 const SUPPORTED_FORMATS = ["mp3", "mp4", "mpeg", "mpga", "m4a", "wav", "webm"];
@@ -71,7 +77,7 @@ class AudioConverter {
       }
 
       // Validate format
-      const fileExt = originalName.split(".").pop().toLowerCase();
+      const fileExt = PathUtils.getExtension(originalName).toLowerCase();
       if (!SUPPORTED_FORMATS.includes(fileExt)) {
         throw new AppError(
           `Unsupported audio format. Supported formats: ${SUPPORTED_FORMATS.join(", ")}`,
@@ -180,8 +186,10 @@ class AudioConverter {
 
       // Remove temp_ prefix from title if present
       let cleanTitle = originalName;
-      if (cleanTitle.startsWith("temp_")) {
-        cleanTitle = cleanTitle.replace(/^temp_\d+_/, "");
+      let baseName = PathUtils.getBaseName(originalName);
+      if (baseName.startsWith("temp_")) {
+        baseName = baseName.replace(/^temp_\d+_/, "");
+        cleanTitle = baseName + '.' + fileExt;
       }
       
       // Generate markdown content

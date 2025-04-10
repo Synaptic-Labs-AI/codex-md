@@ -1,11 +1,11 @@
 /**
  * Utility functions for file type handling
- * Imports shared utilities and adds backend-specific functions
+ * Imports local utilities and adds backend-specific functions
  */
 
-import { FILE_CATEGORIES, API_REQUIRED_TYPES, requiresApiKey } from '@codex-md/shared/utils/files';
+import { FILE_CATEGORIES, API_REQUIRED_TYPES, requiresApiKey } from './files';
 
-// Re-export shared utilities
+// Re-export local utilities
 export { FILE_CATEGORIES, API_REQUIRED_TYPES, requiresApiKey };
 
 /**

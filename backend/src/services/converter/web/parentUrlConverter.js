@@ -1,7 +1,13 @@
 import { convertUrlToMarkdown } from './urlConverter.js';
 import { AppError } from '../../../utils/errorHandler.js';
 import { SitemapParser } from './utils/SitemapParser.js';
-import { generateUrlFilename, sanitizeFilename } from '@codex-md/shared/utils/files';
+import { generateUrlFilename, sanitizeFilename } from '../../../utils/files/index.js';
+import { PathUtils } from '../../../utils/paths/index.js';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 // Export the function with the name expected by ConverterRegistry
 export const convertToMarkdown = convertParentUrlToMarkdown;

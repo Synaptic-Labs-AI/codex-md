@@ -12,7 +12,7 @@ import { unifiedConversion, ConversionState } from '@lib/stores/unifiedConversio
 import electronClient from '@lib/api/electron';
 import { storeManager } from '../manager/storeManager.js';
 import { CONVERSION_STATUSES, FILE_TYPES } from '../constants';
-import { getFileHandlingInfo } from '@codex-md/shared/utils/files';
+import { getFileHandlingInfo } from '@lib/utils/files';
 
 // Map old Phase constants to new ConversionState constants for backward compatibility
 const Phase = {

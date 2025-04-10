@@ -7,6 +7,11 @@ import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import os from 'os';
+import { PathUtils } from './paths/index.js';
+import { fileURLToPath } from 'url';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 export class AudioChunker {
   constructor(options = {}) {
@@ -15,7 +20,7 @@ export class AudioChunker {
 
     this.chunkSize = options.chunkSize || 24 * 1024 * 1024; // 24MB default
     this.overlapSeconds = options.overlapSeconds || 2;
-    this.tempDir = path.join(os.tmpdir(), 'audio-chunks');
+    this.tempDir = PathUtils.joinPaths(os.tmpdir(), 'audio-chunks');
   }
 
   /**
@@ -27,7 +32,7 @@ export class AudioChunker {
    */
   async splitAudio(input, options = {}) {
     // Create a unique temp directory for this chunking operation
-    const chunkDir = path.join(this.tempDir, uuidv4());
+    const chunkDir = PathUtils.joinPaths(this.tempDir, uuidv4());
     const chunkPaths = [];
     let tempFilePath = null;
     let isBuffer = false;
@@ -43,7 +48,7 @@ export class AudioChunker {
         isBuffer = true;
         console.log('🔄 [AudioChunker] Processing input as buffer');
         // Write buffer to temp file
-        tempFilePath = path.join(chunkDir, `temp_input_${Date.now()}.bin`);
+        tempFilePath = PathUtils.joinPaths(chunkDir, `temp_input_${Date.now()}.bin`);
         await fs.writeFile(tempFilePath, input);
         inputPath = tempFilePath;
       } else {
@@ -69,7 +74,7 @@ export class AudioChunker {
       
       // Process chunks sequentially to track progress
       for (const { start, duration } of chunks) {
-        const chunkPath = path.join(chunkDir, `chunk_${processedChunks + 1}.mp3`);
+        const chunkPath = PathUtils.joinPaths(chunkDir, `chunk_${processedChunks + 1}.mp3`);
         await this.extractChunkToFile(inputPath, start, duration, chunkPath);
         chunkPaths.push(chunkPath);
         

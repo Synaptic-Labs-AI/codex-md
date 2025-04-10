@@ -25,19 +25,19 @@ const fs = require('fs');
 const readFileAsync = promisify(fs.readFile);
 const FileSystemService = require('./FileSystemService');
 const ConversionResultManager = require('./ConversionResultManager');
-const sharedUtils = require('@codex-md/shared');
+// Import local utilities
 const { 
   getFileType,
   getFileHandlingInfo,
   HANDLING_TYPES,
   CONVERTER_CONFIG
-} = sharedUtils.utils.files;
+} = require('../utils/files');
 const { 
   ProgressTracker, 
   convertToMarkdown, 
   registerConverter,
   registerConverterFactory
-} = sharedUtils.utils.conversion;
+} = require('../utils/conversion');
 
 // Log available file handling capabilities
 console.log('📄 Initialized with file handling:', {
@@ -48,17 +48,30 @@ console.log('📄 Initialized with file handling:', {
 // Import UnifiedConverterFactory
 const unifiedConverterFactory = require('../converters/UnifiedConverterFactory');
 
+// Function to get correct backend path
+const getBackendPath = () => {
+  // In development
+  if (process.env.NODE_ENV === 'development') {
+    return path.join(__dirname, '../../../backend/src/services/converter/ConverterRegistry.js');
+  }
+  // In production
+  return path.join(app.getAppPath(), 'backend/src/services/converter/ConverterRegistry.js');
+};
+
 // Initialize backend converters
 (async function() {
   try {
-    // Import converter registry
-    const converterRegistryModule = await import('../../../backend/src/services/converter/ConverterRegistry.js');
+    const converterRegistryPath = getBackendPath();
+    console.log('Loading converter registry from:', converterRegistryPath);
+    
+    const converterRegistryModule = await import(converterRegistryPath);
     const converterRegistry = converterRegistryModule.ConverterRegistry;
     registerConverterFactory('converterRegistry', converterRegistry);
     
     console.log('✅ Backend converters registered successfully');
   } catch (error) {
     console.error('❌ Failed to register backend converters:', error);
+    console.error('Error details:', error.stack);
   }
 })();
 

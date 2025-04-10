@@ -13,8 +13,8 @@
 const path = require('path');
 const { app } = require('electron');
 const FileSystemService = require('./FileSystemService');
-const { formatMetadata, cleanMetadata, extractFrontmatter, mergeMetadata } = require('@codex-md/shared/utils/markdown');
-const { cleanTemporaryFilename, getBasename, generateUrlFilename } = require('@codex-md/shared/utils/files');
+const { formatMetadata, cleanMetadata, extractFrontmatter, mergeMetadata } = require('../utils/markdown');
+const { cleanTemporaryFilename, getBasename, generateUrlFilename } = require('../utils/files');
 
 /**
  * Generate appropriate filename based on conversion type and metadata

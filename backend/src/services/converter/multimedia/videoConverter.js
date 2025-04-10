@@ -9,14 +9,20 @@
  * - services/transcriber.js: Audio extraction and transcription
  * - utils/markdownGenerator.js: Markdown formatting
  * - utils/errorHandler.js: Error handling patterns
+ * - utils/paths/index.js: ESM-compatible path utilities
  */
 
 import { transcriber } from "../../transcriber.js";
 import { generateMarkdown } from "../../../utils/markdownGenerator.js";
 import { AppError } from "../../../utils/errorHandler.js";
 import { AudioChunker } from "../../../utils/audioChunker.js";
+import { PathUtils } from "../../../utils/paths/index.js";
 import path from "path";
 import fs from 'fs/promises';
+import { fileURLToPath } from 'url';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 const SUPPORTED_FORMATS = ["mp4", "webm", "avi"];
 
@@ -59,7 +65,7 @@ class VideoConverter {
       }
 
       // Validate format
-      const fileExt = path.extname(name).slice(1).toLowerCase();
+      const fileExt = PathUtils.getExtension(name).toLowerCase();
       if (!SUPPORTED_FORMATS.includes(fileExt)) {
         throw new AppError(
           `Unsupported video format. Supported formats: ${SUPPORTED_FORMATS.join(", ")}`,
@@ -151,7 +157,7 @@ class VideoConverter {
         }
 
         // Remove temp_ prefix from title if present
-        let baseName = path.basename(name, path.extname(name));
+        let baseName = PathUtils.getBaseName(name);
         if (baseName.startsWith("temp_")) {
           // Extract original filename by removing "temp_timestamp_" prefix
           baseName = baseName.replace(/^temp_\d+_/, "");

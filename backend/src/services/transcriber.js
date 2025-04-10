@@ -6,9 +6,12 @@ import { path as ffprobePath } from '@ffmpeg-installer/ffmpeg';
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
-import { PathUtils } from '@codex-md/shared/utils/paths';
 import { v4 as uuidv4 } from 'uuid';
 import { File, Blob } from 'node:buffer';
+import { PathUtils } from '../utils/paths/index.js';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 // Import the transcription config using ES Module syntax
 import transcriptionConfig from '../config/transcription.js';
@@ -110,9 +113,9 @@ class Transcriber {
    * @returns {Promise<{path: string, cleanup: Function}>} Audio file path and cleanup function
    */
   async extractAudioFromVideo(buffer) {
-    const tempDir = PathUtils.normalizePath(path.join(os.tmpdir(), uuidv4()));
-    const inputPath = path.join(tempDir, 'input.mp4');
-    const outputPath = path.join(tempDir, 'output.mp3');
+    const tempDir = PathUtils.joinPaths(os.tmpdir(), uuidv4());
+    const inputPath = PathUtils.joinPaths(tempDir, 'input.mp4');
+    const outputPath = PathUtils.joinPaths(tempDir, 'output.mp3');
 
     // Create temp directory with platform-appropriate permissions
     try {
