@@ -3,14 +3,12 @@
  * 
  * Provides audio and video transcription services using OpenAI's API.
  * This service acts as a bridge between the Electron main process and
- * the backend transcription services. It handles file operations, API key
+ * the transcription services. It handles file operations, API key
  * management, and transcription requests.
  * 
  * Related files:
- * - backend/src/services/transcriber.js: Core transcription functionality
- * - backend/src/services/converter/multimedia/audioconverter.js: Audio conversion
- * - backend/src/services/converter/multimedia/videoConverter.js: Video conversion
- * - src/electron/adapters/transcriptionConfigAdapter.js: Configuration adapter
+ * - src/electron/services/ai/TranscriberService.js: New transcription service
+ * - src/electron/services/ai/OpenAIProxyService.js: OpenAI API interactions
  */
 
 const fs = require('fs');
@@ -22,17 +20,9 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegStatic = require('ffmpeg-static');
 const Store = require('electron-store');
 const { getTranscriptionConfig } = require('./utils/config');
-// Will be initialized asynchronously
-let CONFIG = null;
-// Initialize config as soon as possible
-(async function initConfig() {
-  try {
-    CONFIG = await getTranscriptionConfig();
-    console.log('✅ Transcription configuration loaded');
-  } catch (error) {
-    console.error('❌ Failed to load transcription configuration:', error);
-  }
-})();
+
+// Get configuration
+const CONFIG = getTranscriptionConfig();
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegStatic);
@@ -41,31 +31,17 @@ ffmpeg.setFfmpegPath(ffmpegStatic);
 const { createStore } = require('../utils/storeFactory');
 const store = createStore('transcription-settings');
 
-// Import backend transcriber dynamically
-let backendTranscriber = null;
-(async function loadBackendTranscriber() {
-  try {
-    const module = await import('../../../backend/src/services/transcriber.js');
-    backendTranscriber = module.transcriber;
-    console.log('✅ Successfully loaded backend transcriber');
-  } catch (error) {
-    console.error('❌ Failed to load backend transcriber:', error);
-    console.error('Using fallback transcription implementation');
-  }
-})();
+// Use the new TranscriberService
+const TranscriberService = require('./ai/TranscriberService');
+const OpenAIProxyService = require('./ai/OpenAIProxyService');
+
+// Create instances if needed
+const openAIProxy = new OpenAIProxyService();
 
 class TranscriptionService {
   constructor() {
-    this.isBackendAvailable = false;
-    
-    // Check if backend is available every 5 seconds until it's loaded
-    this.backendCheckInterval = setInterval(() => {
-      if (backendTranscriber) {
-        this.isBackendAvailable = true;
-        clearInterval(this.backendCheckInterval);
-        console.log('✅ Backend transcriber is now available');
-      }
-    }, 5000);
+    this.transcriber = new TranscriberService(openAIProxy, null);
+    console.log('✅ TranscriptionService initialized with new TranscriberService');
   }
   
   /**
@@ -126,12 +102,7 @@ class TranscriptionService {
         return false;
       }
       
-      // Try to set in backend first if available
-      if (this.isBackendAvailable && backendTranscriber) {
-        backendTranscriber.setModel(model);
-      }
-      
-      // Then save to store
+      // Save to store
       try {
         store.set('transcriptionModel', model);
         console.log(`✅ Transcription model set to: ${model}`);
@@ -147,7 +118,7 @@ class TranscriptionService {
   }
 
   /**
-   * Transcribe audio file using backend service if available, otherwise use fallback
+   * Transcribe audio file using the new TranscriberService
    * @param {string} audioPath Path to audio file
    * @param {string} apiKey OpenAI API key
    * @returns {Promise<string>} Transcription text
@@ -155,24 +126,42 @@ class TranscriptionService {
   async transcribeAudio(audioPath, apiKey) {
     console.log(`🎵 Transcribing audio: ${audioPath}`);
     
-    // Use backend transcriber if available
-    if (this.isBackendAvailable && backendTranscriber) {
-      try {
-        console.log('Using backend transcriber');
-        return await backendTranscriber.transcribe(audioPath, apiKey);
-      } catch (error) {
-        console.error('Backend transcription failed, falling back to mock:', error);
+    try {
+      // Configure OpenAI with the API key
+      await openAIProxy.handleConfigure(null, { apiKey });
+      
+      // Use the new transcriber service
+      const jobId = crypto.randomBytes(16).toString('hex');
+      const result = await this.transcriber.handleTranscribeStart(null, {
+        filePath: audioPath,
+        options: {
+          language: 'en'
+        }
+      });
+      
+      // Wait for the job to complete
+      let status = { status: 'preparing' };
+      while (status.status !== 'completed' && status.status !== 'failed') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        status = await this.transcriber.handleTranscribeStatus(null, { jobId: result.jobId });
       }
+      
+      if (status.status === 'failed') {
+        throw new Error(status.error || 'Transcription failed');
+      }
+      
+      return status.result.text;
+    } catch (error) {
+      console.error('Transcription failed:', error);
+      
+      // Fallback to mock implementation
+      const model = await this._getSelectedModel();
+      return `[Transcription placeholder for ${audioPath} using ${model}]`;
     }
-    
-    // Fallback to mock implementation
-    console.log('Using mock transcription (backend not available)');
-    const model = await this._getSelectedModel();
-    return `[Transcription placeholder for ${audioPath} using ${model}]`;
   }
 
   /**
-   * Transcribe video file using backend service if available, otherwise use fallback
+   * Transcribe video file using transcription service
    * @param {string} videoPath Path to video file
    * @param {string} apiKey OpenAI API key
    * @returns {Promise<string>} Transcription text
@@ -218,25 +207,6 @@ class TranscriptionService {
   async extractAudioFromVideo(videoPath, outputPath) {
     console.log(`🔊 Extracting audio from: ${videoPath} to: ${outputPath}`);
     
-    // Use backend transcriber if available
-    if (this.isBackendAvailable && backendTranscriber) {
-      try {
-        // Read video file as buffer
-        const videoBuffer = await fsPromises.readFile(videoPath);
-        
-        // Extract audio using backend
-        const audioBuffer = await backendTranscriber.extractAudioFromVideo(videoBuffer);
-        
-        // Write audio buffer to output path
-        await fsPromises.writeFile(outputPath, audioBuffer);
-        
-        console.log('✅ Audio extracted using backend transcriber');
-        return outputPath;
-      } catch (error) {
-        console.error('Backend audio extraction failed, falling back to local ffmpeg:', error);
-      }
-    }
-    
     // Fallback to local ffmpeg
     return new Promise((resolve, reject) => {
       console.log('Using local ffmpeg for audio extraction');
@@ -264,16 +234,7 @@ class TranscriptionService {
   async convertToSupportedFormat(audioPath) {
     console.log(`🔄 Converting audio format: ${audioPath}`);
     
-    // Use backend transcriber if available
-    if (this.isBackendAvailable && backendTranscriber) {
-      try {
-        return await backendTranscriber.convertToSupportedAudioFormat(audioPath);
-      } catch (error) {
-        console.error('Backend audio conversion failed, falling back to local ffmpeg:', error);
-      }
-    }
-    
-    // Fallback to local ffmpeg
+    // Use local ffmpeg
     const outputPath = path.join(
       path.dirname(audioPath),
       `${path.basename(audioPath, path.extname(audioPath))}.mp3`

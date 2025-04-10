@@ -7,8 +7,8 @@
  * Related files:
  * - ../adapters/urlConverterAdapter.js: Uses this service for URL conversion
  * - ../adapters/parentUrlConverterAdapter.js: Uses this service for parent URL conversion
- * - ../../backend/src/services/converter/web/urlConverter.js: Accepts browser instance
- * - ../../backend/src/services/converter/web/parentUrlConverter.js: Accepts browser instance
+ * - src/electron/services/conversion/web/UrlConverter.js: Accepts browser instance
+ * - src/electron/services/conversion/web/ParentUrlConverter.js: Accepts browser instance
  */
 
 const path = require('path');
