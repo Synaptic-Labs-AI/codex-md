@@ -6,21 +6,19 @@
   "type": "commonjs",
   "workspaces": [
     "frontend",
-    "backend",
-    "shared"
+    "backend"
   ],
   "scripts": {
     "start": "electron .",
-    "dev": "npm run build:shared && cross-env NODE_ENV=development concurrently \"npm run dev:svelte\" \"npm run dev:electron\"",
+    "dev": "cross-env NODE_ENV=development concurrently \"npm run dev:svelte\" \"npm run dev:electron\"",
     "dev:svelte": "cd frontend && npm run dev",
     "dev:electron": "electron-forge start",
-    "build": "npm run build:shared && npm run build:svelte && npm run build:electron",
-    "build:shared": "cd shared && npm run build",
+    "build": "npm run build:svelte && npm run build:electron",
     "build:svelte": "cd frontend && npm run build",
     "prebuild:electron": "node scripts/cleanup-resources.js",
     "build:electron": "electron-builder",
     "package": "electron-forge package",
-    "make": "npm run build:shared && npm run prebuild:electron && electron-builder --win",
+    "make": "npm run prebuild:electron && electron-builder --win",
     "lint": "eslint src/electron"
   },
   "build": {
@@ -39,17 +37,14 @@
     "files": [
       "src/electron/**/*",
       "frontend/dist/**/*",
-      "backend/dist/**/*",
-      "shared/**/*",
-      "node_modules/@codex-md/shared/**/*",
+      "backend/src/**/*",
       "package.json"
     ],
     "afterPack": "./scripts/afterPack.js",
     "asar": true,
     "asarUnpack": [
       "node_modules/@ffmpeg-installer/**/*",
-      "node_modules/@codex-md/**/*",
-      "shared/**/*"
+      "backend/src/**/*"
     ],
     "win": {
       "target": [
@@ -97,7 +92,6 @@
   "license": "MIT",
   "dependencies": {
     "@cliqz/adblocker-puppeteer": "^1.34.0",
-    "@codex-md/shared": "file:shared",
     "@duckduckgo/autoconsent": "^1.0.8",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@mistralai/mistralai": "^1.2.0",

@@ -11,8 +11,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const { app } = require('electron');
-const { utils } = require('@codex-md/shared');
-const { PathUtils } = utils.paths;
+const { PathUtils } = require('../utils/paths');
 
 class FileSystemService {
   constructor() {

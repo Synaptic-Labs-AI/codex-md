@@ -3,7 +3,7 @@
 
 import { files } from '@lib/stores/files.js';
 import { Document, VideoCamera, MusicalNote, Photo, Link } from 'svelte-hero-icons';
-import { getFileHandlingInfo, validateFile } from '@codex-md/shared/utils/files';
+import { getFileHandlingInfo, validateFile } from '@lib/utils/files';
 
 /**
  * Generates a unique ID for file tracking

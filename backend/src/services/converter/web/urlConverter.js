@@ -9,7 +9,13 @@ import { BrowserManager } from './utils/BrowserManager.js';
 import { PageCleaner } from './utils/PageCleaner.js';
 import { ContentExtractor } from './utils/ContentExtractor.js';
 import { generateMarkdown } from '../../../utils/markdownGenerator.js';
-import { mergeOptions } from './utils/converterConfig.js';
+import { mergeOptions, extractTitleFromUrl } from './utils/converterConfig.js';
+import { PathUtils } from '../../../utils/paths/index.js';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 export class UrlConverter {
   constructor() {

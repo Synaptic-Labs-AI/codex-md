@@ -31,12 +31,8 @@ export default defineConfig({
       '@lib': resolve(__dirname, './src/lib'),
       '@components': resolve(__dirname, './src/lib/components'),
       '@stores': resolve(__dirname, './src/lib/stores'),
-      '@shared': resolve(__dirname, '../shared/src'),
-      '@codex-md/shared': resolve(__dirname, '../shared/src')
+      '@utils': resolve(__dirname, './src/lib/utils')
     }
-  },
-  optimizeDeps: {
-    exclude: ['@codex-md/shared']
   },
   // Special handling for static assets
   publicDir: 'static'

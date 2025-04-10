@@ -21,7 +21,6 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
-    "@codex-md/shared": "file:../shared",
     "skeleton-elements": "^4.0.1",
     "svelte-spa-router": "^4.0.1"
   }

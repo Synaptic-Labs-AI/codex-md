@@ -112,6 +112,7 @@ Enhancing the converter architecture to improve maintainability, reduce redundan
 - ~~MP3 conversion failing with "fileType is not defined" error~~ (Fixed)
 - ~~Video conversion failing with "PathUtils.resolvePath is not a function" error~~ (Fixed)
 - ~~Video conversion failing with "PathUtils.toPlatformPath is not a function" error~~ (Fixed)
+- ~~ESM path resolution issues in backend~~ (Fixed)
 
 ## Next Steps
 
@@ -140,8 +141,14 @@ Enhancing the converter architecture to improve maintainability, reduce redundan
   - Removed calls to non-existent `PathUtils.toPlatformPath()` method in transcriber.js
   - Used direct path variables instead, which were already normalized earlier in the function
   - Simplified ffmpeg input/output path handling
-8. Document the solution in the system patterns for future reference
-9. Consider implementing similar improvements in other Electron projects
+8. ~~Fix ESM path resolution issues in backend~~ (Completed)
+  - Created a new ESM-compatible PathUtils module in backend/src/utils/paths/
+  - Fixed transcriber.js to use the new PathUtils module
+  - Implemented proper URL-based path handling for ES Modules
+  - Added utility functions for working with import.meta.url
+  - Ensured Windows paths are handled correctly in ESM context
+9. Document the solution in the system patterns for future reference
+10. Consider implementing similar improvements in other Electron projects
 
 ### Long-term Solution: Migration to Plain Svelte + Vite
 We've created a comprehensive migration plan to address the root cause of the asset loading issues by transitioning from SvelteKit to plain Svelte + Vite. This plan is documented in:

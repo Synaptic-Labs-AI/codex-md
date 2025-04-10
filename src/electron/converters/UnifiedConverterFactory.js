@@ -20,9 +20,9 @@ const fs = require('fs');
 const { app } = require('electron');
 const ApiKeyService = require('../services/ApiKeyService');
 const PageMarkerService = require('../services/PageMarkerService');
-// Import shared utilities
-const { getFileType } = require('@codex-md/shared/utils/files');
-const { ProgressTracker } = require('@codex-md/shared/utils/conversion');
+// Import local utilities
+const { getFileType } = require('../utils/files/types');
+const { ProgressTracker } = require('../utils/conversion/progress');
 
 // Backend services - will be initialized asynchronously
 let converterRegistry = null;
@@ -30,12 +30,20 @@ let converterRegistry = null;
 // Initialize backend services
 (async function loadBackendServices() {
   try {
-    // Import converter registry - the only import we need now
-    const converterRegistryModule = await import('../../../backend/src/services/converter/ConverterRegistry.js');
+    // Get the correct path based on environment
+    const registryPath = process.env.NODE_ENV === 'development'
+      ? path.join(__dirname, '../../../backend/src/services/converter/ConverterRegistry.js')
+      : path.join(app.getAppPath(), 'backend/src/services/converter/ConverterRegistry.js');
+
+    console.log('📁 Loading converter registry from:', registryPath);
+    
+    // Import converter registry using the resolved path
+    const converterRegistryModule = await import(registryPath);
     converterRegistry = converterRegistryModule.ConverterRegistry;
     console.log('✅ Successfully loaded backend converter registry');
   } catch (error) {
     console.error('❌ Failed to load backend services:', error);
+    console.error('Error details:', error);
     console.error('Some conversion functionality may be limited');
   }
 })();

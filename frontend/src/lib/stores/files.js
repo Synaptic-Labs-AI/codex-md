@@ -9,7 +9,7 @@
 
 import { writable, derived } from 'svelte/store';
 import { v4 as uuidv4 } from 'uuid';
-import { requiresApiKey } from '@codex-md/shared/utils/files';
+import { requiresApiKey } from '@lib/utils/fileUtils';
 // Platform check
 const isBrowser = typeof window !== 'undefined';
 

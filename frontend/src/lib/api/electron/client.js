@@ -9,8 +9,8 @@
  * - src/electron/preload.js: Exposes the Electron API to the renderer
  * - src/electron/ipc/handlers/: Implements the IPC handlers in the main process
  */
-import { ConversionError } from '@codex-md/shared/utils/conversion/errors';
-import { getFileHandlingInfo } from '@codex-md/shared/utils/files/types';
+import { ConversionError } from '@lib/utils/conversion/errors';
+import { getFileHandlingInfo } from '@lib/utils/files';
 
 export { ConversionError };
 

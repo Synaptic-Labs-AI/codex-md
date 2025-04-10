@@ -30,7 +30,15 @@
  * - web/urlConverter.js: URL converter implementation
  * - web/parentUrlConverter.js: Parent URL converter implementation
  * - data/{csv,xlsx}Converter.js: Data converters implementation
+ * - utils/paths/index.js: ESM-compatible path utilities
  */
+
+import { PathUtils } from '../../utils/paths/index.js';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 import pdfConverter from './pdf/PdfConverterFactory.js';
 import docxConverter from './text/docxConverter.js';

@@ -12,8 +12,7 @@
 const { app, BrowserWindow, protocol } = require('electron');
 const path = require('path');
 const url = require('url');
-const { utils } = require('@codex-md/shared');
-const { PathUtils } = utils.paths;
+const { PathUtils } = require('./utils/paths');
 const ElectronConversionService = require('./services/ElectronConversionService');
 const { createMacMenu } = require('./features/menu');
 const { setupBasicHandlers, setupWindowHandlers, cleanupWindowHandlers } = require('./ipc/handlers');
@@ -257,8 +256,8 @@ function createMainWindow() {
 // App startup sequence
 app.whenReady().then(async () => {
     try {
-// Register standard protocols with enhanced error handling
-protocol.registerFileProtocol('media', (request, callback) => {
+        // Register standard protocols with enhanced error handling
+        protocol.registerFileProtocol('media', (request, callback) => {
     try {
         const filePath = request.url.replace('media://', '');
         const safePath = PathUtils.normalizePath(decodeURI(filePath));

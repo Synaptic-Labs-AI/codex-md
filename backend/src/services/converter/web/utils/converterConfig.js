@@ -4,7 +4,12 @@
  */
 
 import path from 'path';
-import { generateUrlFilename } from '@codex-md/shared/utils/files';
+import { PathUtils } from '../../../../utils/paths/index.js';
+import { fileURLToPath } from 'url';
+import { generateUrlFilename } from '../../../../utils/files/index.js';
+
+// Get the directory name in ESM
+const __dirname = PathUtils.getDirname(import.meta.url);
 
 /**
  * Default image extensions to include in conversion
@@ -251,7 +256,7 @@ export function extractTitleFromUrl(url) {
     const pathname = urlObj.pathname;
     
     // Extract the last part of the path
-    let title = path.basename(pathname);
+    let title = PathUtils.getBaseName(pathname);
     
     // If it's empty or just a slash, use the hostname
     if (!title || title === '/' || title === 'index.html') {
