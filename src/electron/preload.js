@@ -12,7 +12,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Add direct console output for debugging
 console.log('====== PRELOAD SCRIPT STARTING ======');
-console.log('Preload script path:', __filename);
+try {
+    // Use __filename if available (CommonJS), otherwise handle gracefully
+    console.log('Preload script path:', typeof __filename !== 'undefined' ? __filename : 'Path not available');
+} catch (error) {
+    console.log('Unable to determine preload script path:', error.message);
+}
 console.log('====================================');
 
 // Initialization tracking
@@ -126,16 +131,42 @@ contextBridge.exposeInMainWorld('electron', {
         return queueCall('codex:convert:cancel', []);
     },
     
+    // Helper method to log and redirect to generic convert method
+    _redirectToConvert: async (input, options, type) => {
+        console.log(`Redirecting ${type} conversion to generic convert method`);
+        options.type = type;
+        return queueCall('codex:convert:file', [input, options]);
+    },
+    
+    // Specialized conversion methods that redirect to generic convert
     convertUrl: async (url, options) => {
-        return queueCall('codex:convert:url', [url, options]);
+        options = options || {};
+        options.type = 'url';
+        options.isWeb = true;
+        console.log(`Converting URL: ${url} (redirecting to generic convert)`, options);
+        return queueCall('codex:convert:file', [url, options]);
     },
     
     convertParentUrl: async (url, options) => {
-        return queueCall('codex:convert:parent-url', [url, options]);
+        options = options || {};
+        options.type = 'parenturl';
+        options.isWeb = true;
+        console.log(`Converting Parent URL: ${url} (redirecting to generic convert)`, options);
+        return queueCall('codex:convert:file', [url, options]);
     },
     
     convertYoutube: async (url, options) => {
-        return queueCall('codex:convert:youtube', [url, options]);
+        options = options || {};
+        options.type = 'youtube';
+        options.isWeb = true;
+        console.log(`Converting YouTube: ${url} (redirecting to generic convert)`, options);
+        return queueCall('codex:convert:file', [url, options]);
+    },
+    
+    convertFile: async (path, options) => {
+        options = options || {};
+        console.log(`Converting file: ${path} (redirecting to generic convert)`, options);
+        return queueCall('codex:convert:file', [path, options]);
     },
     
     //=== Conversion Event Handlers ===//

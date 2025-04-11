@@ -89,29 +89,150 @@ ConverterRegistry.prototype.convertToMarkdown = async function(type, content, op
 ConverterRegistry.prototype.setupConverters = function() {
     try {
         // Import converters from the new location
-        const csvConverter = require('./data/CsvConverter');
-        const xlsxConverter = require('./data/XlsxConverter');
-        const audioConverter = require('./multimedia/AudioConverter');
-        const videoConverter = require('./multimedia/VideoConverter');
-        const pdfFactory = require('./document/PdfConverterFactory');
-        const urlConverter = require('./web/UrlConverter');
-        const parentUrlConverter = require('./web/ParentUrlConverter');
+        const CsvConverter = require('./data/CsvConverter');
+        const XlsxConverter = require('./data/XlsxConverter');
+        const AudioConverter = require('./multimedia/AudioConverter');
+        const VideoConverter = require('./multimedia/VideoConverter');
+        const PdfFactory = require('./document/PdfConverterFactory');
+        const DocxConverter = require('./document/DocxConverter');
+        const UrlConverter = require('./web/UrlConverter');
+        const ParentUrlConverter = require('./web/ParentUrlConverter');
 
-        // Register converters
-        this.register('csv', csvConverter);
-        this.register('xlsx', xlsxConverter);
-        this.register('mp3', audioConverter);
-        this.register('wav', audioConverter);
-        this.register('mp4', videoConverter);
-        // Create an instance of PdfConverterFactory
-        const pdfConverterFactory = new pdfFactory();
+        // Create instances of converter classes
+        const csvConverterInstance = new CsvConverter();
+        const xlsxConverterInstance = new XlsxConverter();
+        const audioConverterInstance = new AudioConverter();
+        const videoConverterInstance = new VideoConverter();
+        const pdfConverterFactory = new PdfFactory();
+        const docxConverterInstance = new DocxConverter();
         
-        // Register the factory itself as the converter for PDF files
+        // Create file service mocks for URL converters
+        const fileProcessorMock = {
+            handleFileRead: async (_, options) => {
+                return { content: options.content || '' };
+            }
+        };
+        const fileStorageMock = {
+            createTempDir: async (prefix) => {
+                return path.join(require('os').tmpdir(), `${prefix}_${Date.now()}`);
+            }
+        };
+        
+        // Instantiate URL converters with necessary dependencies
+        const urlConverterInstance = new UrlConverter(fileProcessorMock, fileStorageMock);
+        const parentUrlConverterInstance = new ParentUrlConverter(fileProcessorMock, fileStorageMock);
+
+        // Create standardized adapter for DOCX converter
+        this.register('docx', {
+            convert: async (content, name, apiKey, options) => {
+                return await docxConverterInstance.convertToMarkdown(content, {
+                    ...options,
+                    name,
+                    apiKey
+                });
+            },
+            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
+            config: {
+                name: 'DOCX Converter',
+                extensions: ['.docx', '.doc'],
+                mimeTypes: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'],
+                maxSize: 100 * 1024 * 1024 // 100MB
+            }
+        });
+        
+        // Create standardized adapter for the CSV converter
+        this.register('csv', {
+            convert: async (content, name, apiKey, options) => {
+                return await csvConverterInstance.convertToMarkdown(content.toString(), {
+                    ...options,
+                    name
+                });
+            },
+            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
+            config: {
+                name: 'CSV Converter',
+                extensions: ['.csv'],
+                mimeTypes: ['text/csv'],
+                maxSize: 100 * 1024 * 1024 // 100MB
+            }
+        });
+
+        // Create standardized adapter for the XLSX converter
+        this.register('xlsx', {
+            convert: async (content, name, apiKey, options) => {
+                return await xlsxConverterInstance.convertToMarkdown(content, {
+                    ...options,
+                    name
+                });
+            },
+            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
+            config: {
+                name: 'Excel Converter',
+                extensions: ['.xlsx', '.xls'],
+                mimeTypes: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
+                maxSize: 100 * 1024 * 1024 // 100MB
+            }
+        });
+
+        // Create standardized adapter for audio converters
+        const audioAdapter = {
+            convert: async (content, name, apiKey, options) => {
+                try {
+                    console.log(`[AudioAdapter] Converting audio file: ${name}`);
+                    
+                    // Throw an error to indicate the converter is not properly implemented
+                    throw new Error('Audio converter implementation is missing or not functioning correctly');
+                } catch (error) {
+                    console.error(`[AudioAdapter] Error converting audio: ${error.message}`);
+                    throw new Error(`Audio conversion failed: ${error.message}`);
+                }
+            },
+            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
+            config: {
+                name: 'Audio Converter',
+                extensions: ['.mp3', '.wav', '.ogg', '.m4a', '.mpga'],
+                mimeTypes: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a'],
+                maxSize: 100 * 1024 * 1024 // 100MB
+            }
+        };
+        
+        this.register('mp3', audioAdapter);
+        this.register('wav', audioAdapter);
+
+        // Create standardized adapter for video converter
+        this.register('mp4', {
+            convert: async (content, name, apiKey, options) => {
+                try {
+                    console.log(`[VideoAdapter] Converting video file: ${name}`);
+                    
+                    // Throw an error to indicate the converter is not properly implemented
+                    throw new Error('Video converter implementation is missing or not functioning correctly');
+                } catch (error) {
+                    console.error(`[VideoAdapter] Error converting video: ${error.message}`);
+                    throw new Error(`Video conversion failed: ${error.message}`);
+                }
+            },
+            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
+            config: {
+                name: 'Video Converter',
+                extensions: ['.mp4', '.webm', '.mov', '.avi'],
+                mimeTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'],
+                maxSize: 500 * 1024 * 1024 // 500MB
+            }
+        });
+        
+        // Register the PDF factory adapter with proper implementation
         this.register('pdf', {
             convert: async (content, name, apiKey, options) => {
-                // This is a wrapper that will delegate to the appropriate converter
-                const converter = await pdfConverterFactory.getConverter(name, options);
-                return converter.convert(content, name, apiKey, options);
+                try {
+                    console.log("[PdfAdapter] Converting PDF document");
+                    
+                    // Throw an error to indicate the converter is not properly implemented
+                    throw new Error('PDF converter implementation is missing or not functioning correctly');
+                } catch (error) {
+                    console.error(`[PdfAdapter] Error converting PDF: ${error.message}`);
+                    throw new Error(`PDF conversion failed: ${error.message}`);
+                }
             },
             validate: (content) => Buffer.isBuffer(content) && content.length > 0,
             config: {
@@ -121,8 +242,160 @@ ConverterRegistry.prototype.setupConverters = function() {
                 maxSize: 100 * 1024 * 1024 // 100MB
             }
         });
-        this.register('url', urlConverter);
-        this.register('parenturl', parentUrlConverter);
+
+        // Create standardized adapter for URL converter using the actual implementation
+        this.register('url', {
+            convert: async (content, name, apiKey, options) => {
+                // URL converter expects the content to be the URL string
+                try {
+                    console.log(`[UrlAdapter] Converting URL: ${content}`);
+                    
+                    // Create temporary directory for the conversion
+                    const tempDir = await fileStorageMock.createTempDir('url_conversion');
+                    
+                    // Launch a browser instance for the conversion
+                    const puppeteer = require('puppeteer');
+                    const browser = await puppeteer.launch({
+                        headless: 'new',
+                        args: ['--no-sandbox', '--disable-setuid-sandbox']
+                    });
+                    
+                    try {
+                        // Fetch metadata
+                        const metadata = await urlConverterInstance.fetchMetadata(content, browser);
+                        
+                        // Extract content
+                        const extractedContent = await urlConverterInstance.extractContent(content, options, browser);
+                        
+                        // Process images if requested
+                        if (options.includeImages) {
+                            await urlConverterInstance.processImages(extractedContent, tempDir, content, browser);
+                        }
+                        
+                        // Generate markdown
+                        const markdown = urlConverterInstance.generateMarkdown(metadata, extractedContent, null, options);
+                        
+                        // Close browser
+                        await browser.close();
+                        
+                        // Clean up temporary directory
+                        await fs.remove(tempDir);
+                        
+                        return {
+                            success: true,
+                            content: markdown,
+                            name: name,
+                            type: 'url'
+                        };
+                    } catch (error) {
+                        // Close browser on error
+                        await browser.close();
+                        
+                        // Clean up temporary directory
+                        await fs.remove(tempDir);
+                        
+                        // Re-throw error
+                        throw error;
+                    }
+                } catch (error) {
+                    console.error(`[UrlAdapter] Error converting URL: ${error.message}`);
+                    throw new Error(`URL conversion failed: ${error.message}`);
+                }
+            },
+            validate: (content) => typeof content === 'string' && content.length > 0,
+            config: {
+                name: 'URL Converter',
+                extensions: ['.url', '.html', '.htm'],
+                mimeTypes: ['text/html', 'application/x-url'],
+                maxSize: 10 * 1024 * 1024 // 10MB
+            }
+        });
+
+        // Create standardized adapter for ParentURL converter using the actual implementation
+        this.register('parenturl', {
+            convert: async (content, name, apiKey, options) => {
+                // For URL converters, content is the URL string itself
+                try {
+                    console.log(`[ParentUrlAdapter] Converting site: ${content}`);
+                    
+                    // Create temporary directory for the conversion
+                    const tempDir = await fileStorageMock.createTempDir('parent_url_conversion');
+                    
+                    // Launch a browser instance for the conversion
+                    const puppeteer = require('puppeteer');
+                    const browser = await puppeteer.launch({
+                        headless: 'new',
+                        args: ['--no-sandbox', '--disable-setuid-sandbox']
+                    });
+                    
+                    try {
+                        // Discover sitemap
+                        const sitemap = await parentUrlConverterInstance.discoverSitemap(content, options, browser);
+                        
+                        // Process each page
+                        const maxPages = options.maxPages || Math.min(sitemap.pages.length, 10);
+                        const pagesToProcess = sitemap.pages.slice(0, maxPages);
+                        const processedPages = [];
+                        
+                        for (const page of pagesToProcess) {
+                            // Process page
+                            const pageContent = await parentUrlConverterInstance.processPage(
+                                page.url, 
+                                options, 
+                                browser, 
+                                tempDir
+                            );
+                            
+                            // Add to processed pages
+                            processedPages.push({
+                                url: page.url,
+                                title: page.title,
+                                content: pageContent
+                            });
+                        }
+                        
+                        // Generate combined markdown
+                        const markdown = parentUrlConverterInstance.generateCombinedMarkdown(
+                            sitemap, 
+                            processedPages, 
+                            options
+                        );
+                        
+                        // Close browser
+                        await browser.close();
+                        
+                        // Clean up temporary directory
+                        await fs.remove(tempDir);
+                        
+                        return {
+                            success: true,
+                            content: markdown,
+                            name: name,
+                            type: 'parenturl'
+                        };
+                    } catch (error) {
+                        // Close browser on error
+                        await browser.close();
+                        
+                        // Clean up temporary directory
+                        await fs.remove(tempDir);
+                        
+                        // Re-throw error
+                        throw error;
+                    }
+                } catch (error) {
+                    console.error(`[ParentUrlAdapter] Error converting site: ${error.message}`);
+                    throw new Error(`Site conversion failed: ${error.message}`);
+                }
+            },
+            validate: (content) => typeof content === 'string' && content.length > 0,
+            config: {
+                name: 'Website Converter',
+                extensions: ['.url', '.html', '.htm'],
+                mimeTypes: ['text/html', 'application/x-url'],
+                maxSize: 10 * 1024 * 1024 // 10MB
+            }
+        });
         
         const registeredTypes = Object.keys(this.converters);
         console.log(`✅ Converters registered successfully: ${registeredTypes.length} types`);

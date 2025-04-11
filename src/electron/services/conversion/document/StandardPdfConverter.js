@@ -391,6 +391,61 @@ class StandardPdfConverter extends BasePdfConverter {
     }
 
     /**
+     * Convert PDF content to markdown - direct method for ConverterRegistry
+     * @param {Buffer} content - PDF content as buffer
+     * @param {string} name - File name
+     * @param {string} apiKey - API key (not used for standard conversion)
+     * @param {Object} options - Conversion options
+     * @returns {Promise<Object>} Conversion result
+     */
+    async convertToMarkdown(content, options = {}) {
+        try {
+            console.log(`[StandardPdfConverter] Converting PDF: ${options.name || 'unnamed'}`);
+            
+            // Create a temporary file to process
+            const tempDir = await fs.mkdtemp(path.join(require('os').tmpdir(), 'pdf-conversion-'));
+            const tempFile = path.join(tempDir, `${options.name || 'document'}.pdf`);
+            
+            // Write buffer to temp file
+            await fs.writeFile(tempFile, content);
+            
+            // Extract metadata
+            const metadata = await this.extractMetadata(tempFile);
+            
+            // Extract text
+            const pdfContent = await pdfParse(content);
+            
+            // Process pages
+            const maxPages = options.maxPages || metadata.pageCount;
+            const pages = await this.extractPages(tempFile, pdfContent, Math.min(maxPages, metadata.pageCount));
+            
+            // Generate thumbnails if requested (not implemented for direct conversion)
+            const thumbnails = [];
+            
+            // Generate markdown
+            const markdown = this.generateMarkdown(metadata, pages, thumbnails, options);
+            
+            // Clean up temp directory
+            await fs.remove(tempDir);
+            
+            return {
+                success: true,
+                content: markdown,
+                type: 'pdf',
+                name: options.name || 'document.pdf',
+                metadata: metadata
+            };
+        } catch (error) {
+            console.error('[StandardPdfConverter] Direct conversion failed:', error);
+            return {
+                success: false,
+                error: `PDF conversion failed: ${error.message}`,
+                content: `# Conversion Error\n\nFailed to convert PDF: ${error.message}`
+            };
+        }
+    }
+
+    /**
      * Get converter information
      * @returns {Object} Converter details
      */

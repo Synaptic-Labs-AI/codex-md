@@ -36,36 +36,52 @@ class PdfConverterFactory {
      * Get appropriate converter for PDF file
      * @param {string} filePath - Path to PDF file
      * @param {Object} options - Conversion options
-     * @returns {BasePdfConverter} Appropriate PDF converter
+     * @returns {Object} Appropriate PDF converter with convert method
      */
     async getConverter(filePath, options = {}) {
+        console.log('[PdfConverterFactory] Getting converter for PDF file');
+        
+        // Create a wrapper object that exposes the convert method
+        const createConverterWrapper = (converter) => {
+            return {
+                convert: async (content, name, apiKey, options) => {
+                    console.log(`[PdfConverterFactory] Using ${converter.name} for conversion`);
+                    return await converter.convertToMarkdown(content, {
+                        ...options,
+                        name,
+                        apiKey
+                    });
+                }
+            };
+        };
+        
         // If force option is specified, use the requested converter
         if (options.forceOcr) {
             console.log('[PdfConverterFactory] Using OCR converter (forced)');
-            return this.mistralConverter;
+            return createConverterWrapper(this.mistralConverter);
         }
         
         if (options.forceStandard) {
             console.log('[PdfConverterFactory] Using standard converter (forced)');
-            return this.standardConverter;
+            return createConverterWrapper(this.standardConverter);
         }
         
         // Check if OCR is available
         const ocrAvailable = await this.isOcrAvailable();
         if (!ocrAvailable) {
             console.log('[PdfConverterFactory] OCR not available, using standard converter');
-            return this.standardConverter;
+            return createConverterWrapper(this.standardConverter);
         }
         
         // Analyze PDF to determine if OCR is needed
         const needsOcr = await this.analyzeNeedsOcr(filePath);
         if (needsOcr) {
             console.log('[PdfConverterFactory] PDF analysis suggests OCR is needed');
-            return this.mistralConverter;
+            return createConverterWrapper(this.mistralConverter);
         }
         
         console.log('[PdfConverterFactory] Using standard converter based on analysis');
-        return this.standardConverter;
+        return createConverterWrapper(this.standardConverter);
     }
 
     /**
