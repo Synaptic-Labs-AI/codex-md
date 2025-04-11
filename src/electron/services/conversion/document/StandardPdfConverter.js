@@ -23,10 +23,11 @@ const { v4: uuidv4 } = require('uuid');
 const BasePdfConverter = require('./BasePdfConverter');
 
 class StandardPdfConverter extends BasePdfConverter {
-    constructor(fileProcessor, fileStorage) {
+    constructor(fileProcessor, fileStorage, skipHandlerSetup = false) {
         super(fileProcessor, fileStorage);
         this.name = 'Standard PDF Converter';
         this.description = 'Converts PDF files to markdown using standard text extraction';
+        this.skipHandlerSetup = skipHandlerSetup;
     }
 
     /**

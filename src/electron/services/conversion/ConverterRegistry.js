@@ -252,8 +252,85 @@ ConverterRegistry.prototype.setupConverters = function() {
                 try {
                     console.log("[PdfAdapter] Converting PDF document");
                     
-                    // Throw an error to indicate the converter is not properly implemented
-                    throw new Error('PDF converter implementation is missing or not functioning correctly');
+                    // Initialize necessary services as mocks if needed
+                    const fileProcessorMock = {
+                        handleFileRead: async (_, options) => {
+                            return { content: options.content || '' };
+                        }
+                    };
+                    const fileStorageMock = {
+                        createTempDir: async (prefix) => {
+                            return path.join(require('os').tmpdir(), `${prefix}_${Date.now()}`);
+                        }
+                    };
+                    
+                    // Create temp directory for conversion
+                    const tempDir = await fileStorageMock.createTempDir('pdf_conversion');
+                    
+                    // Ensure the directory exists
+                    await fs.ensureDir(tempDir);
+                    
+                    const tempFile = path.join(tempDir, `document_${Date.now()}.pdf`);
+                    
+                    // Write buffer to temp file
+                    await fs.writeFile(tempFile, content);
+                    
+                    // Verify the file was written successfully
+                    if (!(await fs.pathExists(tempFile))) {
+                        throw new Error(`Failed to write temporary PDF file: ${tempFile}`);
+                    }
+                    
+                    try {
+                        // Determine if OCR should be used
+                        const useOcr = options.useOcr === true && options.mistralApiKey;
+                        
+                        // Create appropriate converter
+                        let result;
+                        if (useOcr) {
+                            // Use Mistral OCR converter - require it directly to ensure it's in scope
+                            // Pass true for skipHandlerSetup to avoid duplicate IPC handler registration
+                            const MistralPdfConverterClass = require('./document/MistralPdfConverter');
+                            const mistralConverter = new MistralPdfConverterClass(fileProcessorMock, fileStorageMock, null, true);
+                            // Set the API key
+                            mistralConverter.apiKey = options.mistralApiKey;
+                            
+                            result = await mistralConverter.convertToMarkdown(content, {
+                                ...options,
+                                fileName: name,
+                                apiKey: options.mistralApiKey
+                            });
+                        } else {
+                        // Use standard converter - require it directly to ensure it's in scope
+                        // Pass true for skipHandlerSetup to avoid duplicate IPC handler registration
+                        const StandardPdfConverterClass = require('./document/StandardPdfConverter');
+                        const standardConverter = new StandardPdfConverterClass(fileProcessorMock, fileStorageMock, true);
+                            
+                            result = await standardConverter.convertToMarkdown(content, {
+                                ...options,
+                                fileName: name
+                            });
+                        }
+                        
+                        // Clean up temp directory
+                        await fs.remove(tempDir);
+                        
+                        // Ensure result has success flag and content
+                        if (!result.success) {
+                            throw new Error(result.error || 'PDF conversion failed with no specific error');
+                        }
+                        
+                        if (!result.content || typeof result.content !== 'string' || result.content.trim() === '') {
+                            throw new Error('PDF conversion produced empty content');
+                        }
+                        
+                        return result;
+                    } catch (error) {
+                        // Clean up temp directory
+                        await fs.remove(tempDir);
+                        
+                        // Re-throw error
+                        throw error;
+                    }
                 } catch (error) {
                     console.error(`[PdfAdapter] Error converting PDF: ${error.message}`);
                     throw new Error(`PDF conversion failed: ${error.message}`);

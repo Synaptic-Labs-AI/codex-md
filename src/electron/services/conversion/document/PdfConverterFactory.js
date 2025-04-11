@@ -27,9 +27,10 @@ class PdfConverterFactory {
         this.openAIProxy = openAIProxy;
         this.supportedExtensions = ['.pdf'];
         
-        // Create converter instances
-        this.standardConverter = new StandardPdfConverter(fileProcessor, fileStorage);
-        this.mistralConverter = new MistralPdfConverter(fileProcessor, fileStorage, openAIProxy);
+        // Create converter instances - pass true for skipHandlerSetup
+        // This prevents duplicate IPC handler registration when used through the factory
+        this.standardConverter = new StandardPdfConverter(fileProcessor, fileStorage, true);
+        this.mistralConverter = new MistralPdfConverter(fileProcessor, fileStorage, openAIProxy, true);
     }
 
     /**

@@ -50,13 +50,14 @@ const fetchWithRetry = async (url, options) => {
 };
 
 class MistralPdfConverter extends BasePdfConverter {
-    constructor(fileProcessor, fileStorage, openAIProxy) {
+    constructor(fileProcessor, fileStorage, openAIProxy, skipHandlerSetup = false) {
         super(fileProcessor, fileStorage);
         this.openAIProxy = openAIProxy;
         this.name = 'Mistral PDF Converter';
         this.description = 'Converts PDF files to markdown using Mistral OCR';
         this.apiEndpoint = process.env.MISTRAL_API_ENDPOINT || 'https://api.mistral.ai/v1/ocr';
         this.apiKey = process.env.MISTRAL_API_KEY;
+        this.skipHandlerSetup = skipHandlerSetup;
     }
 
     /**
