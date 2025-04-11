@@ -22,6 +22,10 @@ const { Buffer } = require('node:buffer');
 const ffmpeg = require('fluent-ffmpeg');
 const { uuid } = require('uuid');
 const BaseService = require('../BaseService');
+const { createStore } = require('../../utils/storeFactory');
+
+// Settings store for model selection
+const settingsStore = createStore('settings');
 
 // Max chunk size for audio files (25MB - OpenAI limit is 26MB)
 const MAX_CHUNK_SIZE = 25 * 1024 * 1024;
@@ -229,9 +233,14 @@ class TranscriberService extends BaseService {
         const results = [];
         let completed = 0;
 
+        // Get transcription model from settings or use default
+        const model = settingsStore.get('transcription.model', 'whisper');
+        console.log(`[TranscriberService] Using transcription model: ${model}`);
+
         for (const chunk of chunks) {
             const result = await this.openAIProxy.handleTranscribe(null, {
                 audioPath: chunk,
+                model,
                 ...options
             });
 
@@ -241,7 +250,8 @@ class TranscriberService extends BaseService {
             this.updateJobStatus(jobId, 'transcribing', {
                 progress: Math.round((completed / chunks.length) * 100),
                 completed,
-                total: chunks.length
+                total: chunks.length,
+                model
             });
         }
 

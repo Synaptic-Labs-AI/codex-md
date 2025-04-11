@@ -16,6 +16,25 @@ function registerConversionHandlers() {
     // Handle file conversion requests
     ipcMain.handle('codex:convert:file', async (event, input, options) => {
         try {
+            // Get OCR setting from settings store if not already provided
+            if (options && options.fileType === 'pdf' && options.useOcr === undefined) {
+                const { getSettingValue } = require('../settings');
+                console.log(`[Conversion Handler] Getting OCR setting from settings store`);
+                
+                // Check both ways of accessing the setting
+                const ocrEnabled = await getSettingValue('ocr.enabled', false);
+                console.log(`[Conversion Handler] OCR setting from settings store: ${ocrEnabled} (type: ${typeof ocrEnabled})`);
+                
+                // Also check the direct setting
+                const directOcr = await getSettingValue('ocr', { enabled: false });
+                console.log(`[Conversion Handler] Direct OCR object from settings store:`, directOcr);
+                console.log(`[Conversion Handler] Direct OCR enabled value: ${directOcr.enabled} (type: ${typeof directOcr.enabled})`);
+                
+                options.useOcr = ocrEnabled;
+                console.log(`[Conversion Handler] PDF conversion with OCR ${ocrEnabled ? 'enabled' : 'disabled'}`);
+                console.log(`[Conversion Handler] Final options:`, options);
+            }
+            
             // Handle URL conversions
             if (options && (options.type === 'url' || options.type === 'parenturl')) {
                 const isParentUrl = options.type === 'parenturl';
@@ -96,6 +115,10 @@ function registerConversionHandlers() {
             }
 
             // Handle file paths
+            // For PDF files, ensure OCR setting is included
+            if (options && options.fileType === 'pdf') {
+                console.log(`IPC: Processing PDF file with OCR ${options.useOcr ? 'enabled' : 'disabled'}`);
+            }
             return await ElectronConversionService.convert(input, options);
         } catch (error) {
             console.error('Conversion error:', error);

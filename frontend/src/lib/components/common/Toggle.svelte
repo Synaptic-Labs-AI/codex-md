@@ -25,10 +25,17 @@
   
   const dispatch = createEventDispatcher();
   
-  function handleChange() {
+  function handleChange(event) {
     if (!disabled) {
-      checked = !checked;
-      dispatch('change', { checked });
+      console.log(`[Toggle] Before change: checked = ${checked}`);
+      
+      // Instead of updating the checked value directly, we'll just dispatch the event
+      // The parent component will handle updating the value
+      const newValue = !checked;
+      
+      // Dispatch the event with the new value
+      dispatch('change', { checked: newValue });
+      console.log(`[Toggle] Dispatched 'change' event with value: ${newValue}`);
     }
   }
   
@@ -43,9 +50,9 @@
 <label class="toggle-container" class:disabled>
   <input
     type="checkbox"
-    bind:checked
+    checked={checked}
     {disabled}
-    on:change={handleChange}
+    on:change|preventDefault|stopPropagation={handleChange}
     on:keydown={handleKeydown}
   />
   <span class="toggle-track">
@@ -82,13 +89,13 @@
     display: inline-block;
     width: 36px;
     height: 20px;
-    background-color: var(--color-surface-variant);
+    background-color: var(--color-neutral-300);
     border-radius: 10px;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s;
   }
   
   input:checked + .toggle-track {
-    background-color: var(--color-prime);
+    background-color: var(--color-primary-500);
   }
   
   .toggle-thumb {
@@ -97,9 +104,9 @@
     left: 2px;
     width: 16px;
     height: 16px;
-    background-color: var(--color-surface);
+    background-color: white;
     border-radius: 50%;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s;
   }
   
   input:checked + .toggle-track .toggle-thumb {
@@ -107,31 +114,16 @@
   }
   
   .toggle-label {
-    color: var(--color-text);
     font-size: var(--font-size-sm);
+    color: var(--color-text);
   }
   
-  /* Focus styles */
-  input:focus-visible + .toggle-track {
-    box-shadow: 0 0 0 2px var(--color-prime-light);
-  }
-  
-  /* High Contrast */
-  @media (prefers-contrast: high) {
-    .toggle-track {
-      border: 2px solid currentColor;
-    }
-    
-    .toggle-thumb {
-      border: 1px solid currentColor;
-    }
-  }
-  
-  /* Reduced Motion */
-  @media (prefers-reduced-motion: reduce) {
-    .toggle-track,
-    .toggle-thumb {
-      transition: none;
-    }
+  .test-button {
+    margin-right: 10px;
+    padding: 5px;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
   }
 </style>

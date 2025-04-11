@@ -282,29 +282,34 @@ ConverterRegistry.prototype.setupConverters = function() {
                     
                     try {
                         // Determine if OCR should be used
+                        // Determine if OCR should be used
                         const useOcr = options.useOcr === true && options.mistralApiKey;
                         
                         // Create appropriate converter
                         let result;
                         if (useOcr) {
+                            console.log('[ConverterRegistry] Using Mistral OCR converter for PDF conversion');
                             // Use Mistral OCR converter - require it directly to ensure it's in scope
                             // Pass true for skipHandlerSetup to avoid duplicate IPC handler registration
                             const MistralPdfConverterClass = require('./document/MistralPdfConverter');
                             const mistralConverter = new MistralPdfConverterClass(fileProcessorMock, fileStorageMock, null, true);
                             // Set the API key
                             mistralConverter.apiKey = options.mistralApiKey;
+                            console.log('[ConverterRegistry] Mistral API key set for OCR conversion');
                             
                             result = await mistralConverter.convertToMarkdown(content, {
                                 ...options,
                                 fileName: name,
+                                name: name,
                                 apiKey: options.mistralApiKey
                             });
                         } else {
-                        // Use standard converter - require it directly to ensure it's in scope
-                        // Pass true for skipHandlerSetup to avoid duplicate IPC handler registration
-                        const StandardPdfConverterClass = require('./document/StandardPdfConverter');
-                        const standardConverter = new StandardPdfConverterClass(fileProcessorMock, fileStorageMock, true);
-                            
+                            // Use standard converter - require it directly to ensure it's in scope
+                            // Pass true for skipHandlerSetup to avoid duplicate IPC handler registration
+                            console.log('[ConverterRegistry] Using standard PDF converter');
+                            const StandardPdfConverterClass = require('./document/StandardPdfConverter');
+                            const standardConverter = new StandardPdfConverterClass(fileProcessorMock, fileStorageMock, true);
+                                
                             result = await standardConverter.convertToMarkdown(content, {
                                 ...options,
                                 fileName: name

@@ -58,15 +58,24 @@ class MistralPdfConverter extends BasePdfConverter {
         this.apiEndpoint = process.env.MISTRAL_API_ENDPOINT || 'https://api.mistral.ai/v1/ocr';
         this.apiKey = process.env.MISTRAL_API_KEY;
         this.skipHandlerSetup = skipHandlerSetup;
+        
+        // Log whether handlers will be set up
+        if (skipHandlerSetup) {
+            console.log('[MistralPdfConverter] Skipping handler setup (skipHandlerSetup=true)');
+        } else {
+            this.setupIpcHandlers();
+        }
     }
 
     /**
      * Set up IPC handlers for PDF conversion
      */
     setupIpcHandlers() {
+        console.log('[MistralPdfConverter] Setting up IPC handlers');
         this.registerHandler('convert:pdf:ocr', this.handleConvert.bind(this));
         this.registerHandler('convert:pdf:ocr:metadata', this.handleGetMetadata.bind(this));
         this.registerHandler('convert:pdf:ocr:check', this.handleCheckApiKey.bind(this));
+        console.log('[MistralPdfConverter] IPC handlers registered');
     }
 
     /**
@@ -76,6 +85,18 @@ class MistralPdfConverter extends BasePdfConverter {
      */
     async handleConvert(event, { filePath, options = {} }) {
         try {
+            console.log('[MistralPdfConverter] handleConvert called with options:', {
+                hasApiKey: !!this.apiKey,
+                hasOptionsApiKey: !!options.mistralApiKey,
+                fileName: options.name || path.basename(filePath)
+            });
+            
+            // Use API key from options if available, otherwise use the one from the instance
+            if (options.mistralApiKey) {
+                console.log('[MistralPdfConverter] Using API key from options');
+                this.apiKey = options.mistralApiKey;
+            }
+            
             // Check if API key is available
             if (!this.apiKey) {
                 throw new Error('Mistral API key not configured');
@@ -335,6 +356,10 @@ class MistralPdfConverter extends BasePdfConverter {
                 throw new Error('Mistral API key not configured');
             }
             
+            // Use the API key from options if provided
+            const apiKey = options.apiKey || this.apiKey;
+            console.log('[MistralPdfConverter] Using API key for OCR conversion');
+            
             // Create a temporary file to process
             const tempDir = await fs.mkdtemp(path.join(require('os').tmpdir(), 'pdf-ocr-conversion-'));
             const tempFile = path.join(tempDir, `${options.name || 'document'}.pdf`);
@@ -347,20 +372,21 @@ class MistralPdfConverter extends BasePdfConverter {
             const standardConverter = new StandardPdfConverter();
             const metadata = await standardConverter.extractMetadata(tempFile);
             
-            // For direct conversion, we'll use a simplified approach
-            // In a real implementation, this would call the Mistral API
+            // Actually process with OCR using the existing method
+            console.log('[MistralPdfConverter] Processing PDF with OCR');
+            const ocrResult = await this.processWithOcr(tempFile, {
+                ...options,
+                model: options.model || 'mistral-large-ocr',
+                language: options.language
+            });
             
-            // Create a simple result with metadata
+            // Generate markdown from OCR results
+            const markdownContent = this.generateMarkdown(metadata, ocrResult, options);
+            
+            // Create result object
             const result = {
                 success: true,
-                content: `# PDF Document: ${options.name || 'document.pdf'} (OCR)\n\n` +
-                         `This document was processed with Mistral OCR technology.\n\n` +
-                         `## Document Information\n\n` +
-                         `- **Title**: ${metadata.title || 'Untitled'}\n` +
-                         `- **Pages**: ${metadata.pageCount}\n` +
-                         `- **Size**: ${metadata.fileSize} bytes\n\n` +
-                         `## OCR Content\n\n` +
-                         `OCR processing would extract text from images in the PDF.`,
+                content: markdownContent,
                 type: 'pdf',
                 name: options.name || 'document.pdf',
                 metadata: metadata

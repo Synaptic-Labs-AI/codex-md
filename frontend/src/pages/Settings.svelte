@@ -34,7 +34,22 @@
   
   // Update settings when toggle changes
   function handleToggleChange(event) {
-    setOcrEnabled(ocrEnabled);
+    console.log(`[Settings] handleToggleChange called with event:`, event);
+    console.log(`[Settings] Current ocrEnabled value: ${ocrEnabled}`);
+    
+    // Get the new value from the event detail
+    // This is now the opposite of the current value since we're not updating the checked prop directly in Toggle
+    const newValue = event.detail.checked;
+    console.log(`[Settings] OCR toggle changed to: ${newValue}`);
+    
+    // Update local state to match the new value
+    ocrEnabled = newValue;
+    
+    // Update the store with the new value
+    setOcrEnabled(newValue);
+    
+    // Force a log to verify the value was updated
+    console.log(`[Settings] After update, ocrEnabled = ${ocrEnabled}`);
   }
   
   onMount(() => {
@@ -87,10 +102,10 @@
         
         <h3>Advanced PDF Processing</h3>
         <div class="ocr-toggle-section">
-          <Toggle 
-            bind:checked={ocrEnabled} 
+          <Toggle
+            checked={ocrEnabled}
             on:change={handleToggleChange}
-            label="Enable advanced OCR for PDF documents" 
+            label="Enable advanced OCR for PDF documents"
           />
           <p class="description">
             When enabled, Mistral's advanced OCR will be used to process PDF documents,

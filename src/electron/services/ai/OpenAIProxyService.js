@@ -18,6 +18,7 @@ const BaseService = require('../BaseService');
 const { Configuration, OpenAIApi } = require('openai');
 const NodeCache = require('node-cache');
 const axios = require('axios');
+const fs = require('fs-extra');
 const axiosRetry = require('./OpenAIProxyServiceFix');
 
 class OpenAIProxyService extends BaseService {
@@ -79,19 +80,29 @@ class OpenAIProxyService extends BaseService {
      * @param {Electron.IpcMainInvokeEvent} event - IPC event
      * @param {Object} request - Transcription details
      */
-    async handleTranscribe(event, { audioPath, language = 'en', prompt = '' }) {
+    async handleTranscribe(event, { audioPath, language = 'en', prompt = '', model = 'whisper' }) {
         this.ensureConfigured();
 
         try {
-            const cacheKey = `transcribe:${audioPath}`;
+            const cacheKey = `transcribe:${audioPath}:${model}`;
             const cached = this.cache.get(cacheKey);
             if (cached) {
                 return cached;
             }
 
+            // Map our simplified model names to actual API model names
+            const modelMapping = {
+                'whisper': 'whisper-1',
+                'gpt-4o-mini-transcribe': 'gpt-4o-mini', 
+                'gpt-4o-transcribe': 'gpt-4o'
+            };
+            
+            const apiModel = modelMapping[model] || 'whisper-1';
+            console.log(`[OpenAIProxyService] Using transcription model: ${apiModel} (from ${model})`);
+
             const response = await this.openai.createTranscription(
                 fs.createReadStream(audioPath),
-                'whisper-1',
+                apiModel,
                 prompt,
                 'text',
                 0,
@@ -100,7 +111,8 @@ class OpenAIProxyService extends BaseService {
 
             const result = {
                 text: response.data,
-                language: language
+                language: language,
+                model: model
             };
 
             this.cache.set(cacheKey, result);

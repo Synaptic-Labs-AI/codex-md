@@ -370,6 +370,24 @@ contextBridge.exposeInMainWorld('electron', {
         return queueCall('codex:set-setting', [key, value]);
     },
     
+    // OCR specific settings
+    setOcrEnabled: async ({ enabled }) => {
+        console.log(`[Preload] Setting OCR enabled to: ${enabled} (type: ${typeof enabled})`);
+        // Ensure enabled is a boolean
+        const boolEnabled = Boolean(enabled);
+        console.log(`[Preload] Converted to boolean: ${boolEnabled} (type: ${typeof boolEnabled})`);
+        
+        const result = await queueCall('codex:settings:set-ocr-enabled', [{ enabled: boolEnabled }]);
+        console.log(`[Preload] Result from setting OCR enabled:`, result);
+        return result;
+    },
+    
+    getOcrEnabled: async () => {
+        const result = await queueCall('codex:settings:get-ocr-enabled', []);
+        console.log(`[Preload] Got OCR enabled: ${result} (type: ${typeof result})`);
+        return result;
+    },
+    
     //=== API Key Management ===//
     saveApiKey: async (key, provider = 'openai') => {
         return queueCall('codex:apikey:save', [{ key, provider }]);

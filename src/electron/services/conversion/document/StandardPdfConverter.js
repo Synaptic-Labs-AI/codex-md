@@ -28,6 +28,11 @@ class StandardPdfConverter extends BasePdfConverter {
         this.name = 'Standard PDF Converter';
         this.description = 'Converts PDF files to markdown using standard text extraction';
         this.skipHandlerSetup = skipHandlerSetup;
+        
+        // Log whether handlers will be set up
+        if (skipHandlerSetup) {
+            console.log('[StandardPdfConverter] Skipping handler setup (skipHandlerSetup=true)');
+        }
     }
 
     /**
