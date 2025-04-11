@@ -1,0 +1,371 @@
+=== Codex MD Application Run Log ===
+Started: 4/11/2025, 9:43:24 AM
+================================
+
+Starting app: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\codex.md.exe --trace-warnings --verbose
+[STDOUT] 
+[STDOUT] ConversionResultManager initialized with default output directory: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] 📄 Initialized with file handling: {
+  handlingTypes: { BINARY: 'binary', TEXT: 'text', URL: 'url' },
+  fileConfig: {
+    docx: { handling: 'binary', converter: 'text', requiresOcr: false },
+    pptx: { handling: 'binary', converter: 'text', requiresOcr: false },
+    pdf: { handling: 'binary', converter: 'pdf', requiresOcr: true },
+    xlsx: { handling: 'binary', converter: 'data', requiresOcr: false },
+    csv: { handling: 'text', converter: 'data', requiresOcr: false },
+    mp3: { handling: 'binary', converter: 'audio', requiresOcr: false },
+    wav: { handling: 'binary', converter: 'audio', requiresOcr: false },
+    mp4: { handling: 'binary', converter: 'video', requiresOcr: false }
+  }
+}
+[STDOUT] UnifiedConverterFactory initialized
+[STDOUT] 🔄 Initializing UnifiedConverterFactory...
+🔄 Starting converter initialization...
+[STDOUT] 🔍 Using converter paths: {
+  registry: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js',
+  converters: {
+    url: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\web\\UrlConverter.js',
+    pdf: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PdfConverterFactory.js',
+    docx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\DocxConverter.js',
+    pptx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PptxConverter.js',
+    xlsx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\data\\XlsxConverter.js',
+    csv: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\data\\CsvConverter.js'
+  }
+}
+[STDERR] ❌ Error setting up converters: Error [ERR_REQUIRE_ESM]: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js:20:15)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\PdfConverterFactory.js:21:29)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:96:28)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at ModuleLoader.loadModule (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\converters\UnifiedConverterFactory.js:26:22)
+    at ConverterInitializer._doInitialize (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\converters\UnifiedConverterFactory.js:86:43)
+    at ConverterInitializer.initialize (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\converters\UnifiedConverterFactory.js:76:30)
+    at UnifiedConverterFactory._ensureInitialized (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\converters\UnifiedConverterFactory.js:168:57)
+    at unifiedConverterFactory.initialize (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\converters\UnifiedConverterFactory.js:690:16)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:53:25)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:18:35)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at node:electron/js2c/browser_init:2:119882
+    at node:electron/js2c/browser_init:2:120091
+    at node:electron/js2c/browser_init:2:120095
+    at c._load (node:electron/js2c/node_init:2:13672) {
+  code: 'ERR_REQUIRE_ESM'
+}
+[STDOUT] 🔄 [VERBOSE] Starting converters initialization
+🔍 [VERBOSE] Loading converter registry from path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js
+🔍 [VERBOSE] Environment details: {
+  environment: 'unknown',
+  appPath: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar',
+  currentDir: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services',
+  isPackaged: true
+}
+🔍 [VERBOSE] Registry file exists check: true
+🔄 [VERBOSE] Using CommonJS require for converter registry
+[STDERR] Error details: {
+  message: 'require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.',
+  stack: 'Error [ERR_REQUIRE_ESM]: require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js:20:15)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PdfConverterFactory.js:21:29)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at ConverterRegistry.setupConverters (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:96:28)\n' +
+    '    at new ConverterRegistry (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:28:10)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:128:16)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at ModuleLoader.loadModule (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\converters\\UnifiedConverterFactory.js:26:22)\n' +
+    '    at ConverterInitializer._doInitialize (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\converters\\UnifiedConverterFactory.js:86:43)\n' +
+    '    at ConverterInitializer.initialize (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\converters\\UnifiedConverterFactory.js:76:30)\n' +
+    '    at UnifiedConverterFactory._ensureInitialized (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\converters\\UnifiedConverterFactory.js:168:57)\n' +
+    '    at unifiedConverterFactory.initialize (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\converters\\UnifiedConverterFactory.js:690:16)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\ElectronConversionService.js:53:25)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\main.js:18:35)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at node:electron/js2c/browser_init:2:119882\n' +
+    '    at node:electron/js2c/browser_init:2:120091\n' +
+    '    at node:electron/js2c/browser_init:2:120095\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)',
+  name: 'Error'
+}
+Failed to load module: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js Error: Failed to set up converters: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDERR] ❌ Error setting up converters: Error [ERR_REQUIRE_ESM]: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js:20:15)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\PdfConverterFactory.js:21:29)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:96:28)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:106:33
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:168:3)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:18:35)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at node:electron/js2c/browser_init:2:119882
+    at node:electron/js2c/browser_init:2:120091
+    at node:electron/js2c/browser_init:2:120095
+    at c._load (node:electron/js2c/node_init:2:13672) {
+  code: 'ERR_REQUIRE_ESM'
+}
+[STDOUT] 🔍 [VERBOSE] Require error details: {
+  name: 'Error',
+  message: 'Failed to set up converters: require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.',
+  stack: 'Error: Failed to set up converters: require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.\n' +
+    '    at ConverterRegistry.setupConverters (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:123:15)\n' +
+    '    at new ConverterRegistry (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:28:10)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:128:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1271:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1126:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:967:12)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1150:19)\n' +
+    '    at require (node:internal/modules/cjs/helpers:119:18)',
+  code: undefined,
+  path: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js'
+}
+🔄 [VERBOSE] Trying direct path as fallback
+[STDERR] Error details: {
+  message: 'require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.',
+  stack: 'Error [ERR_REQUIRE_ESM]: require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js:20:15)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PdfConverterFactory.js:21:29)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at ConverterRegistry.setupConverters (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:96:28)\n' +
+    '    at new ConverterRegistry (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:28:10)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:128:16)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\ElectronConversionService.js:106:33\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\ElectronConversionService.js:168:3)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\main.js:18:35)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at node:electron/js2c/browser_init:2:119882\n' +
+    '    at node:electron/js2c/browser_init:2:120091\n' +
+    '    at node:electron/js2c/browser_init:2:120095\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)',
+  name: 'Error'
+}
+❌ [VERBOSE] Require failed with error: Error: Failed to set up converters: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDERR] ❌ Error setting up converters: Error [ERR_REQUIRE_ESM]: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js:20:15)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\PdfConverterFactory.js:21:29)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:96:28)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:128:35
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:168:3)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:18:35)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at node:electron/js2c/browser_init:2:119882
+    at node:electron/js2c/browser_init:2:120091
+    at node:electron/js2c/browser_init:2:120095
+    at c._load (node:electron/js2c/node_init:2:13672) {
+  code: 'ERR_REQUIRE_ESM'
+}
+[STDOUT] 🕒 [VERBOSE] Converters initialization time: 7.735ms
+🔍 [VERBOSE] Error object: {
+  name: 'Error',
+  message: 'Could not load ConverterRegistry: Failed to set up converters: require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.',
+  code: undefined,
+  type: 'object',
+  hasStack: true
+}
+ElectronConversionService initialized with default output directory: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDERR] Error details: {
+  message: 'require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.',
+  stack: 'Error [ERR_REQUIRE_ESM]: require() of ES Module C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\node-fetch\\src\\index.js from C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js not supported.\n' +
+    'Instead change the require of index.js in C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\MistralPdfConverter.js:20:15)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PdfConverterFactory.js:21:29)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at ConverterRegistry.setupConverters (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:96:28)\n' +
+    '    at new ConverterRegistry (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:28:10)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:128:16)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\ElectronConversionService.js:128:35\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\ElectronConversionService.js:168:3)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\main.js:18:35)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at node:electron/js2c/browser_init:2:119882\n' +
+    '    at node:electron/js2c/browser_init:2:120091\n' +
+    '    at node:electron/js2c/browser_init:2:120095\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)',
+  name: 'Error'
+}
+❌ [VERBOSE] Direct path require also failed: Failed to set up converters: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+❌ [VERBOSE] Failed to register converters: Error: Could not load ConverterRegistry: Failed to set up converters: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:132:15
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:168:3)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:18:35)
+❌ [VERBOSE] Error details: Error: Could not load ConverterRegistry: Failed to set up converters: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:132:15
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:168:3)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:18:35)
+[STDOUT] ✅ Store "offline-data" initialized successfully
+[STDOUT] 📋 Loaded 0 queued operations
+[STDOUT] ✅ Store "api-keys" initialized successfully
+[STDOUT] ✅ Store "transcription-settings" initialized successfully
+[STDOUT] [OpenAIProxyService] Registered handler for: openai:configure
+[OpenAIProxyService] Registered handler for: openai:transcribe
+[STDOUT] [OpenAIProxyService] Registered handler for: openai:complete
+[OpenAIProxyService] Registered handler for: openai:check-key
+[STDOUT] [TranscriberService] Registered handler for: transcribe:start
+[TranscriberService] Registered handler for: transcribe:status
+[TranscriberService] Registered handler for: transcribe:cancel
+✅ TranscriptionService initialized with new TranscriberService
+[STDOUT] ✅ Store "transcription-handlers" initialized successfully
+[STDOUT] ✅ Store "settings" initialized successfully
+[STDOUT] ✅ Store "ipc-handlers" initialized successfully
+[STDOUT] ✅ Store "tray-manager" initialized successfully
+====== ELECTRON APP STARTING ======
+Working directory: C:\Users\Joseph\Documents\Code\codex-md
+[STDERR] ❌ Converter initialization failed: Error: Failed to set up converters: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDOUT] App path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar
+Resource path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources
+Executable path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\codex.md.exe
+NODE_ENV: undefined
+====================================
+✅ Transcription handlers: Configuration loaded
+[STDERR] ❌ UnifiedConverterFactory initialization failed: Error: Failed to set up converters: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+❌ Failed to initialize converter factory: Error: Failed to set up converters: require() of ES Module C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\node-fetch\src\index.js from C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js not supported.
+Instead change the require of index.js in C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\document\MistralPdfConverter.js to a dynamic import() which is available in all CommonJS modules.
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDOUT] App ready event fired
+[STDOUT] 📁 Offline cache directory ready: C:\Users\Joseph\AppData\Roaming\codex-md\cache
+[STDOUT] INFO: Logger initialized successfully
+[STDOUT] ✅ Logger initialized
+STARTUP: Application starting up
+[STDOUT] DEBUG: Environment
+Data: {
+  "cwd": "C:\\Users\\Joseph\\Documents\\Code\\codex-md",
+  "resourcesPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources",
+  "execPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+  "argv": [
+    "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+    "--trace-warnings",
+    "--verbose"
+  ]
+}
+[STDOUT] Registering protocol handlers
+[STDOUT] INFO: Media protocol handler registered
+[STDOUT] INFO: File protocol handler registered
+[STDOUT] 🚀 Starting app initialization...
+[STDOUT] Checking for update
+Checking for updates...
+[STDOUT] ✅ Update manager initialized
+📡 Registering basic IPC handlers...
+[STDOUT] 📡 Registered offline IPC handlers
+[STDOUT] Transcription IPC handlers registered
+✅ Basic IPC handlers registered successfully
+[STDOUT] 📁 Output directory ready: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] ✅ Conversion service initialized
+INFO: Notifications initialized
+[STDOUT] INFO: Creating main window
+[STDERR] ❌ Failed to create and setup window: Error: Window not initialized for handler setup
+    at setupWindowHandlers (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\ipc\handlers.js:76:11)
+    at createAndSetupWindow (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:103:15)
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:620:28
+[STDERR] ❌ Failed to create main window
+[STDOUT] 🧹 Offline service cleaned up
+Process exited with code 0 and signal null

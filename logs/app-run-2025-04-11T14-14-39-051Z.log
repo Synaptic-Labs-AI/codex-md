@@ -1,0 +1,214 @@
+=== Codex MD Application Run Log ===
+Started: 4/11/2025, 10:14:39 AM
+================================
+
+Starting app: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\codex.md.exe --trace-warnings --verbose
+[STDOUT] 
+[STDOUT] ConversionResultManager initialized with default output directory: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] 📄 Initialized with file handling: {
+  handlingTypes: { BINARY: 'binary', TEXT: 'text', URL: 'url' },
+  fileConfig: {
+    docx: { handling: 'binary', converter: 'text', requiresOcr: false },
+    pptx: { handling: 'binary', converter: 'text', requiresOcr: false },
+    pdf: { handling: 'binary', converter: 'pdf', requiresOcr: true },
+    xlsx: { handling: 'binary', converter: 'data', requiresOcr: false },
+    csv: { handling: 'text', converter: 'data', requiresOcr: false },
+    mp3: { handling: 'binary', converter: 'audio', requiresOcr: false },
+    wav: { handling: 'binary', converter: 'audio', requiresOcr: false },
+    mp4: { handling: 'binary', converter: 'video', requiresOcr: false }
+  }
+}
+[STDOUT] UnifiedConverterFactory initialized
+[STDOUT] 🔄 Initializing UnifiedConverterFactory...
+🔄 Starting converter initialization...
+[STDOUT] 🔍 Using converter paths: {
+  registry: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js',
+  converters: {
+    url: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\web\\UrlConverter.js',
+    pdf: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PdfConverterFactory.js',
+    docx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\DocxConverter.js',
+    pptx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PptxConverter.js',
+    xlsx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\data\\XlsxConverter.js',
+    csv: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\data\\CsvConverter.js'
+  }
+}
+[STDOUT] Registered converter for csv
+[STDOUT] Registered converter for xlsx
+Registered converter for mp3
+Registered converter for wav
+Registered converter for mp4
+[StandardPdfConverter] Registered handler for: convert:pdf:standard
+[StandardPdfConverter] Registered handler for: convert:pdf:standard:metadata
+[StandardPdfConverter] Registered handler for: convert:pdf:standard:thumbnail
+[MistralPdfConverter] Registered handler for: convert:pdf:ocr
+[MistralPdfConverter] Registered handler for: convert:pdf:ocr:metadata
+[MistralPdfConverter] Registered handler for: convert:pdf:ocr:check
+Registered converter for pdf
+Registered converter for url
+Registered converter for parenturl
+✅ Converters registered successfully: 8 types
+📋 Registered types: csv, xlsx, mp3, wav, mp4, pdf, url, parenturl
+🔄 [VERBOSE] Starting converters initialization
+[STDOUT] 🔍 [VERBOSE] Loading converter registry from path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js
+🔍 [VERBOSE] Environment details: {
+  environment: 'unknown',
+  appPath: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar',
+  currentDir: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services',
+  isPackaged: true
+}
+🔍 [VERBOSE] Registry file exists check: true
+🔄 [VERBOSE] Using CommonJS require for converter registry
+📦 [VERBOSE] Require successful. Module structure: {
+  keys: [ 'converters' ],
+  hasConverterRegistry: false,
+  hasDefaultExport: false,
+  exportTypes: [
+    'converters: object with keys [csv, xlsx, mp3, wav, mp4, pdf, url, parenturl]'
+  ]
+}
+[STDOUT] 🔍 [VERBOSE] Converter registry structure: {
+  hasConverters: true,
+  hasConvertToMarkdown: true,
+  hasGetConverterByExtension: true,
+  hasGetConverterByMimeType: true,
+  availableConverters: [ 'csv', 'xlsx', 'mp3', 'wav', 'mp4', 'pdf', 'url', 'parenturl' ]
+}
+🕒 [VERBOSE] Converters initialization time: 0.487ms
+✅ [VERBOSE] Converters registered successfully
+ElectronConversionService initialized with default output directory: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] ✅ Store "offline-data" initialized successfully
+[STDOUT] 📋 Loaded 0 queued operations
+[STDOUT] ✅ Store "api-keys" initialized successfully
+[STDOUT] ✅ Store "transcription-settings" initialized successfully
+[STDOUT] [OpenAIProxyService] Registered handler for: openai:configure
+[OpenAIProxyService] Registered handler for: openai:transcribe
+[STDOUT] [OpenAIProxyService] Registered handler for: openai:complete
+[OpenAIProxyService] Registered handler for: openai:check-key
+[STDOUT] [TranscriberService] Registered handler for: transcribe:start
+[TranscriberService] Registered handler for: transcribe:status
+[TranscriberService] Registered handler for: transcribe:cancel
+[STDOUT] ✅ TranscriptionService initialized with new TranscriberService
+[STDOUT] ✅ Store "transcription-handlers" initialized successfully
+[STDOUT] ✅ Store "settings" initialized successfully
+[STDOUT] ✅ Store "ipc-handlers" initialized successfully
+[STDOUT] ✅ Store "tray-manager" initialized successfully
+====== ELECTRON APP STARTING ======
+[STDOUT] Working directory: C:\Users\Joseph\Documents\Code\codex-md
+App path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar
+Resource path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources
+Executable path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\codex.md.exe
+NODE_ENV: undefined
+====================================
+✅ Successfully loaded converter registry
+✅ Converter initialization complete
+[STDOUT] ✅ Transcription handlers: Configuration loaded
+[STDOUT] ✅ UnifiedConverterFactory initialized successfully
+[STDOUT] App ready event fired
+[STDOUT] 📁 Offline cache directory ready: C:\Users\Joseph\AppData\Roaming\codex-md\cache
+[STDOUT] [MistralPdfConverter] node-fetch loaded successfully
+[STDOUT] INFO: Logger initialized successfully
+[STDOUT] ✅ Logger initialized
+STARTUP: Application starting up
+[STDOUT] DEBUG: Environment
+Data: {
+  "cwd": "C:\\Users\\Joseph\\Documents\\Code\\codex-md",
+  "resourcesPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources",
+  "execPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+  "argv": [
+    "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+    "--trace-warnings",
+    "--verbose"
+  ]
+}
+[STDOUT] Registering protocol handlers
+[STDOUT] INFO: Media protocol handler registered
+[STDOUT] INFO: File protocol handler registered
+🚀 Starting app initialization...
+[STDOUT] Checking for update
+[STDOUT] Checking for updates...
+✅ Update manager initialized
+📡 Registering basic IPC handlers...
+[STDOUT] 📡 Registered offline IPC handlers
+[STDOUT] Transcription IPC handlers registered
+✅ Basic IPC handlers registered successfully
+[STDOUT] 📁 Output directory ready: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] ✅ Conversion service initialized
+INFO: Notifications initialized
+Creating main window...
+[STDOUT] INFO: Creating main window
+[STDOUT] Generated new staging user ID: c735df06-f8af-5c96-a34e-98d42f847daa
+[STDOUT] DEBUG: Application paths
+Data: {
+  "appPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar",
+  "appData": "C:\\Users\\Joseph\\AppData\\Roaming",
+  "userData": "C:\\Users\\Joseph\\AppData\\Roaming\\codex-md",
+  "exe": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+  "module": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+  "cwd": "C:\\Users\\Joseph\\Documents\\Code\\codex-md",
+  "resourcesPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources"
+}
+[STDOUT] ✅ Notifications initialized
+[STDOUT] DEBUG: Icon path
+Data: {
+  "iconPath": "C:/Users/Joseph/Documents/Code/codex-md/dist/win-unpacked/resources/app.asar/frontend/static/logo.png"
+}
+[STDOUT] DEBUG: Icon file check
+Data: {
+  "exists": false,
+  "path": "C:/Users/Joseph/Documents/Code/codex-md/dist/win-unpacked/resources/app.asar/frontend/static/logo.png"
+}
+[STDOUT] WARN: Icon file does not exist: C:/Users/Joseph/Documents/Code/codex-md/dist/win-unpacked/resources/app.asar/frontend/static/logo.png
+[STDOUT] WINDOW: Creating main window
+[STDOUT] DEBUG: Window configuration
+Data: {
+  "width": 1200,
+  "height": 800,
+  "minWidth": 800,
+  "minHeight": 600,
+  "icon": "C:/Users/Joseph/Documents/Code/codex-md/dist/win-unpacked/resources/app.asar/frontend/static/logo.png",
+  "webPreferences": {
+    "nodeIntegration": false,
+    "contextIsolation": true,
+    "preload": "C:/Users/Joseph/Documents/Code/codex-md/dist/win-unpacked/resources/app.asar/src/electron/preload.js"
+  },
+  "show": false,
+  "frame": true
+}
+[STDOUT] INFO: BrowserWindow created successfully
+[STDOUT] Loading app from path: C:/Users/Joseph/Documents/Code/codex-md/dist/win-unpacked/resources/app.asar/frontend/dist/index.html
+[STDOUT] Window created successfully, waiting for initialization...
+[STDOUT] INFO: Window ready to show event fired
+[STDOUT] ✅ Sent app:ready event to renderer
+[STDOUT] Setting up window handlers...
+[STDOUT] ✅ Window handlers registered successfully
+[STDERR] Error creating tray: Error: Failed to load image from path 'C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\frontend\static\logo.png'
+    at TrayManager.createTray (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\features\tray.js:46:19)
+    at new TrayManager (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\features\tray.js:30:10)
+    at setupTray (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:86:23)
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:640:9
+[STDOUT] ✅ Tray initialized successfully
+✅ Main window created and initialized
+[STDERR] Error: Error: No published versions on GitHub
+    at newError (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\node_modules\builder-util-runtime\out\error.js:5:19)
+    at XElement.element (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\node_modules\builder-util-runtime\out\xml.js:36:40)
+    at GitHubProvider.getLatestVersion (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\out\providers\GitHubProvider.js:48:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NsisUpdater.getUpdateInfoAndProvider (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\out\AppUpdater.js:365:19)
+    at async NsisUpdater.doCheckForUpdates (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\out\AppUpdater.js:378:24)
+    at async UpdateManager.checkForUpdates (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\features\updater.js:93:13)
+[STDERR] Update error: Error: No published versions on GitHub
+    at newError (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\node_modules\builder-util-runtime\out\error.js:5:19)
+    at XElement.element (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\node_modules\builder-util-runtime\out\xml.js:36:40)
+    at GitHubProvider.getLatestVersion (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\out\providers\GitHubProvider.js:48:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NsisUpdater.getUpdateInfoAndProvider (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\out\AppUpdater.js:365:19)
+    at async NsisUpdater.doCheckForUpdates (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\out\AppUpdater.js:378:24)
+    at async UpdateManager.checkForUpdates (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\features\updater.js:93:13) {
+  code: 'ERR_XML_MISSED_ELEMENT'
+}
+Failed to check for updates: TypeError: this.notificationManager.showNotification is not a function
+    at NsisUpdater.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\features\updater.js:60:38)
+    at NsisUpdater.emit (node:events:529:35)
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\node_modules\electron-updater\out\AppUpdater.js:247:18
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async UpdateManager.checkForUpdates (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\features\updater.js:93:13)

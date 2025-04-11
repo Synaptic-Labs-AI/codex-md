@@ -10,6 +10,11 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Add direct console output for debugging
+console.log('====== PRELOAD SCRIPT STARTING ======');
+console.log('Preload script path:', __filename);
+console.log('====================================');
+
 // Initialization tracking
 let isAppReady = false;
 const pendingCalls = new Map();
@@ -434,4 +439,3 @@ contextBridge.exposeInMainWorld('electron', {
 
 // Clean up when window unloads
 window.addEventListener('unload', cleanupEventListeners);
-

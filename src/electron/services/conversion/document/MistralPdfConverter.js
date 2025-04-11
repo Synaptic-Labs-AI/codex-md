@@ -17,10 +17,37 @@
 
 const path = require('path');
 const fs = require('fs-extra');
-const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { v4: uuidv4 } = require('uuid');
 const BasePdfConverter = require('./BasePdfConverter');
+
+// Initialize fetch with dynamic import
+let fetchModule = null;
+
+// Initialize fetch immediately
+const initializeFetch = async () => {
+  try {
+    fetchModule = await import('node-fetch');
+    console.log('[MistralPdfConverter] node-fetch loaded successfully');
+  } catch (error) {
+    console.error('[MistralPdfConverter] Failed to load node-fetch:', error);
+    throw error;
+  }
+};
+
+// Start loading immediately
+const fetchPromise = initializeFetch();
+
+// Create a wrapper function to ensure fetch is available
+const fetchWithRetry = async (url, options) => {
+  // Wait for fetch to be loaded if it's not ready yet
+  if (!fetchModule) {
+    await fetchPromise;
+  }
+  
+  // Use the default export from the module
+  return fetchModule.default(url, options);
+};
 
 class MistralPdfConverter extends BasePdfConverter {
     constructor(fileProcessor, fileStorage, openAIProxy) {
@@ -121,7 +148,7 @@ class MistralPdfConverter extends BasePdfConverter {
             }
             
             // Make a simple request to check if the API key is valid
-            const response = await fetch(`${this.apiEndpoint}/models`, {
+            const response = await fetchWithRetry(`${this.apiEndpoint}/models`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
@@ -208,7 +235,7 @@ class MistralPdfConverter extends BasePdfConverter {
             }
             
             // Make API request
-            const response = await fetch(this.apiEndpoint, {
+            const response = await fetchWithRetry(this.apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,

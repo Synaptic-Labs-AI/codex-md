@@ -1,0 +1,305 @@
+=== Codex MD Application Run Log ===
+Started: 4/11/2025, 9:58:06 AM
+================================
+
+Starting app: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\codex.md.exe --trace-warnings --verbose
+[STDOUT] 
+[STDOUT] ConversionResultManager initialized with default output directory: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] 📄 Initialized with file handling: {
+  handlingTypes: { BINARY: 'binary', TEXT: 'text', URL: 'url' },
+  fileConfig: {
+    docx: { handling: 'binary', converter: 'text', requiresOcr: false },
+    pptx: { handling: 'binary', converter: 'text', requiresOcr: false },
+    pdf: { handling: 'binary', converter: 'pdf', requiresOcr: true },
+    xlsx: { handling: 'binary', converter: 'data', requiresOcr: false },
+    csv: { handling: 'text', converter: 'data', requiresOcr: false },
+    mp3: { handling: 'binary', converter: 'audio', requiresOcr: false },
+    wav: { handling: 'binary', converter: 'audio', requiresOcr: false },
+    mp4: { handling: 'binary', converter: 'video', requiresOcr: false }
+  }
+}
+[STDOUT] UnifiedConverterFactory initialized
+[STDOUT] 🔄 Initializing UnifiedConverterFactory...
+🔄 Starting converter initialization...
+[STDOUT] 🔍 Using converter paths: {
+  registry: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js',
+  converters: {
+    url: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\web\\UrlConverter.js',
+    pdf: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PdfConverterFactory.js',
+    docx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\DocxConverter.js',
+    pptx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PptxConverter.js',
+    xlsx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\data\\XlsxConverter.js',
+    csv: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\data\\CsvConverter.js'
+  }
+}
+[STDOUT] Registered converter for csv
+[STDOUT] Registered converter for xlsx
+Registered converter for mp3
+Registered converter for wav
+Registered converter for mp4
+[STDERR] ❌ Error setting up converters: TypeError: pdfFactory.createConverter is not a function
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:106:41)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDOUT] 🔄 [VERBOSE] Starting converters initialization
+🔍 [VERBOSE] Loading converter registry from path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js
+🔍 [VERBOSE] Environment details: {
+  environment: 'unknown',
+  appPath: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar',
+  currentDir: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services',
+  isPackaged: true
+}
+🔍 [VERBOSE] Registry file exists check: true
+🔄 [VERBOSE] Using CommonJS require for converter registry
+Registered converter for csv
+Registered converter for xlsx
+Registered converter for mp3
+Registered converter for wav
+Registered converter for mp4
+[STDERR] Error details: {
+  message: 'pdfFactory.createConverter is not a function',
+  stack: 'TypeError: pdfFactory.createConverter is not a function\n' +
+    '    at ConverterRegistry.setupConverters (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:106:41)\n' +
+    '    at new ConverterRegistry (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:28:10)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:128:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1271:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1126:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:967:12)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1150:19)\n' +
+    '    at require (node:internal/modules/cjs/helpers:119:18)',
+  name: 'TypeError'
+}
+Failed to load module: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js Error: Failed to set up converters: pdfFactory.createConverter is not a function
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+❌ Error setting up converters: TypeError: pdfFactory.createConverter is not a function
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:106:41)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+Error details: {
+  message: 'pdfFactory.createConverter is not a function',
+  stack: 'TypeError: pdfFactory.createConverter is not a function\n' +
+    '    at ConverterRegistry.setupConverters (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:106:41)\n' +
+    '    at new ConverterRegistry (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:28:10)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:128:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1271:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1126:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:967:12)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1150:19)\n' +
+    '    at require (node:internal/modules/cjs/helpers:119:18)',
+  name: 'TypeError'
+}
+❌ [VERBOSE] Require failed with error: Error: Failed to set up converters: pdfFactory.createConverter is not a function
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDOUT] 🔍 [VERBOSE] Require error details: {
+  name: 'Error',
+  message: 'Failed to set up converters: pdfFactory.createConverter is not a function',
+  stack: 'Error: Failed to set up converters: pdfFactory.createConverter is not a function\n' +
+    '    at ConverterRegistry.setupConverters (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:123:15)\n' +
+    '    at new ConverterRegistry (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:28:10)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:128:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1271:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1126:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:967:12)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1150:19)\n' +
+    '    at require (node:internal/modules/cjs/helpers:119:18)',
+  code: undefined,
+  path: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js'
+}
+🔄 [VERBOSE] Trying direct path as fallback
+Registered converter for csv
+Registered converter for xlsx
+Registered converter for mp3
+Registered converter for wav
+Registered converter for mp4
+🕒 [VERBOSE] Converters initialization time: 1.416ms
+🔍 [VERBOSE] Error object: {
+  name: 'Error',
+  message: 'Could not load ConverterRegistry: Failed to set up converters: pdfFactory.createConverter is not a function',
+  code: undefined,
+  type: 'object',
+  hasStack: true
+}
+ElectronConversionService initialized with default output directory: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDERR] ❌ Error setting up converters: TypeError: pdfFactory.createConverter is not a function
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:106:41)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+Error details: {
+  message: 'pdfFactory.createConverter is not a function',
+  stack: 'TypeError: pdfFactory.createConverter is not a function\n' +
+    '    at ConverterRegistry.setupConverters (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:106:41)\n' +
+    '    at new ConverterRegistry (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:28:10)\n' +
+    '    at Object.<anonymous> (C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js:128:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1271:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1126:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:967:12)\n' +
+    '    at c._load (node:electron/js2c/node_init:2:13672)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1150:19)\n' +
+    '    at require (node:internal/modules/cjs/helpers:119:18)',
+  name: 'TypeError'
+}
+❌ [VERBOSE] Direct path require also failed: Failed to set up converters: pdfFactory.createConverter is not a function
+❌ [VERBOSE] Failed to register converters: Error: Could not load ConverterRegistry: Failed to set up converters: pdfFactory.createConverter is not a function
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:132:15
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:168:3)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:18:35)
+❌ [VERBOSE] Error details: Error: Could not load ConverterRegistry: Failed to set up converters: pdfFactory.createConverter is not a function
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:132:15
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\ElectronConversionService.js:168:3)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:18:35)
+[STDOUT] ✅ Store "offline-data" initialized successfully
+[STDOUT] 📋 Loaded 0 queued operations
+[STDOUT] ✅ Store "api-keys" initialized successfully
+[STDOUT] ✅ Store "transcription-settings" initialized successfully
+[STDOUT] [OpenAIProxyService] Registered handler for: openai:configure
+[OpenAIProxyService] Registered handler for: openai:transcribe
+[STDOUT] [OpenAIProxyService] Registered handler for: openai:complete
+[OpenAIProxyService] Registered handler for: openai:check-key
+[STDOUT] [TranscriberService] Registered handler for: transcribe:start
+[TranscriberService] Registered handler for: transcribe:status
+[TranscriberService] Registered handler for: transcribe:cancel
+✅ TranscriptionService initialized with new TranscriberService
+[STDOUT] ✅ Store "transcription-handlers" initialized successfully
+[STDOUT] ✅ Store "settings" initialized successfully
+[STDOUT] ✅ Store "ipc-handlers" initialized successfully
+[STDOUT] ✅ Store "tray-manager" initialized successfully
+====== ELECTRON APP STARTING ======
+Working directory: C:\Users\Joseph\Documents\Code\codex-md
+[STDOUT] App path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar
+Resource path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources
+Executable path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\codex.md.exe
+NODE_ENV: undefined
+====================================
+[STDERR] ❌ Converter initialization failed: Error: Failed to set up converters: pdfFactory.createConverter is not a function
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDOUT] ✅ Transcription handlers: Configuration loaded
+[STDERR] ❌ UnifiedConverterFactory initialization failed: Error: Failed to set up converters: pdfFactory.createConverter is not a function
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDERR] ❌ Failed to initialize converter factory: Error: Failed to set up converters: pdfFactory.createConverter is not a function
+    at ConverterRegistry.setupConverters (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:123:15)
+    at new ConverterRegistry (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:28:10)
+    at Object.<anonymous> (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js:128:16)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Module.require (node:internal/modules/cjs/loader:1150:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+[STDOUT] App ready event fired
+[STDOUT] 📁 Offline cache directory ready: C:\Users\Joseph\AppData\Roaming\codex-md\cache
+[STDOUT] [MistralPdfConverter] node-fetch loaded successfully
+[STDOUT] INFO: Logger initialized successfully
+[STDOUT] ✅ Logger initialized
+STARTUP: Application starting up
+[STDOUT] DEBUG: Environment
+Data: {
+  "cwd": "C:\\Users\\Joseph\\Documents\\Code\\codex-md",
+  "resourcesPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources",
+  "execPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+  "argv": [
+    "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+    "--trace-warnings",
+    "--verbose"
+  ]
+}
+[STDOUT] Registering protocol handlers
+[STDOUT] INFO: Media protocol handler registered
+[STDOUT] INFO: File protocol handler registered
+[STDOUT] 🚀 Starting app initialization...
+[STDOUT] Checking for update
+Checking for updates...
+✅ Update manager initialized
+📡 Registering basic IPC handlers...
+[STDOUT] 📡 Registered offline IPC handlers
+[STDOUT] Transcription IPC handlers registered
+✅ Basic IPC handlers registered successfully
+[STDOUT] 📁 Output directory ready: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] ✅ Conversion service initialized
+INFO: Notifications initialized
+[STDOUT] INFO: Creating main window
+[STDERR] ❌ Failed to create and setup window: Error: Window not initialized for handler setup
+    at setupWindowHandlers (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\ipc\handlers.js:76:11)
+    at createAndSetupWindow (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:103:15)
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:620:28
+[STDERR] ❌ Failed to create main window
+[STDOUT] 🧹 Offline service cleaned up
+Process exited with code 0 and signal null

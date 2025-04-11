@@ -1,0 +1,144 @@
+=== Codex MD Application Run Log ===
+Started: 4/11/2025, 10:04:49 AM
+================================
+
+Starting app: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\codex.md.exe --trace-warnings --verbose
+[STDOUT] 
+[STDOUT] ConversionResultManager initialized with default output directory: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] 📄 Initialized with file handling: {
+  handlingTypes: { BINARY: 'binary', TEXT: 'text', URL: 'url' },
+  fileConfig: {
+    docx: { handling: 'binary', converter: 'text', requiresOcr: false },
+    pptx: { handling: 'binary', converter: 'text', requiresOcr: false },
+    pdf: { handling: 'binary', converter: 'pdf', requiresOcr: true },
+    xlsx: { handling: 'binary', converter: 'data', requiresOcr: false },
+    csv: { handling: 'text', converter: 'data', requiresOcr: false },
+    mp3: { handling: 'binary', converter: 'audio', requiresOcr: false },
+    wav: { handling: 'binary', converter: 'audio', requiresOcr: false },
+    mp4: { handling: 'binary', converter: 'video', requiresOcr: false }
+  }
+}
+[STDOUT] UnifiedConverterFactory initialized
+[STDOUT] 🔄 Initializing UnifiedConverterFactory...
+🔄 Starting converter initialization...
+[STDOUT] 🔍 Using converter paths: {
+  registry: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\ConverterRegistry.js',
+  converters: {
+    url: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\web\\UrlConverter.js',
+    pdf: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PdfConverterFactory.js',
+    docx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\DocxConverter.js',
+    pptx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\document\\PptxConverter.js',
+    xlsx: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\data\\XlsxConverter.js',
+    csv: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services\\conversion\\data\\CsvConverter.js'
+  }
+}
+[STDOUT] Registered converter for csv
+[STDOUT] Registered converter for xlsx
+Registered converter for mp3
+Registered converter for wav
+Registered converter for mp4
+[StandardPdfConverter] Registered handler for: convert:pdf:standard
+[StandardPdfConverter] Registered handler for: convert:pdf:standard:metadata
+[StandardPdfConverter] Registered handler for: convert:pdf:standard:thumbnail
+[MistralPdfConverter] Registered handler for: convert:pdf:ocr
+[MistralPdfConverter] Registered handler for: convert:pdf:ocr:metadata
+[MistralPdfConverter] Registered handler for: convert:pdf:ocr:check
+Registered converter for pdf
+Registered converter for url
+Registered converter for parenturl
+✅ Converters registered successfully: 8 types
+📋 Registered types: csv, xlsx, mp3, wav, mp4, pdf, url, parenturl
+🔄 [VERBOSE] Starting converters initialization
+🔍 [VERBOSE] Loading converter registry from path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\services\conversion\ConverterRegistry.js
+[STDOUT] 🔍 [VERBOSE] Environment details: {
+  environment: 'unknown',
+  appPath: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar',
+  currentDir: 'C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources\\app.asar\\src\\electron\\services',
+  isPackaged: true
+}
+🔍 [VERBOSE] Registry file exists check: true
+🔄 [VERBOSE] Using CommonJS require for converter registry
+📦 [VERBOSE] Require successful. Module structure: {
+  keys: [ 'converters' ],
+  hasConverterRegistry: false,
+  hasDefaultExport: false,
+  exportTypes: [
+    'converters: object with keys [csv, xlsx, mp3, wav, mp4, pdf, url, parenturl]'
+  ]
+}
+[STDOUT] 🔍 [VERBOSE] Converter registry structure: {
+  hasConverters: true,
+  hasConvertToMarkdown: true,
+  hasGetConverterByExtension: true,
+  hasGetConverterByMimeType: true,
+  availableConverters: [ 'csv', 'xlsx', 'mp3', 'wav', 'mp4', 'pdf', 'url', 'parenturl' ]
+}
+🕒 [VERBOSE] Converters initialization time: 0.493ms
+✅ [VERBOSE] Converters registered successfully
+ElectronConversionService initialized with default output directory: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] ✅ Store "offline-data" initialized successfully
+[STDOUT] 📋 Loaded 0 queued operations
+[STDOUT] ✅ Store "api-keys" initialized successfully
+[STDOUT] ✅ Store "transcription-settings" initialized successfully
+[STDOUT] [OpenAIProxyService] Registered handler for: openai:configure
+[STDOUT] [OpenAIProxyService] Registered handler for: openai:transcribe
+[OpenAIProxyService] Registered handler for: openai:complete
+[OpenAIProxyService] Registered handler for: openai:check-key
+[STDOUT] [TranscriberService] Registered handler for: transcribe:start
+[TranscriberService] Registered handler for: transcribe:status
+[TranscriberService] Registered handler for: transcribe:cancel
+✅ TranscriptionService initialized with new TranscriberService
+[STDOUT] ✅ Store "transcription-handlers" initialized successfully
+[STDOUT] ✅ Store "settings" initialized successfully
+[STDOUT] ✅ Store "ipc-handlers" initialized successfully
+[STDOUT] ✅ Store "tray-manager" initialized successfully
+====== ELECTRON APP STARTING ======
+Working directory: C:\Users\Joseph\Documents\Code\codex-md
+App path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar
+[STDOUT] Resource path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources
+Executable path: C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\codex.md.exe
+NODE_ENV: undefined
+====================================
+✅ Successfully loaded converter registry
+✅ Converter initialization complete
+[STDOUT] ✅ Transcription handlers: Configuration loaded
+[STDOUT] ✅ UnifiedConverterFactory initialized successfully
+[STDOUT] App ready event fired
+[STDOUT] 📁 Offline cache directory ready: C:\Users\Joseph\AppData\Roaming\codex-md\cache
+[STDOUT] [MistralPdfConverter] node-fetch loaded successfully
+[STDOUT] INFO: Logger initialized successfully
+[STDOUT] ✅ Logger initialized
+STARTUP: Application starting up
+[STDOUT] DEBUG: Environment
+Data: {
+  "cwd": "C:\\Users\\Joseph\\Documents\\Code\\codex-md",
+  "resourcesPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\resources",
+  "execPath": "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+  "argv": [
+    "C:\\Users\\Joseph\\Documents\\Code\\codex-md\\dist\\win-unpacked\\codex.md.exe",
+    "--trace-warnings",
+    "--verbose"
+  ]
+}
+[STDOUT] Registering protocol handlers
+[STDOUT] INFO: Media protocol handler registered
+[STDOUT] INFO: File protocol handler registered
+🚀 Starting app initialization...
+[STDOUT] Checking for update
+Checking for updates...
+✅ Update manager initialized
+📡 Registering basic IPC handlers...
+[STDOUT] 📡 Registered offline IPC handlers
+[STDOUT] Transcription IPC handlers registered
+✅ Basic IPC handlers registered successfully
+[STDOUT] 📁 Output directory ready: C:\Users\Joseph\AppData\Roaming\codex-md\conversions
+[STDOUT] ✅ Conversion service initialized
+INFO: Notifications initialized
+[STDOUT] INFO: Creating main window
+[STDERR] ❌ Failed to create and setup window: Error: Window not initialized for handler setup
+    at setupWindowHandlers (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\ipc\handlers.js:76:11)
+    at createAndSetupWindow (C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:103:15)
+    at C:\Users\Joseph\Documents\Code\codex-md\dist\win-unpacked\resources\app.asar\src\electron\main.js:620:28
+[STDERR] ❌ Failed to create main window
+[STDOUT] 🧹 Offline service cleaned up
+Process exited with code 0 and signal null

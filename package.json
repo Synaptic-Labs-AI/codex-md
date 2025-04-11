@@ -26,7 +26,13 @@
                     "test":  "npm run test:all",
                     "test:all":  "npm run test:e2e \u0026\u0026 npm run test:unit",
                     "test:e2e":  "playwright test",
-                    "test:unit":  "jest"
+                    "test:unit":  "jest",
+                    "kill-process": "node scripts/kill-process.js",
+                    "clean-rebuild": "npm run kill-process \u0026\u0026 npm run build:frontend \u0026\u0026 npm run prebuild:electron \u0026\u0026 electron-builder --win \u0026\u0026 cd dist\\win-unpacked \u0026\u0026 .\\codex.md.exe --trace-warnings",
+                    "debug:rebuild": "npm run build:frontend \u0026\u0026 npm run prebuild:electron \u0026\u0026 electron-builder --win \u0026\u0026 cd dist\\win-unpacked \u0026\u0026 .\\codex.md.exe --trace-warnings",
+                    "debug:verbose": "npm run build:frontend \u0026\u0026 npm run prebuild:electron \u0026\u0026 electron-builder --win \u0026\u0026 cd dist\\win-unpacked \u0026\u0026 .\\codex.md.exe --trace-warnings --verbose",
+                    "debug:log": "npm run build:frontend \u0026\u0026 npm run prebuild:electron \u0026\u0026 electron-builder --win \u0026\u0026 node scripts/run-with-log.js",
+                    "clean-log": "npm run kill-process \u0026\u0026 npm run build:frontend \u0026\u0026 npm run prebuild:electron \u0026\u0026 electron-builder --win \u0026\u0026 node scripts/run-with-log.js"
                 },
     "build":  {
                   "appId":  "com.codexmd.app",
@@ -44,7 +50,7 @@
                   "afterPack":  "./scripts/afterPack.js",
                   "asar":  true,
                   "asarUnpack":  [
-                                     "node_modules/@ffmpeg-installer/**/*"
+                                     "node_modules/**/*"
                                  ],
                   "win":  {
                               "target":  [
@@ -62,7 +68,7 @@
                   "files":  [
                                 "src/electron/**/*",
                                 "frontend/dist/**/*",
-                                "!**/node_modules/**/*"
+                                "node_modules/**/*"
                             ],
                   "extraResources":  [
                                          {
@@ -84,6 +90,10 @@
                                      {
                                          "from":  "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
                                          "to":  "resources/ffmpeg.exe"
+                                     },
+                                     {
+                                         "from":  "node_modules",
+                                         "to":  "resources/node_modules"
                                      }
                                  ]
               },
@@ -130,6 +140,7 @@
                          "node-fetch":  "^3.3.2",
                          "node-machine-id":  "^1.1.12",
                          "openai":  "^4.28.0",
+                         "pdf-lib": "^1.17.1",
                          "pdf-parse":  "^1.1.1",
                          "proper-lockfile":  "^4.1.2",
                          "puppeteer":  "^23.11.1",
@@ -170,7 +181,7 @@
                             "@babel/core":  "^7.15.0",
                             "@babel/preset-env":  "^7.15.0",
                             "axios":  "^1.7.7",
-                            "axios-retry":  "^4.5.0",
+                            "axios-retry":  "^3.8.0",
                             "canvas":  "^2.11.2",
                             "concurrently":  "^8.0.0",
                             "csv-parse":  "^5.6.0",

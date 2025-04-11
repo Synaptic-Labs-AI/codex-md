@@ -48,6 +48,38 @@ exports.default = async function(context) {
       }
     }
 
+    // Setup resource directories
+    const resourcesDir = path.join(appOutDir, 'resources');
+
+    // Verify node_modules directory exists
+    const nodeModulesPath = path.join(resourcesDir, 'node_modules');
+    if (await safePathExists(nodeModulesPath)) {
+      console.log('✅ Verified node_modules directory exists');
+      
+      // Check a few critical modules as a sample
+      const criticalModules = [
+        'fs-extra',
+        'node-cache',
+        'axios',
+        'form-data',
+        'mime-types',
+        'mime-db',
+        'combined-stream',
+        'delayed-stream'
+      ];
+      
+      for (const module of criticalModules) {
+        const modulePath = path.join(nodeModulesPath, module);
+        if (await safePathExists(modulePath)) {
+          console.log(`✅ Verified ${module} module`);
+        } else {
+          console.warn(`⚠️ ${module} module not found in resources`);
+        }
+      }
+    } else {
+      console.error('❌ node_modules directory not found in resources');
+    }
+
     // Verify critical static assets - these should now be in extraResources
     const staticAssets = [
       'favicon-icon.png',
@@ -55,12 +87,18 @@ exports.default = async function(context) {
       'logo.png',
       'synaptic-labs-logo.png'
     ];
+    
+    // Also verify frontend files
+    const frontendFiles = [
+      'index.html'
+    ];
 
     // Check in the extraResources destination path
-    const resourcesDir = path.join(appOutDir, 'resources');
     const extraResourcesDir = path.join(resourcesDir, 'frontend', 'dist', 'static');
+    const frontendDir = path.join(resourcesDir, 'frontend', 'dist');
     
     console.log(`Checking for assets in extraResources path: ${extraResourcesDir}`);
+    console.log(`Checking for frontend files in: ${frontendDir}`);
     
     // Verify the extraResources directory exists
     if (await safePathExists(extraResourcesDir)) {
@@ -95,6 +133,65 @@ exports.default = async function(context) {
       }
     }
 
+    // Verify frontend files
+    if (await safePathExists(frontendDir)) {
+      console.log('✅ Frontend dist directory found');
+      
+      // Check each frontend file
+      let missingFrontendFiles = 0;
+      for (const file of frontendFiles) {
+        const filePath = path.join(frontendDir, file);
+        if (await safePathExists(filePath)) {
+          console.log(`✅ Verified frontend file: ${file}`);
+          
+          // For index.html, check its content
+          if (file === 'index.html') {
+            try {
+              const content = await fs.readFile(filePath, 'utf8');
+              console.log(`Index.html content length: ${content.length} bytes`);
+              
+              // Check for key elements in the HTML
+              if (content.includes('<div id="app"></div>')) {
+                console.log('✅ Index.html contains app div');
+              } else {
+                console.warn('⚠️ Index.html missing app div');
+              }
+              
+              // Check for script and CSS references
+              if (content.includes('src="./assets/')) {
+                console.log('✅ Index.html contains script references');
+              } else {
+                console.warn('⚠️ Index.html missing script references');
+              }
+            } catch (error) {
+              console.warn(`⚠️ Could not read index.html: ${error.message}`);
+            }
+          }
+        } else {
+          console.warn(`⚠️ Frontend file not found: ${file}`);
+          missingFrontendFiles++;
+        }
+      }
+      
+      // Check for assets directory
+      const assetsDir = path.join(frontendDir, 'assets');
+      if (await safePathExists(assetsDir)) {
+        console.log('✅ Assets directory found');
+        
+        try {
+          const assetFiles = await fs.readdir(assetsDir);
+          console.log(`Assets directory contains ${assetFiles.length} files`);
+          console.log('Asset files:', assetFiles);
+        } catch (error) {
+          console.warn(`⚠️ Could not read assets directory: ${error.message}`);
+        }
+      } else {
+        console.warn('⚠️ Assets directory not found');
+      }
+    } else {
+      console.warn('⚠️ Frontend dist directory not found');
+    }
+    
     console.log('✅ afterPack verification completed');
   } catch (error) {
     console.error('❌ Error in afterPack:', error);

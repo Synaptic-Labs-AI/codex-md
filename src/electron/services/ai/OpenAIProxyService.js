@@ -18,7 +18,7 @@ const BaseService = require('../BaseService');
 const { Configuration, OpenAIApi } = require('openai');
 const NodeCache = require('node-cache');
 const axios = require('axios');
-const axiosRetry = require('axios-retry');
+const axiosRetry = require('./OpenAIProxyServiceFix');
 
 class OpenAIProxyService extends BaseService {
     constructor() {

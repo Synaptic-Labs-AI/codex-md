@@ -12,7 +12,9 @@
 const { app, BrowserWindow, protocol } = require('electron');
 const path = require('path');
 const url = require('url');
+const fs = require('fs-extra');
 const { PathUtils } = require('./utils/paths');
+const logger = require('./utils/logger');
 const ElectronConversionService = require('./services/ElectronConversionService');
 const { createMacMenu } = require('./features/menu');
 const { setupBasicHandlers, setupWindowHandlers, cleanupWindowHandlers } = require('./ipc/handlers');
@@ -27,6 +29,7 @@ let appInitialized = false;
 let trayManager = null;
 let notificationManager = null;
 let updateManager = null;
+let loggerInitialized = false;
 
 // Initialize tray store
 const trayStore = createStore('tray-manager', {
@@ -34,14 +37,36 @@ const trayStore = createStore('tray-manager', {
 });
 
 /**
+ * Initialize logger
+ * @returns {Promise<boolean>} Whether logger was successfully initialized
+ */
+async function initializeLogger() {
+    try {
+        await logger.initialize();
+        loggerInitialized = true;
+        console.log('✅ Logger initialized');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to initialize logger:', error);
+        return false;
+    }
+}
+
+/**
  * Setup notifications with error handling
  */
-function setupNotifications() {
+async function setupNotifications() {
     try {
         notificationManager = new NotificationManager();
+        if (loggerInitialized) {
+            await logger.log('Notifications initialized');
+        }
         console.log('✅ Notifications initialized');
         return true;
     } catch (error) {
+        if (loggerInitialized) {
+            await logger.error('Failed to setup notifications', error);
+        }
         console.error('❌ Failed to setup notifications:', error);
         notificationManager = null;
         return false;
@@ -72,8 +97,20 @@ function setupTray() {
  */
 async function createAndSetupWindow() {
     try {
-        const window = createMainWindow();
+        console.log('Creating main window...');
+        const window = await createMainWindow();
         
+        if (!window) {
+            console.error('❌ Window creation failed: window is null');
+            return null;
+        }
+        
+        console.log('Window created successfully, waiting for initialization...');
+        
+        // Wait a moment for the window to initialize fully
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        console.log('Setting up window handlers...');
         // Setup window handlers
         await setupWindowHandlers(window);
         console.log('✅ Window handlers registered successfully');
@@ -122,9 +159,29 @@ async function initializeApp() {
  * Create the main application window
  * Only called after initialization is complete
  */
-function createMainWindow() {
+async function createMainWindow() {
     if (!appInitialized) {
-        throw new Error('Cannot create window before app initialization');
+        const error = new Error('Cannot create window before app initialization');
+        if (loggerInitialized) {
+            await logger.error('Window creation error', error);
+        }
+        throw error;
+    }
+
+    if (loggerInitialized) {
+        await logger.log('Creating main window');
+        
+        // Log app paths for debugging
+        const appPaths = {
+            appPath: app.getAppPath(),
+            appData: app.getPath('appData'),
+            userData: app.getPath('userData'),
+            exe: app.getPath('exe'),
+            module: app.getPath('module'),
+            cwd: process.cwd(),
+            resourcesPath: process.resourcesPath || 'undefined'
+        };
+        await logger.debug('Application paths', appPaths);
     }
 
     // Get platform-specific icon path
@@ -133,6 +190,21 @@ function createMainWindow() {
             ? path.join(__dirname, '../frontend/static/logo.png')
             : path.join(app.getAppPath(), 'frontend/static/logo.png')
     );
+    
+    if (loggerInitialized) {
+        await logger.debug('Icon path', { iconPath });
+
+        // Verify icon exists
+        try {
+            const iconExists = await fs.pathExists(iconPath);
+            await logger.debug('Icon file check', { exists: iconExists, path: iconPath });
+            if (!iconExists) {
+                await logger.warn(`Icon file does not exist: ${iconPath}`);
+            }
+        } catch (error) {
+            await logger.error('Error checking icon file', error);
+        }
+    }
 
     // Configure window for platform
     const windowConfig = {
@@ -145,7 +217,8 @@ function createMainWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: PathUtils.normalizePath(path.join(__dirname, 'preload.js'))
-        }
+        },
+        show: false // Don't show the window until it's ready
     };
 
     // Platform-specific window settings
@@ -154,8 +227,30 @@ function createMainWindow() {
     } else if (process.platform === 'win32') {
         windowConfig.frame = true;
     }
+    
+    if (loggerInitialized) {
+        await logger.logWindowCreation(windowConfig);
+    }
 
-    mainWindow = new BrowserWindow(windowConfig);
+    try {
+        mainWindow = new BrowserWindow(windowConfig);
+        if (loggerInitialized) {
+            await logger.log('BrowserWindow created successfully');
+        }
+    } catch (error) {
+        if (loggerInitialized) {
+            await logger.error('Failed to create BrowserWindow', error);
+        }
+        throw error;
+    }
+    
+    // Show window when it's ready to avoid white flash
+    mainWindow.once('ready-to-show', () => {
+        if (loggerInitialized) {
+            logger.log('Window ready to show event fired');
+        }
+        mainWindow.show();
+    });
 
     // Load the app
     if (process.env.NODE_ENV === 'development') {
@@ -253,99 +348,277 @@ function createMainWindow() {
     return mainWindow;
 }
 
+/**
+ * Register media protocol handler with logging
+ */
+function registerMediaProtocol() {
+    protocol.registerFileProtocol('media', async (request, callback) => {
+        try {
+            const filePath = request.url.replace('media://', '');
+            const safePath = PathUtils.normalizePath(decodeURI(filePath));
+            
+            if (loggerInitialized) {
+                await logger.log(`Media protocol serving: ${safePath}`);
+            }
+            console.log('Media protocol serving:', safePath);
+            callback(safePath);
+        } catch (error) {
+            if (loggerInitialized) {
+                await logger.error(`Media protocol handler error: ${request.url}`, error);
+            }
+            console.error('Error in media protocol handler:', error);
+            callback({ error: -2 });
+        }
+    });
+    
+    if (loggerInitialized) {
+        logger.log('Media protocol handler registered');
+    }
+}
+
+/**
+ * Register enhanced file protocol handler with logging
+ */
+function registerFileProtocol() {
+    protocol.registerFileProtocol('file', async (request, callback) => {
+        try {
+            let filePath = request.url.replace('file://', '');
+            
+            if (loggerInitialized) {
+                await logger.debug('File protocol request', { url: request.url, filePath });
+            }
+            console.log('File protocol request:', filePath);
+            
+            // Special handling for Windows absolute paths with drive letters
+            if (process.platform === 'win32' && filePath.match(/^\/[A-Za-z]:\//)) {
+                // Remove the leading slash before the drive letter
+                filePath = filePath.replace(/^\/([A-Za-z]:\/.*?)$/, '$1');
+                
+                if (loggerInitialized) {
+                    await logger.debug('Normalized Windows path', { filePath });
+                }
+                console.log('Normalized Windows path:', filePath);
+            }
+            
+            // Special case for index.html to avoid SvelteKit routing issues
+            if (filePath.endsWith('index.html') || filePath.endsWith('\\index.html')) {
+                const indexPath = process.env.NODE_ENV === 'development'
+                    ? path.join(__dirname, '../frontend/dist/index.html')
+                    : path.join(app.getAppPath(), 'frontend/dist/index.html');
+                    
+                const safePath = PathUtils.normalizePath(decodeURI(indexPath));
+                
+                if (loggerInitialized) {
+                    await logger.logAssetLoading('index.html', safePath);
+                    
+                    // Check if file exists
+                    try {
+                        const exists = await fs.pathExists(safePath);
+                        await logger.debug('Index file exists check', { exists, path: safePath });
+                        
+                        if (!exists) {
+                            // List alternative paths to check
+                            const alternativePaths = [
+                                path.join(app.getAppPath(), 'frontend/dist/index.html'),
+                                path.join(process.resourcesPath || '', 'frontend/dist/index.html'),
+                                path.join(app.getPath('exe'), '../resources/frontend/dist/index.html')
+                            ];
+                            
+                            await logger.debug('Alternative index.html paths', { alternativePaths });
+                            
+                            // Check each alternative path
+                            for (const altPath of alternativePaths) {
+                                try {
+                                    const altExists = await fs.pathExists(altPath);
+                                    await logger.debug('Alternative path exists', { path: altPath, exists: altExists });
+                                } catch (err) {
+                                    await logger.error(`Error checking alternative path: ${altPath}`, err);
+                                }
+                            }
+                            
+                            // List dist directory contents
+                            try {
+                                const distDir = path.dirname(safePath);
+                                if (await fs.pathExists(distDir)) {
+                                    const files = await fs.readdir(distDir);
+                                    await logger.debug('Dist directory contents', { directory: distDir, files });
+                                }
+                            } catch (err) {
+                                await logger.error('Error reading dist directory', err);
+                            }
+                        }
+                    } catch (err) {
+                        await logger.error('Error checking index.html existence', err);
+                    }
+                }
+                
+                console.log('Serving index.html from:', safePath);
+                callback(safePath);
+                return;
+            }
+            
+            // Handle static assets from frontend/static
+            if (filePath.includes('/static/') || filePath.includes('\\static\\')) {
+                const staticFile = path.basename(filePath);
+                const staticPath = process.env.NODE_ENV === 'development'
+                    ? path.join(__dirname, '../frontend/static', staticFile)
+                    : path.join(app.getAppPath(), 'frontend/static', staticFile);
+                    
+                const safePath = PathUtils.normalizePath(decodeURI(staticPath));
+                
+                if (loggerInitialized) {
+                    await logger.logAssetLoading(filePath, safePath);
+                    
+                    // Check if file exists
+                    try {
+                        const exists = await fs.pathExists(safePath);
+                        await logger.debug('Static asset exists check', { exists, path: safePath });
+                        
+                        if (!exists) {
+                            // Try fallback locations
+                            const altPaths = [
+                                path.join(app.getAppPath(), 'resources/static', staticFile),
+                                path.join(app.getAppPath(), 'resources/frontend/dist/static', staticFile),
+                                path.join(process.resourcesPath || '', 'static', staticFile),
+                                path.join(process.resourcesPath || '', 'frontend/dist/static', staticFile),
+                                path.join(app.getPath('exe'), '../resources/static', staticFile)
+                            ];
+                            
+                            await logger.debug('Alternative static asset paths', { file: staticFile, paths: altPaths });
+                            
+                            // Check each alternative path
+                            for (const altPath of altPaths) {
+                                try {
+                                    const altExists = await fs.pathExists(altPath);
+                                    await logger.debug('Alternative path exists', { path: altPath, exists: altExists });
+                                    
+                                    if (altExists) {
+                                        await logger.log(`Found alternative path for ${staticFile}: ${altPath}`);
+                                        callback(altPath);
+                                        return;
+                                    }
+                                } catch (err) {
+                                    await logger.error(`Error checking alternative path: ${altPath}`, err);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        await logger.error(`Error checking existence of static asset: ${staticFile}`, err);
+                    }
+                }
+                
+                console.log('Serving static asset from:', safePath);
+                callback(safePath);
+                return;
+            }
+            
+            // Handle Vite/Svelte assets
+            if (filePath.includes('/assets/') || filePath.includes('\\assets\\')) {
+                const assetFile = filePath.substring(filePath.lastIndexOf('/') + 1);
+                const assetPath = process.env.NODE_ENV === 'development'
+                    ? path.join(__dirname, '../frontend/dist/assets', assetFile)
+                    : path.join(app.getAppPath(), 'frontend/dist/assets', assetFile);
+                    
+                const safePath = PathUtils.normalizePath(decodeURI(assetPath));
+                
+                if (loggerInitialized) {
+                    await logger.logAssetLoading(filePath, safePath);
+                    
+                    // Check if file exists
+                    try {
+                        const exists = await fs.pathExists(safePath);
+                        await logger.debug('Asset exists check', { exists, path: safePath });
+                        
+                        if (!exists) {
+                            // Try fallback locations
+                            const altPaths = [
+                                path.join(app.getAppPath(), 'frontend/dist/assets', assetFile),
+                                path.join(app.getAppPath(), 'resources/frontend/dist/assets', assetFile),
+                                path.join(process.resourcesPath || '', 'frontend/dist/assets', assetFile)
+                            ];
+                            
+                            await logger.debug('Alternative asset paths', { file: assetFile, paths: altPaths });
+                        }
+                    } catch (err) {
+                        await logger.error(`Error checking existence of asset: ${assetFile}`, err);
+                    }
+                }
+                
+                console.log('Serving Vite asset from:', safePath);
+                callback(safePath);
+                return;
+            }
+            
+            // Special case for direct file requests with no path (just a filename)
+            if (!filePath.includes('/') && !filePath.includes('\\') && filePath.includes('.')) {
+                if (loggerInitialized) {
+                    await logger.log('Detected direct file request with no path');
+                }
+                console.log('Detected direct file request with no path');
+                
+                // Try to find the file in the dist directory
+                const distPath = process.env.NODE_ENV === 'development'
+                    ? path.join(__dirname, '../frontend/dist', filePath)
+                    : path.join(app.getAppPath(), 'frontend/dist', filePath);
+                    
+                const safePath = PathUtils.normalizePath(decodeURI(distPath));
+                
+                if (loggerInitialized) {
+                    await logger.logAssetLoading(filePath, safePath);
+                }
+                
+                console.log('Serving direct file from dist:', safePath);
+                callback(safePath);
+                return;
+            }
+            
+            // Handle other file:// requests normally
+            const safePath = PathUtils.normalizePath(decodeURI(filePath));
+            
+            if (loggerInitialized) {
+                await logger.logAssetLoading(filePath, safePath);
+            }
+            
+            console.log('Serving standard file from:', safePath);
+            callback(safePath);
+        } catch (error) {
+            if (loggerInitialized) {
+                await logger.logProtocolError(request.url, error);
+            }
+            
+            console.error('Error in file protocol handler:', error);
+            callback({ error: -2 }); // Failed to load
+        }
+    });
+    
+    if (loggerInitialized) {
+        logger.log('File protocol handler registered');
+    }
+}
+
+// Direct console output for debugging
+console.log('====== ELECTRON APP STARTING ======');
+console.log('Working directory:', process.cwd());
+console.log('App path:', app.getAppPath());
+console.log('Resource path:', process.resourcesPath);
+console.log('Executable path:', process.execPath);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('====================================');
+
 // App startup sequence
 app.whenReady().then(async () => {
     try {
-        // Register standard protocols with enhanced error handling
-        protocol.registerFileProtocol('media', (request, callback) => {
-    try {
-        const filePath = request.url.replace('media://', '');
-        const safePath = PathUtils.normalizePath(decodeURI(filePath));
-        console.log('Media protocol serving:', safePath);
-        callback(safePath);
-    } catch (error) {
-        console.error('Error in media protocol handler:', error);
-        callback({ error: -2 });
-    }
-});
-
-// Enhanced file protocol handler with proper ASAR-aware path resolution
-protocol.registerFileProtocol('file', (request, callback) => {
-    try {
-        let filePath = request.url.replace('file://', '');
-        console.log('File protocol request:', filePath);
+        console.log('App ready event fired');
         
-        // Special handling for Windows absolute paths with drive letters
-        if (process.platform === 'win32' && filePath.match(/^\/[A-Za-z]:\//)) {
-            // Remove the leading slash before the drive letter
-            filePath = filePath.replace(/^\/([A-Za-z]:\/.*?)$/, '$1');
-            console.log('Normalized Windows path:', filePath);
-        }
+        // Initialize logger first thing
+        await initializeLogger();
+        await logger.logStartup();
         
-        // Handle static assets from frontend/static
-        if (filePath.includes('/static/') || filePath.includes('\\static\\')) {
-            const staticFile = path.basename(filePath);
-            const staticPath = process.env.NODE_ENV === 'development'
-                ? path.join(__dirname, '../frontend/static', staticFile)
-                : path.join(app.getAppPath(), 'frontend/static', staticFile);
-                
-            const safePath = PathUtils.normalizePath(decodeURI(staticPath));
-            console.log('Serving static asset from:', safePath);
-            callback(safePath);
-            return;
-        }
+        // Register protocol handlers
+        console.log('Registering protocol handlers');
+        registerMediaProtocol();
+        registerFileProtocol();
         
-        // Handle Vite/Svelte assets
-        if (filePath.includes('/assets/') || filePath.includes('\\assets\\')) {
-            const assetFile = filePath.substring(filePath.lastIndexOf('/') + 1);
-            const assetPath = process.env.NODE_ENV === 'development'
-                ? path.join(__dirname, '../frontend/dist/assets', assetFile)
-                : path.join(app.getAppPath(), 'frontend/dist/assets', assetFile);
-                
-            const safePath = PathUtils.normalizePath(decodeURI(assetPath));
-            console.log('Serving Vite asset from:', safePath);
-            callback(safePath);
-            return;
-        }
-        
-        // Special case for index.html to avoid SvelteKit routing issues
-        if (filePath.endsWith('index.html') || filePath.endsWith('\\index.html')) {
-            const indexPath = process.env.NODE_ENV === 'development'
-                ? path.join(__dirname, '../frontend/dist/index.html')
-                : path.join(app.getAppPath(), 'frontend/dist/index.html');
-                
-            const safePath = PathUtils.normalizePath(decodeURI(indexPath));
-            console.log('Serving index.html from:', safePath);
-            callback(safePath);
-            return;
-        }
-        
-        // Special case for direct file requests with no path (just a filename)
-        // This handles cases where SvelteKit generates direct references to files in the root
-        if (!filePath.includes('/') && !filePath.includes('\\') && filePath.includes('.')) {
-            console.log('Detected direct file request with no path');
-            
-            // Try to find the file in the dist directory
-            const distPath = process.env.NODE_ENV === 'development'
-                ? path.join(__dirname, '../frontend/dist', filePath)
-                : path.join(app.getAppPath(), 'frontend/dist', filePath);
-                
-            const safePath = PathUtils.normalizePath(decodeURI(distPath));
-            console.log('Serving direct file from dist:', safePath);
-            callback(safePath);
-            return;
-        }
-        
-        // Handle other file:// requests normally
-        const safePath = PathUtils.normalizePath(decodeURI(filePath));
-        console.log('Serving standard file from:', safePath);
-        callback(safePath);
-    } catch (error) {
-        console.error('Error in file protocol handler:', error);
-        callback({ error: -2 }); // Failed to load
-    }
-});
-
         // Initialize app before creating window
         console.log('🚀 Starting app initialization...');
         const success = await initializeApp();
@@ -418,8 +691,19 @@ app.on('will-quit', () => {
 });
 
 // Handle fatal errors
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', async (error) => {
     console.error('❌ Uncaught exception:', error);
+    
+    // Log to file if logger is initialized
+    if (loggerInitialized) {
+        try {
+            await logger.error('Uncaught exception', error);
+        } catch (logError) {
+            console.error('❌ Failed to log uncaught exception:', logError);
+        }
+    }
+    
+    // Try to send to renderer
     if (mainWindow?.webContents) {
         try {
             mainWindow.webContents.send('app:error', error.message);
@@ -428,4 +712,3 @@ process.on('uncaughtException', (error) => {
         }
     }
 });
-

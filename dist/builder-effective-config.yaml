@@ -1,0 +1,42 @@
+directories:
+  output: dist
+  buildResources: build
+appId: com.codexmd.app
+productName: codex.md
+publish:
+  - provider: github
+    owner: Synaptic-Labs-AI
+    repo: codex-md
+afterPack: ./scripts/afterPack.js
+asar: true
+asarUnpack:
+  - node_modules/**/*
+win:
+  target:
+    - nsis
+  icon: frontend/static/app-icon.png
+  artifactName: ${productName}-Setup-${version}.${ext}
+protocols:
+  name: codex-md
+  schemes:
+    - codex-md
+files:
+  - filter:
+      - src/electron/**/*
+      - frontend/dist/**/*
+      - node_modules/**/*
+extraResources:
+  - from: frontend/dist
+    to: frontend/dist
+    filter:
+      - '**/*'
+  - from: frontend/static
+    to: static
+    filter:
+      - '**/*'
+extraFiles:
+  - from: node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe
+    to: resources/ffmpeg.exe
+  - from: node_modules
+    to: resources/node_modules
+electronVersion: 28.3.3

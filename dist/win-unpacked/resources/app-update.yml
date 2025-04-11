@@ -1,0 +1,4 @@
+owner: Synaptic-Labs-AI
+repo: codex-md
+provider: github
+updaterCacheDirName: codex-md-updater

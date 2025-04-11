@@ -103,7 +103,24 @@ ConverterRegistry.prototype.setupConverters = function() {
         this.register('mp3', audioConverter);
         this.register('wav', audioConverter);
         this.register('mp4', videoConverter);
-        this.register('pdf', pdfFactory.createConverter());
+        // Create an instance of PdfConverterFactory
+        const pdfConverterFactory = new pdfFactory();
+        
+        // Register the factory itself as the converter for PDF files
+        this.register('pdf', {
+            convert: async (content, name, apiKey, options) => {
+                // This is a wrapper that will delegate to the appropriate converter
+                const converter = await pdfConverterFactory.getConverter(name, options);
+                return converter.convert(content, name, apiKey, options);
+            },
+            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
+            config: {
+                name: 'PDF Converter',
+                extensions: ['.pdf'],
+                mimeTypes: ['application/pdf'],
+                maxSize: 100 * 1024 * 1024 // 100MB
+            }
+        });
         this.register('url', urlConverter);
         this.register('parenturl', parentUrlConverter);
         
