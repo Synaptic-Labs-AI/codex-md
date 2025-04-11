@@ -122,14 +122,39 @@ ConverterRegistry.prototype.setupConverters = function() {
         const urlConverterInstance = new UrlConverter(fileProcessorMock, fileStorageMock);
         const parentUrlConverterInstance = new ParentUrlConverter(fileProcessorMock, fileStorageMock);
 
-        // Create standardized adapter for DOCX converter
+        // Create standardized adapter for DOCX converter using the actual implementation
         this.register('docx', {
             convert: async (content, name, apiKey, options) => {
-                return await docxConverterInstance.convertToMarkdown(content, {
-                    ...options,
-                    name,
-                    apiKey
-                });
+                try {
+                    console.log(`[DocxAdapter] Converting DOCX file: ${name}`);
+                    
+                    // Ensure content is a Buffer
+                    if (!Buffer.isBuffer(content)) {
+                        throw new Error('DOCX content must be a Buffer');
+                    }
+                    
+                    // Use the actual DocxConverter implementation
+                    const result = await docxConverterInstance.convertToMarkdown(content, {
+                        ...options,
+                        fileName: name,
+                        apiKey
+                    });
+                    
+                    // Ensure we have content
+                    if (!result || typeof result !== 'string' || result.trim() === '') {
+                        throw new Error('DOCX conversion produced empty content');
+                    }
+                    
+                    return {
+                        success: true,
+                        content: result,
+                        name: name,
+                        type: 'docx'
+                    };
+                } catch (error) {
+                    console.error(`[DocxAdapter] Error converting DOCX: ${error.message}`);
+                    throw new Error(`DOCX conversion failed: ${error.message}`);
+                }
             },
             validate: (content) => Buffer.isBuffer(content) && content.length > 0,
             config: {
