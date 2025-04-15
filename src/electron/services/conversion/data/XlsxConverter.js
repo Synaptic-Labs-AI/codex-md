@@ -41,15 +41,35 @@ class XlsxConverter extends BaseService {
      */
     async handleConvert(event, { filePath, options = {} }) {
         try {
-            const workbook = xlsx.readFile(filePath, {
-                cellDates: true,
-                ...options.xlsxOptions
-            });
+            console.log(`[XlsxConverter] Converting file: ${filePath}`);
+            
+            // Add error handling for file reading
+            let workbook;
+            try {
+                workbook = xlsx.readFile(filePath, {
+                    cellDates: true,
+                    ...options.xlsxOptions
+                });
+            } catch (readError) {
+                console.error(`[XlsxConverter] Failed to read Excel file: ${filePath}`, readError);
+                throw new Error(`Failed to read Excel file: ${readError.message}`);
+            }
+            
+            // Validate workbook structure
+            if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+                console.error(`[XlsxConverter] Invalid workbook structure: ${filePath}`);
+                throw new Error('Invalid Excel file structure: No sheets found');
+            }
 
             const result = await this.convertToMarkdown(workbook, {
                 ...options,
                 includeAllSheets: true
             });
+
+            if (!result || result.trim() === '') {
+                console.error(`[XlsxConverter] Conversion produced empty content: ${filePath}`);
+                throw new Error('Excel conversion produced empty content');
+            }
 
             return { content: result };
         } catch (error) {
@@ -112,17 +132,53 @@ class XlsxConverter extends BaseService {
      */
     async convertToMarkdown(workbook, options = {}) {
         try {
+            console.log(`[XlsxConverter] convertToMarkdown called with options:`, JSON.stringify(options, null, 2));
+            
+            // Validate workbook structure
+            if (!workbook) {
+                console.error('[XlsxConverter] Invalid workbook: workbook is null or undefined');
+                return '> Error: Invalid Excel workbook structure.';
+            }
+            
+            if (!workbook.SheetNames || !Array.isArray(workbook.SheetNames) || workbook.SheetNames.length === 0) {
+                console.error('[XlsxConverter] Invalid workbook: no sheets found', {
+                    hasSheetNames: !!workbook.SheetNames,
+                    isArray: Array.isArray(workbook.SheetNames),
+                    length: workbook.SheetNames ? workbook.SheetNames.length : 0
+                });
+                return '> Error: No sheets found in Excel workbook.';
+            }
+            
+            // Get the original filename without extension
+            const fileName = options.originalFileName || options.name || 'excel-data';
+            const fileTitle = fileName.replace(/\.[^/.]+$/, ''); // Remove file extension if present
+            
+            // Get current datetime
+            const now = new Date();
+            const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
+            
             const markdown = [];
-            const sheets = options.includeAllSheets ? 
-                workbook.SheetNames : 
-                [options.sheet || workbook.SheetNames[0]];
-
-            // Add title if provided
-            if (options.title) {
-                markdown.push(`# ${options.title}\n`);
+            
+            // Add standardized frontmatter
+            markdown.push('---');
+            markdown.push(`title: ${fileTitle}`);
+            markdown.push(`converted: ${convertedDate}`);
+            markdown.push('type: xlsx');
+            markdown.push('---');
+            markdown.push('');
+            
+            // Safely determine which sheets to process
+            let sheets;
+            if (options.includeAllSheets) {
+                sheets = workbook.SheetNames;
+                console.log(`[XlsxConverter] Processing all ${sheets.length} sheets`);
+            } else {
+                const defaultSheet = workbook.SheetNames[0];
+                sheets = [options.sheet || defaultSheet];
+                console.log(`[XlsxConverter] Processing single sheet: ${sheets[0]}`);
             }
 
-            // Add document properties
+            // Add document properties as notes
             if (workbook.Props) {
                 markdown.push('> Excel Document Properties');
                 if (workbook.Props.Title) markdown.push(`> - Title: ${workbook.Props.Title}`);
@@ -133,10 +189,32 @@ class XlsxConverter extends BaseService {
 
             // Process each sheet
             for (const sheetName of sheets) {
+                console.log(`[XlsxConverter] Processing sheet: ${sheetName}`);
+                
+                // Validate sheet exists
+                if (!workbook.Sheets || !workbook.Sheets[sheetName]) {
+                    console.error(`[XlsxConverter] Sheet not found: ${sheetName}`);
+                    markdown.push(`## ${sheetName}`);
+                    markdown.push('> Error: Sheet data not found.\n');
+                    continue;
+                }
+                
                 const sheet = workbook.Sheets[sheetName];
-                const data = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+                
+                // Safely convert sheet to JSON with error handling
+                let data;
+                try {
+                    data = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+                    console.log(`[XlsxConverter] Converted sheet to JSON, rows: ${data.length}`);
+                } catch (sheetError) {
+                    console.error(`[XlsxConverter] Error converting sheet to JSON: ${sheetName}`, sheetError);
+                    markdown.push(`## ${sheetName}`);
+                    markdown.push(`> Error converting sheet: ${sheetError.message}\n`);
+                    continue;
+                }
 
-                if (data.length === 0) {
+                if (!data || data.length === 0) {
+                    console.log(`[XlsxConverter] No data found in sheet: ${sheetName}`);
                     markdown.push(`## ${sheetName}`);
                     markdown.push('> No data found in this sheet.\n');
                     continue;
@@ -152,7 +230,15 @@ class XlsxConverter extends BaseService {
                 markdown.push(`> - Rows: ${range.e.r - range.s.r + 1}`);
                 markdown.push('');
 
-                // Get headers (first row)
+                // Check if we have data and headers
+                if (!data[0] || !Array.isArray(data[0])) {
+                    console.warn(`[XlsxConverter] Sheet ${sheetName} has no headers or invalid data structure`);
+                    markdown.push('> No valid data structure found in this sheet.\n');
+                    continue;
+                }
+
+                // Get headers (first row) with additional logging
+                console.log(`[XlsxConverter] First row data:`, JSON.stringify(data[0]));
                 const headers = data[0].map(h => (h || '').toString());
 
                 // Build table header
@@ -163,20 +249,38 @@ class XlsxConverter extends BaseService {
                 const maxRows = options.maxRows || data.length;
                 for (let i = 1; i < Math.min(data.length, maxRows + 1); i++) {
                     const row = data[i];
-                    const formattedRow = headers.map((_, index) => {
-                        const cell = row ? row[index] : '';
-                        return this.formatCell(cell);
-                    });
-                    markdown.push('| ' + formattedRow.join(' | ') + ' |');
+                    if (!row) {
+                        console.debug(`[XlsxConverter] Empty row at index ${i} in sheet ${sheetName}`);
+                        continue;
+                    }
+                    // Add additional error handling for row processing
+                    try {
+                        const formattedRow = headers.map((_, index) => {
+                            try {
+                                const cell = row[index];
+                                return this.formatCell(cell);
+                            } catch (cellError) {
+                                console.warn(`[XlsxConverter] Error formatting cell at index ${index}:`, cellError);
+                                return '';
+                            }
+                        });
+                        markdown.push('| ' + formattedRow.join(' | ') + ' |');
+                    } catch (rowError) {
+                        console.error(`[XlsxConverter] Error processing row at index ${i}:`, rowError);
+                        // Skip problematic rows instead of failing the entire conversion
+                    }
                 }
-
                 markdown.push(''); // Add space between sheets
             }
 
-            return markdown.join('\n');
+            const result = markdown.join('\n');
+            console.log(`[XlsxConverter] Markdown generation complete, length: ${result.length} bytes`);
+            return result;
         } catch (error) {
             console.error('[XlsxConverter] Markdown conversion failed:', error);
-            throw error;
+            console.error('[XlsxConverter] Error details:', error.stack || error);
+            // Return a meaningful error message instead of throwing
+            return `> Error converting Excel file: ${error.message}`;
         }
     }
 
@@ -194,8 +298,13 @@ class XlsxConverter extends BaseService {
             return value.toISOString().split('T')[0];
         }
 
-        const str = value.toString();
-        return str.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+        try {
+            const str = value.toString();
+            return str.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+        } catch (error) {
+            console.error('[XlsxConverter] Error formatting cell:', error, 'Value type:', typeof value);
+            return '';
+        }
     }
 
     /**

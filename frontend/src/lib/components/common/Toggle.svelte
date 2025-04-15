@@ -117,13 +117,4 @@
     font-size: var(--font-size-sm);
     color: var(--color-text);
   }
-  
-  .test-button {
-    margin-right: 10px;
-    padding: 5px;
-    background-color: #f0f0f0;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    cursor: pointer;
-  }
 </style>

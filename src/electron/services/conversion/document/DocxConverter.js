@@ -279,19 +279,22 @@ class DocxConverter extends BaseService {
             // Convert HTML to markdown
             const markdownContent = turndownService.turndown(html);
             
-            // Generate final markdown with metadata
-            const cleanedMetadata = cleanMetadata({
-                title: metadata.title || path.basename(fileName, path.extname(fileName)),
-                author: metadata.author,
-                date: metadata.date,
-                subject: metadata.subject,
-                keywords: metadata.keywords,
-                source: fileName,
-                converter: 'DocxConverter'
-            });
+            // Get current datetime
+            const now = new Date();
+            const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
             
-            // Format metadata as YAML frontmatter
-            const frontmatter = formatMetadata(cleanedMetadata);
+            // Get the title from metadata or filename
+            const fileTitle = metadata.title || path.basename(fileName, path.extname(fileName));
+            
+            // Create standardized frontmatter
+            const frontmatter = [
+                '---',
+                `title: ${fileTitle}`,
+                `converted: ${convertedDate}`,
+                'type: docx',
+                '---',
+                ''
+            ].join('\n');
             
             // Combine frontmatter and content
             return frontmatter + markdownContent;

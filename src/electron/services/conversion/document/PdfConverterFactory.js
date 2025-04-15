@@ -55,6 +55,27 @@ class PdfConverterFactory {
                 }
             };
         };
+        // Check if OCR is explicitly enabled in options
+        console.log('[PdfConverterFactory] Checking if OCR is enabled in options:', options);
+        console.log(`[PdfConverterFactory] options.useOcr = ${options.useOcr} (type: ${typeof options.useOcr})`);
+        
+        if (options.useOcr) {
+            console.log('[PdfConverterFactory] Using OCR converter (enabled in settings)');
+            
+            // Check if OCR is available
+            const ocrAvailable = await this.isOcrAvailable();
+            console.log(`[PdfConverterFactory] OCR available: ${ocrAvailable}`);
+            
+            if (!ocrAvailable) {
+                console.log('[PdfConverterFactory] OCR not available despite being enabled, using standard converter');
+                return createConverterWrapper(this.standardConverter);
+            }
+            
+            console.log('[PdfConverterFactory] OCR is available, using Mistral converter');
+            return createConverterWrapper(this.mistralConverter);
+        } else {
+            console.log('[PdfConverterFactory] OCR is not enabled in options, checking other conditions');
+        }
         
         // If force option is specified, use the requested converter
         if (options.forceOcr) {
@@ -91,7 +112,23 @@ class PdfConverterFactory {
      */
     async isOcrAvailable() {
         try {
+            console.log('[PdfConverterFactory] Checking OCR availability');
+            
+            // Check if mistralConverter is initialized
+            if (!this.mistralConverter) {
+                console.error('[PdfConverterFactory] MistralPdfConverter not initialized');
+                return false;
+            }
+            
+            // Check if API key is available
+            if (!this.mistralConverter.apiKey) {
+                console.log('[PdfConverterFactory] No Mistral API key found in converter');
+                return false;
+            }
+            
+            console.log('[PdfConverterFactory] Calling handleCheckApiKey');
             const result = await this.mistralConverter.handleCheckApiKey();
+            console.log('[PdfConverterFactory] OCR availability check result:', result);
             return result.valid;
         } catch (error) {
             console.error('[PdfConverterFactory] Error checking OCR availability:', error);
@@ -167,14 +204,26 @@ class PdfConverterFactory {
      */
     async convertPdf(event, { filePath, options = {} }) {
         try {
+            console.log('[PdfConverterFactory] Converting PDF with options:', {
+                useOcr: options.useOcr,
+                hasMistralApiKey: !!options.mistralApiKey,
+                forceOcr: options.forceOcr,
+                forceStandard: options.forceStandard
+            });
+            
+            // If Mistral API key is provided in options, set it on the converter
+            if (options.mistralApiKey && this.mistralConverter) {
+                console.log('[PdfConverterFactory] Setting Mistral API key from options');
+                this.mistralConverter.apiKey = options.mistralApiKey;
+            }
+            
             const converter = await this.getConverter(filePath, options);
             
+            // Log which converter we're using
+            console.log(`[PdfConverterFactory] Using converter: ${converter.name}`);
+            
             // Use the appropriate conversion method
-            if (converter === this.mistralConverter) {
-                return await converter.handleConvert(event, { filePath, options });
-            } else {
-                return await converter.handleConvert(event, { filePath, options });
-            }
+            return await converter.handleConvert(event, { filePath, options });
         } catch (error) {
             console.error('[PdfConverterFactory] Conversion failed:', error);
             throw error;

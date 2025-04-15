@@ -95,16 +95,30 @@ ConverterRegistry.prototype.setupConverters = function() {
         const VideoConverter = require('./multimedia/VideoConverter');
         const PdfFactory = require('./document/PdfConverterFactory');
         const DocxConverter = require('./document/DocxConverter');
+        const PptxConverter = require('./document/PptxConverter');
         const UrlConverter = require('./web/UrlConverter');
         const ParentUrlConverter = require('./web/ParentUrlConverter');
+
+        // Import required services for AudioConverter
+        const FileProcessorService = require('../storage/FileProcessorService');
+        const FileStorageService = require('../storage/FileStorageService');
+        const TranscriberService = require('../ai/TranscriberService');
+        const OpenAIProxyService = require('../ai/OpenAIProxyService');
+
+        // Create service instances needed for AudioConverter
+        const fileProcessorInstance = new FileProcessorService();
+        const fileStorageInstance = new FileStorageService();
+        const openAIProxyInstance = new OpenAIProxyService();
+        const transcriberInstance = new TranscriberService(openAIProxyInstance, fileStorageInstance);
 
         // Create instances of converter classes
         const csvConverterInstance = new CsvConverter();
         const xlsxConverterInstance = new XlsxConverter();
-        const audioConverterInstance = new AudioConverter();
-        const videoConverterInstance = new VideoConverter();
+        const audioConverterInstance = new AudioConverter(fileProcessorInstance, transcriberInstance, fileStorageInstance);
+        const videoConverterInstance = new VideoConverter(fileProcessorInstance, transcriberInstance, fileStorageInstance);
         const pdfConverterFactory = new PdfFactory();
         const docxConverterInstance = new DocxConverter();
+        const pptxConverterInstance = new PptxConverter();
         
         // Create file service mocks for URL converters
         const fileProcessorMock = {
@@ -165,13 +179,80 @@ ConverterRegistry.prototype.setupConverters = function() {
             }
         });
         
+        // Create standardized adapter for PPTX converter using the actual implementation
+        this.register('pptx', {
+            convert: async (content, name, apiKey, options) => {
+                try {
+                    console.log(`[PptxAdapter] Converting PPTX file: ${name}`);
+                    
+                    // Ensure content is a Buffer
+                    if (!Buffer.isBuffer(content)) {
+                        throw new Error('PPTX content must be a Buffer');
+                    }
+                    
+                    // Use the actual PptxConverter implementation
+                    const result = await pptxConverterInstance.convertToMarkdown(content, {
+                        ...options,
+                        fileName: name,
+                        apiKey
+                    });
+                    
+                    // Ensure we have content
+                    if (!result || typeof result !== 'string' || result.trim() === '') {
+                        throw new Error('PPTX conversion produced empty content');
+                    }
+                    
+                    return {
+                        success: true,
+                        content: result,
+                        name: name,
+                        type: 'pptx'
+                    };
+                } catch (error) {
+                    console.error(`[PptxAdapter] Error converting PPTX: ${error.message}`);
+                    throw new Error(`PPTX conversion failed: ${error.message}`);
+                }
+            },
+            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
+            config: {
+                name: 'PPTX Converter',
+                extensions: ['.pptx', '.ppt'],
+                mimeTypes: ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'],
+                maxSize: 100 * 1024 * 1024 // 100MB
+            }
+        });
+        
         // Create standardized adapter for the CSV converter
         this.register('csv', {
             convert: async (content, name, apiKey, options) => {
-                return await csvConverterInstance.convertToMarkdown(content.toString(), {
-                    ...options,
-                    name
-                });
+                try {
+                    console.log(`[CsvAdapter] Converting CSV file: ${name}`);
+                    
+                    // Convert the content to string
+                    const contentStr = content.toString();
+                    
+                    // Use the actual CsvConverter implementation
+                    const result = await csvConverterInstance.convertToMarkdown(contentStr, {
+                        ...options,
+                        name,
+                        originalFileName: name // Pass the original filename
+                    });
+                    
+                    // Ensure we have content
+                    if (!result || typeof result !== 'string' || result.trim() === '') {
+                        throw new Error('CSV conversion produced empty content');
+                    }
+                    
+                    return {
+                        success: true,
+                        content: result,
+                        name: name,
+                        type: 'csv'
+                    };
+                } catch (error) {
+                    console.error(`[CsvAdapter] Error converting CSV: ${error.message}`);
+                    throw new Error(`CSV conversion failed: ${error.message}`);
+                }
             },
             validate: (content) => Buffer.isBuffer(content) && content.length > 0,
             config: {
@@ -185,10 +266,63 @@ ConverterRegistry.prototype.setupConverters = function() {
         // Create standardized adapter for the XLSX converter
         this.register('xlsx', {
             convert: async (content, name, apiKey, options) => {
-                return await xlsxConverterInstance.convertToMarkdown(content, {
-                    ...options,
-                    name
-                });
+                try {
+                    console.log(`[XlsxAdapter] Converting Excel file: ${name}`);
+                    
+                    // Ensure content is a Buffer
+                    if (!Buffer.isBuffer(content)) {
+                        throw new Error('Excel content must be a Buffer');
+                    }
+                    
+                    // Read the Excel file using xlsx library
+                    const xlsx = require('xlsx');
+                    let workbook;
+                    
+                    try {
+                        // Create a temporary file to read the Excel content
+                        const fs = require('fs-extra');
+                        const os = require('os');
+                        const path = require('path');
+                        const tempDir = path.join(os.tmpdir(), `xlsx_conversion_${Date.now()}`);
+                        await fs.ensureDir(tempDir);
+                        
+                        const tempFile = path.join(tempDir, `${name}_${Date.now()}.xlsx`);
+                        await fs.writeFile(tempFile, content);
+                        
+                        // Read the Excel file
+                        workbook = xlsx.readFile(tempFile, {
+                            cellDates: true,
+                            ...(options.xlsxOptions || {})
+                        });
+                        
+                        // Clean up temp file
+                        await fs.remove(tempDir);
+                    } catch (readError) {
+                        console.error(`[XlsxAdapter] Failed to read Excel file: ${name}`, readError);
+                        throw new Error(`Failed to read Excel file: ${readError.message}`);
+                    }
+                    // Use the actual XlsxConverter implementation
+                    const result = await xlsxConverterInstance.convertToMarkdown(workbook, {
+                        ...options,
+                        name,
+                        originalFileName: name // Pass the original filename
+                    });
+                    
+                    // Ensure we have content
+                    if (!result || typeof result !== 'string' || result.trim() === '') {
+                        throw new Error('Excel conversion produced empty content');
+                    }
+                    
+                    return {
+                        success: true,
+                        content: result,
+                        name: name,
+                        type: 'xlsx'
+                    };
+                } catch (error) {
+                    console.error(`[XlsxAdapter] Error converting Excel: ${error.message}`);
+                    throw new Error(`Excel conversion failed: ${error.message}`);
+                }
             },
             validate: (content) => Buffer.isBuffer(content) && content.length > 0,
             config: {
@@ -200,13 +334,44 @@ ConverterRegistry.prototype.setupConverters = function() {
         });
 
         // Create standardized adapter for audio converters
+        // Create standardized adapter for audio converters
         const audioAdapter = {
             convert: async (content, name, apiKey, options) => {
                 try {
                     console.log(`[AudioAdapter] Converting audio file: ${name}`);
                     
-                    // Throw an error to indicate the converter is not properly implemented
-                    throw new Error('Audio converter implementation is missing or not functioning correctly');
+                    // Ensure content is a Buffer
+                    if (!Buffer.isBuffer(content)) {
+                        throw new Error('Audio content must be a Buffer');
+                    }
+                    
+                    // Create a temporary file to process the audio
+                    const tempDir = await fileStorageInstance.createTempDir('audio_conversion');
+                    const tempFile = path.join(tempDir, `${name}_${Date.now()}.mp3`);
+                    await fs.writeFile(tempFile, content);
+                    
+                    // Process the audio file using the AudioConverter
+                    const result = await audioConverterInstance.processConversion(
+                        `audio_${Date.now()}`,
+                        tempFile,
+                        {
+                            ...options,
+                            transcribe: options.transcribe !== false,
+                            language: options.language || 'en',
+                            title: options.title || name
+                        }
+                    );
+                    
+                    // Clean up temp file
+                    await fs.remove(tempDir);
+                    
+                    // Return the conversion result
+                    return {
+                        success: true,
+                        content: result,
+                        name: name,
+                        type: 'audio'
+                    };
                 } catch (error) {
                     console.error(`[AudioAdapter] Error converting audio: ${error.message}`);
                     throw new Error(`Audio conversion failed: ${error.message}`);
@@ -220,18 +385,51 @@ ConverterRegistry.prototype.setupConverters = function() {
                 maxSize: 100 * 1024 * 1024 // 100MB
             }
         };
-        
         this.register('mp3', audioAdapter);
         this.register('wav', audioAdapter);
+        
+        // Register ppt extension to use the same converter as pptx
+        this.register('ppt', this.converters['pptx']);
 
         // Create standardized adapter for video converter
-        this.register('mp4', {
+        // Create standardized adapter for video converters
+        const videoAdapter = {
             convert: async (content, name, apiKey, options) => {
                 try {
                     console.log(`[VideoAdapter] Converting video file: ${name}`);
                     
-                    // Throw an error to indicate the converter is not properly implemented
-                    throw new Error('Video converter implementation is missing or not functioning correctly');
+                    // Ensure content is a Buffer
+                    if (!Buffer.isBuffer(content)) {
+                        throw new Error('Video content must be a Buffer');
+                    }
+                    
+                    // Create a temporary file to process the video
+                    const tempDir = await fileStorageInstance.createTempDir('video_conversion');
+                    const tempFile = path.join(tempDir, `${name}_${Date.now()}.mp4`);
+                    await fs.writeFile(tempFile, content);
+                    
+                    // Process the video file using the VideoConverter
+                    const result = await videoConverterInstance.processConversion(
+                        `video_${Date.now()}`,
+                        tempFile,
+                        {
+                            ...options,
+                            transcribe: options.transcribe !== false,
+                            language: options.language || 'en',
+                            title: options.title || name
+                        }
+                    );
+                    
+                    // Clean up temp file
+                    await fs.remove(tempDir);
+                    
+                    // Return the conversion result
+                    return {
+                        success: true,
+                        content: result,
+                        name: name,
+                        type: 'video'
+                    };
                 } catch (error) {
                     console.error(`[VideoAdapter] Error converting video: ${error.message}`);
                     throw new Error(`Video conversion failed: ${error.message}`);
@@ -244,8 +442,11 @@ ConverterRegistry.prototype.setupConverters = function() {
                 mimeTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'],
                 maxSize: 500 * 1024 * 1024 // 500MB
             }
-        });
-        
+        };
+        this.register('mp4', videoAdapter);
+        this.register('webm', videoAdapter);
+        this.register('mov', videoAdapter);
+        this.register('avi', videoAdapter);
         // Register the PDF factory adapter with proper implementation
         this.register('pdf', {
             convert: async (content, name, apiKey, options) => {

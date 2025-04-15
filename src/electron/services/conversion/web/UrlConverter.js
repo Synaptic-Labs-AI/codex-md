@@ -531,15 +531,23 @@ class UrlConverter extends BaseService {
     generateMarkdown(metadata, content, screenshot, options) {
         const markdown = [];
         
-        // Add title
-        if (options.title) {
-            markdown.push(`# ${options.title}`);
-        } else if (metadata.title) {
-            markdown.push(`# ${metadata.title}`);
-        } else {
-            markdown.push(`# Web Page: ${metadata.url}`);
-        }
+        // Get current datetime
+        const now = new Date();
+        const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
         
+        // Get the title from metadata or options
+        const pageTitle = options.title || metadata.title || `Web Page: ${metadata.url}`;
+        
+        // Create standardized frontmatter
+        markdown.push('---');
+        markdown.push(`title: ${pageTitle}`);
+        markdown.push(`converted: ${convertedDate}`);
+        markdown.push('type: url');
+        markdown.push('---');
+        markdown.push('');
+        
+        // Add title as heading
+        markdown.push(`# ${pageTitle}`);
         markdown.push('');
         
         // Add metadata
