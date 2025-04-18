@@ -170,7 +170,8 @@ class MistralPdfConverter extends BasePdfConverter {
             }
             
             // Make a simple request to check if the API key is valid
-            const response = await fetchWithRetry(`${this.apiEndpoint}/models`, {
+            // Use the models endpoint from Mistral API
+            const response = await fetchWithRetry('https://api.mistral.ai/v1/models', {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
@@ -181,8 +182,24 @@ class MistralPdfConverter extends BasePdfConverter {
             if (response.ok) {
                 return { valid: true };
             } else {
-                const error = await response.json();
-                return { valid: false, error: error.error?.message || 'Invalid API key' };
+                // Read response as text first to avoid JSON parsing errors with non-JSON error responses
+                const responseText = await response.text();
+                console.error(`[MistralPdfConverter] API key check error (${response.status}): ${responseText.substring(0, 500)}`);
+                
+                // Try to parse as JSON if it looks like JSON
+                let errorMessage = 'Invalid API key';
+                try {
+                    if (responseText.trim().startsWith('{')) {
+                        const errorJson = JSON.parse(responseText);
+                        if (errorJson.error && errorJson.error.message) {
+                            errorMessage = errorJson.error.message;
+                        }
+                    }
+                } catch (parseError) {
+                    console.error('[MistralPdfConverter] Could not parse error response as JSON:', parseError.message);
+                }
+                
+                return { valid: false, error: errorMessage };
             }
         } catch (error) {
             console.error('[MistralPdfConverter] API key check failed:', error);
@@ -243,35 +260,121 @@ class MistralPdfConverter extends BasePdfConverter {
      * @returns {Promise<Object>} OCR result
      */
     async processWithOcr(filePath, options) {
+        const fileUploadUrl = 'https://api.mistral.ai/v1/files';
+        const getSignedUrlBase = 'https://api.mistral.ai/v1/files';
+        const ocrEndpoint = this.apiEndpoint; // Use the existing endpoint for OCR
+        const fileName = path.basename(filePath);
+
         try {
-            const form = new FormData();
+            console.log('[MistralPdfConverter] Processing PDF with OCR using Mistral API (File Upload Workflow)');
             
-            // Add file
-            form.append('file', fs.createReadStream(filePath));
-            
-            // Add options
-            form.append('model', options.model || 'mistral-large-ocr');
-            
-            if (options.language) {
-                form.append('language', options.language);
-            }
-            
-            // Make API request
-            const response = await fetchWithRetry(this.apiEndpoint, {
+            // --- Step 1: Upload the file ---
+            console.log(`[MistralPdfConverter] Uploading file: ${fileName}`);
+            const fileBuffer = await fs.readFile(filePath);
+            const formData = new FormData();
+            formData.append('purpose', 'ocr');
+            formData.append('file', fileBuffer, fileName);
+
+            const uploadResponse = await fetchWithRetry(fileUploadUrl, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
-                    ...form.getHeaders()
+                    ...formData.getHeaders() // Let FormData set the Content-Type
                 },
-                body: form
+                body: formData
+            });
+
+            if (!uploadResponse.ok) {
+                const responseText = await uploadResponse.text();
+                console.error(`[MistralPdfConverter] File upload failed (${uploadResponse.status}): ${responseText.substring(0, 500)}`);
+                throw new Error(`Mistral file upload failed (${uploadResponse.status}): ${responseText}`);
+            }
+
+            const uploadedFileData = await uploadResponse.json();
+            const fileId = uploadedFileData.id;
+            console.log(`[MistralPdfConverter] File uploaded successfully. File ID: ${fileId}`);
+
+            // --- Step 2: Get Signed URL ---
+            console.log(`[MistralPdfConverter] Getting signed URL for file ID: ${fileId}`);
+            const getSignedUrlEndpoint = `${getSignedUrlBase}/${fileId}/url`;
+            const signedUrlResponse = await fetchWithRetry(getSignedUrlEndpoint, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!signedUrlResponse.ok) {
+                const responseText = await signedUrlResponse.text();
+                console.error(`[MistralPdfConverter] Get signed URL failed (${signedUrlResponse.status}): ${responseText.substring(0, 500)}`);
+                throw new Error(`Mistral get signed URL failed (${signedUrlResponse.status}): ${responseText}`);
+            }
+
+            const signedUrlData = await signedUrlResponse.json();
+            const documentUrl = signedUrlData.url;
+            console.log(`[MistralPdfConverter] Signed URL obtained: ${documentUrl.substring(0, 100)}...`);
+
+            // --- Step 3: Call OCR API with Signed URL ---
+            console.log('[MistralPdfConverter] Calling OCR API with signed URL');
+            const requestBody = {
+                model: "mistral-ocr-latest",
+                document: {
+                    type: "document_url",
+                    document_url: documentUrl
+                },
+                include_image_base64: false
+            };
+
+            const ocrResponse = await fetchWithRetry(ocrEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
             });
             
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error?.message || `OCR request failed with status ${response.status}`);
+            if (!ocrResponse.ok) {
+                // Read response as text first to avoid JSON parsing errors with non-JSON error responses
+                const responseText = await ocrResponse.text();
+                console.error(`[MistralPdfConverter] OCR API error (${ocrResponse.status}): ${responseText.substring(0, 500)}`);
+                
+                // Try to parse as JSON if it looks like JSON
+                let errorMessage = `OCR request failed with status ${ocrResponse.status}`;
+                let errorDetails = responseText;
+                
+                try {
+                    if (responseText.trim().startsWith('{')) {
+                        const errorJson = JSON.parse(responseText);
+                        if (errorJson.error && errorJson.error.message) {
+                            errorMessage = errorJson.error.message;
+                        }
+                        
+                        // Log the full error object for debugging
+                        console.error('[MistralPdfConverter] Parsed error response:', JSON.stringify(errorJson, null, 2));
+                        errorDetails = JSON.stringify(errorJson, null, 2);
+                    }
+                } catch (parseError) {
+                    console.error('[MistralPdfConverter] Could not parse error response as JSON:', parseError.message);
+                }
+                
+                // For 500 errors, provide more specific guidance
+                if (ocrResponse.status === 500) {
+                    console.error('[MistralPdfConverter] Received 500 Internal Server Error from Mistral API');
+                    console.error('[MistralPdfConverter] This may be due to:');
+                    console.error('  - File size exceeding API limits (max 50MB)');
+                    console.error('  - Temporary API service issues');
+                    console.error('  - Malformed request structure');
+                    console.error('  - API rate limiting');
+                    
+                    errorMessage = `Mistral API Internal Server Error (500): ${errorMessage}. This may be due to file size limits (max 50MB), API service issues, or rate limiting.`;
+                }
+                
+                throw new Error(`Mistral OCR API error (${ocrResponse.status}): ${errorMessage}`);
             }
             
-            const result = await response.json();
+            const result = await ocrResponse.json();
             return this.processOcrResult(result);
         } catch (error) {
             console.error('[MistralPdfConverter] OCR processing failed:', error);
@@ -279,11 +382,6 @@ class MistralPdfConverter extends BasePdfConverter {
         }
     }
 
-    /**
-     * Process OCR result
-     * @param {Object} result - OCR API result
-     * @returns {Object} Processed result
-     */
     /**
      * Process OCR result from Mistral API
      * @param {Object} result - OCR API result
@@ -853,7 +951,8 @@ class MistralPdfConverter extends BasePdfConverter {
             console.log('[MistralPdfConverter] Processing PDF with OCR');
             const ocrResult = await this.processWithOcr(tempFile, {
                 ...options,
-                model: options.model || 'mistral-large-ocr',
+                // Use the correct model name from Mistral API documentation
+                model: "mistral-ocr-latest",
                 language: options.language
             });
             
@@ -929,11 +1028,37 @@ class MistralPdfConverter extends BasePdfConverter {
                 `API response: ${JSON.stringify(error.response.data || {})}` :
                 error.message;
             
+            // Check if this is a 500 Internal Server Error
+            let errorMessage = error.message;
+            let troubleshootingInfo = '';
+            
+            if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+                console.error('[MistralPdfConverter] Detected 500 Internal Server Error');
+                
+                // Add troubleshooting information for 500 errors
+                troubleshootingInfo = `
+## Troubleshooting 500 Internal Server Error
+
+This error may be caused by:
+
+1. **File Size Limit**: The PDF file may exceed Mistral's 50MB size limit.
+2. **API Service Issues**: Mistral's API may be experiencing temporary issues.
+3. **Rate Limiting**: You may have exceeded the API rate limits.
+4. **Malformed Request**: The request format may not match Mistral's API requirements.
+
+### Suggested Actions:
+- Try with a smaller PDF file
+- Check if your Mistral API key has sufficient permissions
+- Try again later if it's a temporary service issue
+- Verify your API subscription status
+`;
+            }
+            
             return {
                 success: false,
-                error: `PDF OCR conversion failed: ${error.message}`,
+                error: `PDF OCR conversion failed: ${errorMessage}`,
                 errorDetails: errorDetails,
-                content: `# Conversion Error\n\nFailed to convert PDF with OCR: ${error.message}\n\n## Error Details\n\n${errorDetails}`
+                content: `# Conversion Error\n\nFailed to convert PDF with OCR: ${errorMessage}\n\n## Error Details\n\n${errorDetails}\n\n${troubleshootingInfo}`
             };
         }
     }
@@ -949,7 +1074,7 @@ class MistralPdfConverter extends BasePdfConverter {
             description: this.description,
             options: {
                 title: 'Optional document title',
-                model: 'OCR model to use (default: mistral-large-ocr)',
+                model: 'OCR model to use (default: mistral-ocr-latest)',
                 language: 'Language hint for OCR (optional)',
                 maxPages: 'Maximum pages to convert (default: all)'
             }

@@ -80,6 +80,13 @@ flowchart TD
    - Will be simplified after consolidation
 
 ### Resolved Issues
+- ~~Audio conversion "spawn ffmpeg.exe ENOENT" error~~ (Fixed - corrected ffmpeg path configuration in AudioConverter)
+- ~~Audio transcription "Cannot read properties of null (reading 'sender')" error~~ (Fixed - added check for null event in TranscriberService)
+- ~~Audio transcription "uuid is not a function" error~~ (Fixed - corrected uuid import and usage in TranscriberService)
+- ~~Mistral OCR API error handling~~ (Fixed - improved error handling for non-JSON responses in MistralPdfConverter)
+- ~~Mistral OCR 500 Internal Server Error~~ (Fixed - updated API integration with correct endpoint, request format, and model parameter)
+- ~~Mistral OCR 422 Unprocessable Entity Error~~ (Fixed - implemented correct file upload workflow using /files and /ocr endpoints)
+- ~~Video conversion "Conversion not found" error~~ (Fixed - properly configured ffmpeg.exe path in VideoConverter)
 - ~~Navigation bar missing in final build~~ (Fixed)
 - ~~Asset loading issues~~ (Fixed)
 - ~~PDF conversion errors~~ (Fixed)

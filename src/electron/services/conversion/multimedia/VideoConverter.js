@@ -20,6 +20,8 @@
 const path = require('path');
 const fs = require('fs-extra');
 const ffmpeg = require('fluent-ffmpeg');
+const ffprobeStatic = require('ffprobe-static');
+const { app } = require('electron');
 const BaseService = require('../../BaseService');
 
 class VideoConverter extends BaseService {
@@ -30,6 +32,55 @@ class VideoConverter extends BaseService {
         this.fileStorage = fileStorage;
         this.supportedExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv'];
         this.activeConversions = new Map();
+        
+        // Configure ffmpeg to use the correct ffprobe path
+        this.configureFfmpeg();
+    }
+    
+    /**
+     * Configure ffmpeg with the correct ffmpeg and ffprobe paths
+     */
+    configureFfmpeg() {
+        try {
+            // Default paths from static packages
+            let ffprobePath = ffprobeStatic.path;
+            
+            // Get ffmpeg path from @ffmpeg-installer/ffmpeg
+            const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+            let ffmpegPath = ffmpegInstaller.path;
+            
+            // In production, use the paths from the resources directory
+            if (app && app.isPackaged) {
+                // Check for ffprobe.exe in resources
+                const ffprobeResourcesPath = path.join(process.resourcesPath, 'ffprobe.exe');
+                if (fs.existsSync(ffprobeResourcesPath)) {
+                    ffprobePath = ffprobeResourcesPath;
+                    console.log(`[VideoConverter] Using ffprobe from resources: ${ffprobePath}`);
+                } else {
+                    console.warn(`[VideoConverter] ffprobe not found in resources, falling back to ffprobe-static path: ${ffprobePath}`);
+                }
+                
+                // Check for ffmpeg.exe in resources
+                const ffmpegResourcesPath = path.join(process.resourcesPath, 'ffmpeg.exe');
+                if (fs.existsSync(ffmpegResourcesPath)) {
+                    ffmpegPath = ffmpegResourcesPath;
+                    console.log(`[VideoConverter] Using ffmpeg from resources: ${ffmpegPath}`);
+                } else {
+                    console.warn(`[VideoConverter] ffmpeg not found in resources, falling back to ffmpeg-installer path: ${ffmpegPath}`);
+                }
+            } else {
+                console.log(`[VideoConverter] Using ffprobe-static path: ${ffprobePath}`);
+                console.log(`[VideoConverter] Using ffmpeg-installer path: ${ffmpegPath}`);
+            }
+            
+            // Set the paths for fluent-ffmpeg
+            ffmpeg.setFfprobePath(ffprobePath);
+            ffmpeg.setFfmpegPath(ffmpegPath);
+            console.log(`[VideoConverter] ffprobe path set to: ${ffprobePath}`);
+            console.log(`[VideoConverter] ffmpeg path set to: ${ffmpegPath}`);
+        } catch (error) {
+            console.error('[VideoConverter] Error configuring ffmpeg:', error);
+        }
     }
 
     /**

@@ -20,7 +20,7 @@ const os = require('os');
 const fs = require('fs-extra');
 const { Buffer } = require('node:buffer');
 const ffmpeg = require('fluent-ffmpeg');
-const { uuid } = require('uuid');
+const { v4: uuidv4 } = require('uuid');
 const BaseService = require('../BaseService');
 const { createStore } = require('../../utils/storeFactory');
 
@@ -54,7 +54,7 @@ class TranscriberService extends BaseService {
      */
     async handleTranscribeStart(event, { filePath, options = {} }) {
         try {
-            const jobId = uuid();
+            const jobId = uuidv4();
             const tempDir = await this.fileStorage.createTempDir('transcription');
             
             this.activeJobs.set(jobId, {
@@ -62,7 +62,8 @@ class TranscriberService extends BaseService {
                 progress: 0,
                 filePath,
                 tempDir,
-                window: event.sender.getOwnerBrowserWindow()
+                // Get window only if event and sender exist (called via IPC)
+                window: event && event.sender ? event.sender.getOwnerBrowserWindow() : null
             });
 
             // Start transcription process

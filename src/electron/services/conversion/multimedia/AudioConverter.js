@@ -18,6 +18,9 @@
 const path = require('path');
 const fs = require('fs-extra');
 const ffmpeg = require('fluent-ffmpeg');
+const ffprobeStatic = require('ffprobe-static');
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg'); // Import ffmpeg installer
+const { app } = require('electron');
 const BaseService = require('../../BaseService');
 
 class AudioConverter extends BaseService {
@@ -28,6 +31,52 @@ class AudioConverter extends BaseService {
         this.fileStorage = fileStorage;
         this.supportedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac'];
         this.activeConversions = new Map();
+        
+        // Configure ffmpeg to use the correct ffprobe path
+        this.configureFfmpeg();
+    }
+    
+    /**
+     * Configure ffmpeg with the correct ffprobe and ffmpeg paths
+     */
+    configureFfmpeg() {
+        try {
+            // Default paths from static packages
+            let ffprobePath = ffprobeStatic.path;
+            let ffmpegPath = ffmpegInstaller.path;
+
+            // In production, use the paths from the resources directory
+            if (app && app.isPackaged) {
+                // Check for ffprobe.exe in resources
+                const ffprobeResourcesPath = path.join(process.resourcesPath, 'ffprobe.exe');
+                if (fs.existsSync(ffprobeResourcesPath)) {
+                    ffprobePath = ffprobeResourcesPath;
+                    console.log(`[AudioConverter] Using ffprobe from resources: ${ffprobePath}`);
+                } else {
+                    console.warn(`[AudioConverter] ffprobe.exe not found in resources, falling back to default path: ${ffprobePath}`);
+                }
+
+                // Check for ffmpeg.exe in resources
+                const ffmpegResourcesPath = path.join(process.resourcesPath, 'ffmpeg.exe');
+                if (fs.existsSync(ffmpegResourcesPath)) {
+                    ffmpegPath = ffmpegResourcesPath;
+                    console.log(`[AudioConverter] Using ffmpeg from resources: ${ffmpegPath}`);
+                } else {
+                    console.warn(`[AudioConverter] ffmpeg.exe not found in resources, falling back to default path: ${ffmpegPath}`);
+                }
+            } else {
+                console.log(`[AudioConverter] Using default ffprobe path: ${ffprobePath}`);
+                console.log(`[AudioConverter] Using default ffmpeg path: ${ffmpegPath}`);
+            }
+
+            // Set the paths for fluent-ffmpeg
+            ffmpeg.setFfprobePath(ffprobePath);
+            ffmpeg.setFfmpegPath(ffmpegPath);
+            console.log(`[AudioConverter] ffprobe path set to: ${ffprobePath}`);
+            console.log(`[AudioConverter] ffmpeg path set to: ${ffmpegPath}`);
+        } catch (error) {
+            console.error('[AudioConverter] Error configuring ffmpeg:', error);
+        }
     }
 
     /**

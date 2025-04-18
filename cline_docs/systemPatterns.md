@@ -340,6 +340,13 @@ flowchart TD
         M -->|Yes| N[Use Mistral OCR]
         M -->|No| O[Use Standard Converter]
     end
+    
+    subgraph Mistral OCR Workflow
+        P[PDF File] --> Q[Upload to Mistral API]
+        Q --> R[Get Signed URL]
+        R --> S[Call OCR API with URL]
+        S --> T[Process OCR Result]
+    end
 ```
 
 #### Implementation Details
@@ -349,6 +356,16 @@ flowchart TD
 - **Validation with Options**: Passes OCR options to validation functions to ensure consistent converter selection
 - **Detailed Logging**: Logs OCR options at each step of the conversion process for debugging
 - **Fallback Mechanism**: Falls back to standard conversion if OCR fails or if Mistral API key is missing
+
+#### Mistral OCR API Integration
+- **File Upload Workflow**: Implements a three-step process for OCR processing:
+  1. Upload the PDF file to Mistral's servers using the `/files` endpoint
+  2. Get a signed URL for the uploaded file using the `/files/{id}/url` endpoint
+  3. Call the `/ocr` endpoint using the signed URL with `type: "document_url"`
+- **FormData Handling**: Uses the FormData API to properly upload files to Mistral's servers
+- **Error Handling**: Implements robust error handling for each step of the process
+- **Response Processing**: Processes the OCR response to extract text and structural information
+- **Variable Consistency**: Ensures consistent variable naming throughout the workflow to prevent reference errors
 
 #### Benefits
 - **Consistency**: Ensures the same converter is used for both validation and conversion
@@ -519,6 +536,122 @@ flowchart TD
 - **Backslash Normalization**: Handles both forward and backslashes in paths
 - **ASAR Path Resolution**: Ensures paths work correctly in ASAR-packaged apps on Windows
 - **File Locking Handling**: Implements strategies to deal with stricter file locking on Windows
+
+### External Binary Path Resolution Pattern
+The application implements a specialized pattern for resolving paths to external binary dependencies (like ffmpeg and ffprobe) in both development and packaged production environments.
+
+```mermaid
+flowchart TD
+    A[Converter Service] --> B{Is Packaged?}
+    B -->|Yes| C[Use Resources Path]
+    B -->|No| D[Use Node Module Path]
+    
+    C --> E[Verify Binary Exists]
+    D --> E
+    
+    E -->|Yes| F[Configure Library]
+    E -->|No| G[Fallback to Default]
+    
+    subgraph Path Resolution
+        H[Check app.isPackaged] --> I[Resolve process.resourcesPath]
+        I --> J[Join with Binary Name]
+        J --> K[Check File Exists]
+    end
+    
+    subgraph Configuration
+        L[Set Both Paths] --> M[ffmpeg.setFfmpegPath]
+        L --> N[ffmpeg.setFfprobePath]
+        M --> O[Log Path Configuration]
+        N --> O
+    end
+```
+
+#### Implementation Details
+- **Environment Detection**: Uses Electron's `app.isPackaged` to determine if running in development or production
+- **Path Resolution Strategy**: Different path resolution strategies for development and production
+  - Development: Uses paths from node modules (e.g., `ffmpeg-installer`, `ffprobe-static`)
+  - Production: Uses paths from the resources directory (`process.resourcesPath`)
+- **Explicit Path Configuration**: Explicitly sets paths for all required binaries
+  - For ffmpeg: `ffmpeg.setFfmpegPath(ffmpegPath)`
+  - For ffprobe: `ffmpeg.setFfprobePath(ffprobePath)`
+- **Existence Verification**: Verifies that binaries exist at the resolved paths before using them
+- **Fallback Mechanism**: Falls back to default paths if binaries are not found in the expected locations
+- **Detailed Logging**: Logs the resolved paths and configuration status for debugging
+- **Error Handling**: Provides clear error messages when binaries cannot be found or configured
+
+#### Example Implementation
+```javascript
+configureFfmpeg() {
+    try {
+        // Default paths from static packages
+        let ffprobePath = ffprobeStatic.path;
+        const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+        let ffmpegPath = ffmpegInstaller.path;
+        
+        // In production, use the paths from the resources directory
+        if (app && app.isPackaged) {
+            // Check for ffprobe.exe in resources
+            const ffprobeResourcesPath = path.join(process.resourcesPath, 'ffprobe.exe');
+            if (fs.existsSync(ffprobeResourcesPath)) {
+                ffprobePath = ffprobeResourcesPath;
+                console.log(`Using ffprobe from resources: ${ffprobePath}`);
+            } else {
+                console.warn(`ffprobe not found in resources, falling back to default path: ${ffprobePath}`);
+            }
+            
+            // Check for ffmpeg.exe in resources
+            const ffmpegResourcesPath = path.join(process.resourcesPath, 'ffmpeg.exe');
+            if (fs.existsSync(ffmpegResourcesPath)) {
+                ffmpegPath = ffmpegResourcesPath;
+                console.log(`Using ffmpeg from resources: ${ffmpegPath}`);
+            } else {
+                console.warn(`ffmpeg not found in resources, falling back to default path: ${ffmpegPath}`);
+            }
+        } else {
+            console.log(`Using default ffprobe path: ${ffprobePath}`);
+            console.log(`Using default ffmpeg path: ${ffmpegPath}`);
+        }
+        
+        // Set the paths for fluent-ffmpeg
+        ffmpeg.setFfprobePath(ffprobePath);
+        ffmpeg.setFfmpegPath(ffmpegPath);
+        console.log(`ffprobe path set to: ${ffprobePath}`);
+        console.log(`ffmpeg path set to: ${ffmpegPath}`);
+    } catch (error) {
+        console.error('Error configuring ffmpeg:', error);
+    }
+}
+```
+
+#### Build Configuration
+- **extraFiles Configuration**: Uses electron-builder's `extraFiles` configuration to copy binaries to the resources directory
+  ```json
+  "extraFiles": [
+      {
+          "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
+          "to": "resources/ffmpeg.exe"
+      },
+      {
+          "from": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
+          "to": "resources/ffprobe.exe"
+      }
+  ]
+  ```
+- **asarUnpack Configuration**: Ensures required node modules are unpacked from the ASAR archive
+  ```json
+  "asarUnpack": [
+      "node_modules/@ffmpeg-installer/**/*",
+      "node_modules/ffprobe/**/*",
+      "node_modules/ffprobe-static/**/*"
+  ]
+  ```
+
+#### Benefits
+- **Reliability**: Ensures external binaries are correctly located in both development and production
+- **Consistency**: Provides a consistent approach to binary path resolution across the application
+- **Robustness**: Handles edge cases and provides fallbacks when binaries cannot be found
+- **Transparency**: Provides detailed logging for debugging binary path issues
+- **Maintainability**: Clear separation of development and production path resolution logic
 
 ### Development vs. Production
 - **Development Mode**: Uses local dev server with hot reloading

@@ -123,6 +123,10 @@
             {
                 "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
                 "to": "resources/ffmpeg.exe"
+            },
+            {
+                "from": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
+                "to": "resources/ffprobe.exe"
             }
         ]
     },
@@ -227,7 +231,6 @@
         "openai": "^4.77.3",
         "path-browserify": "^1.0.1",
         "png-to-ico": "^2.1.8",
-        "sass": "^1.79.4",
-        "uuid": "^11.0.4"
+        "sass": "^1.79.4"
     }
 }

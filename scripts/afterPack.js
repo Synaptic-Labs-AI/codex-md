@@ -38,13 +38,20 @@ exports.default = async function(context) {
   console.log(`Output directory: ${appOutDir}`);
 
   try {
-    // Verify ffmpeg.exe exists (Windows-specific)
+    // Verify ffmpeg.exe and ffprobe.exe exist (Windows-specific)
     if (isWindows) {
       const ffmpegPath = path.join(appOutDir, 'resources', 'ffmpeg.exe');
       if (await safePathExists(ffmpegPath)) {
         console.log('✅ Verified ffmpeg.exe');
       } else {
         console.warn('⚠️ ffmpeg.exe not found in resources');
+      }
+      
+      const ffprobePath = path.join(appOutDir, 'resources', 'ffprobe.exe');
+      if (await safePathExists(ffprobePath)) {
+        console.log('✅ Verified ffprobe.exe');
+      } else {
+        console.warn('⚠️ ffprobe.exe not found in resources');
       }
     }
 

@@ -6,6 +6,57 @@ Planning and implementing the consolidation of backend services into the Electro
 
 ## Recent Changes
 
+### AudioConverter Ffmpeg Path Fix (2025-04-18)
+- Fixed "spawn ... ffmpeg.exe ENOENT" error during audio conversion in packaged app
+- Updated AudioConverter.js to correctly configure the path for ffmpeg.exe, in addition to ffprobe.exe
+- Imported `@ffmpeg-installer/ffmpeg` to get the default path
+- Added logic to `configureFfmpeg` method to check for `ffmpeg.exe` in `process.resourcesPath` when packaged
+- Called `ffmpeg.setFfmpegPath()` to explicitly set the path for `fluent-ffmpeg`
+- This ensures both ffmpeg and ffprobe are correctly located in production builds
+
+### TranscriberService Event Handling Fix (2025-04-18)
+- Fixed "TypeError: Cannot read properties of null (reading 'sender')" error in audio transcription
+- Updated TranscriberService.js to handle cases where handleTranscribeStart is called internally (e.g., by AudioConverter) without an IPC event object
+- Added a check for `event && event.sender` before accessing `event.sender.getOwnerBrowserWindow()`
+- This prevents crashes when the service is used programmatically within the main process
+
+### UUID Import Fix in TranscriberService (2025-04-18)
+- Fixed "TypeError: uuid is not a function" error in audio transcription
+- Updated TranscriberService.js to correctly import and use the uuid v4 function
+- Changed import from `const { uuid } = require('uuid');` to `const { v4: uuidv4 } = require('uuid');`
+- Changed usage from `const jobId = uuid();` to `const jobId = uuidv4();`
+- Removed conflicting uuid entry from devDependencies in package.json
+- This fix ensures audio transcription works correctly in the production build
+
+### Mistral OCR Error Handling Fix (2025-04-18)
+- Fixed "Unexpected token 'I', Internal S..." JSON parsing error in Mistral OCR conversion
+- Updated MistralPdfConverter.js to properly handle non-JSON error responses from Mistral API
+- Implemented robust error handling that first reads response as text before attempting JSON parsing
+- Added detailed error logging to capture the actual error message from the Mistral API
+- Enhanced both processWithOcr and handleCheckApiKey methods with consistent error handling
+- Improved error messages to include HTTP status codes for better debugging
+- This fix ensures the application gracefully handles API errors without crashing
+
+### Mistral OCR API Integration Update (2025-04-18)
+- Fixed 422 Unprocessable Entity error with Mistral OCR API
+- Updated MistralPdfConverter.js to use the correct file upload workflow:
+  1. Upload the PDF file to Mistral's servers using the `/files` endpoint
+  2. Get a signed URL for the uploaded file using the `/files/{id}/url` endpoint
+  3. Call the `/ocr` endpoint using the signed URL with `type: "document_url"`
+- This replaces the previous incorrect attempt to send base64-encoded data directly
+- Added necessary API calls for file upload and signed URL retrieval
+- Updated error handling to cover potential issues in the multi-step process
+- This fix aligns the implementation with Mistral's documented procedure for handling local files
+
+### VideoConverter Path Configuration Fix (2025-04-18)
+- Fixed "Conversion not found" error in MP4 video conversion
+- Updated VideoConverter.js to properly configure ffmpeg.exe path in packaged application
+- Added explicit ffmpeg path resolution using @ffmpeg-installer/ffmpeg
+- Implemented proper path handling for both development and production environments
+- Enhanced logging for ffmpeg and ffprobe path configuration
+- Ensured both executables are correctly located in resources directory when packaged
+- This fix complements the existing extraFiles configuration in package.json that copies ffmpeg.exe to resources
+
 ### Dependency Verification Improvements (2025-04-18)
 - Enhanced dependency verification script to handle monorepo structure
 - Added detection of built-in Node.js modules to prevent false positives
