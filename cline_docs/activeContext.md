@@ -1,9 +1,43 @@
+
 # Active Context
 
 ## Current Focus
 Planning and implementing the consolidation of backend services into the Electron main process to resolve module system conflicts and simplify the architecture.
 
 ## Recent Changes
+
+### Dependency Verification Improvements (2025-04-18)
+- Enhanced dependency verification script to handle monorepo structure
+- Added detection of built-in Node.js modules to prevent false positives
+- Specifically added 'stream/promises' to built-in modules list
+- Implemented alias path detection (@lib/api, @lib/stores, etc.)
+- Added detailed documentation on Node.js built-in modules
+- Integrated verification script into build process
+- Created comprehensive dependency management documentation
+
+### Dependencies Migration Fix (2025-04-18)
+- Fixed multiple dependency-related failures in production build
+- Moved several packages from devDependencies to dependencies in package.json:
+  - axios and axios-retry (for API requests and retry logic)
+  - canvas (for PDF rendering)
+  - formdata-node (for form data handling)
+  - tmp-promise (for temporary file operations)
+  - node-cache (for caching in OpenAIProxyService)
+- Resolved "Cannot find module" errors in production build
+- Systematically analyzed codebase to identify all runtime dependencies
+- Implemented proper dependency categorization to prevent future issues
+
+### Node Cache Dependency Fix (2025-04-18)
+- Fixed converter initialization failure in production build
+- Moved node-cache package from devDependencies to dependencies in package.json
+- Resolved "Cannot find module 'node-cache'" error in production build
+- Fixed OpenAIProxyService dependency issue affecting ConverterRegistry
+
+### CSV Converter Dependency Fix (2025-04-18)
+- Fixed CSV converter initialization failure in production build
+- Moved csv-parse package from devDependencies to dependencies in package.json
+- Resolved "Cannot find module 'csv-parse/sync'" error in production build
+- Ensured proper packaging of required dependencies for converters
 
 ### Consolidation Plan Created (2025-04-10)
 - Created comprehensive consolidation plan divided into four phases:
@@ -48,6 +82,10 @@ Planning and implementing the consolidation of backend services into the Electro
 - Production bugs in URL conversion due to module system mismatches
 - Major version update needed for node-fetch (2.7.0 -> 3.3.2)
 - Core services need thorough testing in new architecture
+- ✅ NSIS memory mapping error during Windows installer creation (fixed)
+- ✅ NSIS icon format error during Windows installer creation (fixed)
+- ✅ CSV converter initialization failure in production build (fixed)
+- ✅ Converter initialization failure due to missing node-cache dependency (fixed)
 
 ## Next Steps
 
@@ -108,6 +146,8 @@ Current:
    - ✅ Update build configuration for resources
    - ✅ Fix static assets handling
    - ✅ Update documentation
+   - ✅ Fix NSIS memory mapping error during Windows installer creation
+   - ✅ Fix NSIS icon format error during Windows installer creation
    - ⏳ Remove backend directory
    - ⏳ Run final verification tests
    - ⏳ Create release tag
@@ -161,6 +201,12 @@ Current:
 - Updated electron-builder configuration
 - Improved asset handling
 - Added more robust error handling
+- Optimized NSIS installer creation to prevent memory mapping errors
+- Created optimize-build.js script to clean up unnecessary files before packaging
+- Modified asarUnpack configuration to only unpack necessary modules
+- Added custom NSIS configuration for better memory management
+- Created convert-icons.js script to convert PNG icons to ICO format for NSIS
+- Added dedicated build/icons directory for storing converted icons
 
 ### Development Experience
 - Simpler setup (no separate backend)
@@ -176,6 +222,7 @@ Current:
 - Status tracking
 - Build process documentation
 - README.md with new project structure
+- BUILD-OPTIMIZATION.md with details on NSIS memory error fix
 
 ### Needs Update
 - API documentation (after consolidation)

@@ -108,26 +108,13 @@ class StandardPdfConverter extends BasePdfConverter {
      * @param {Object} request - Thumbnail request details
      */
     async handleGenerateThumbnail(event, { filePath, pageNumber = 1, options = {} }) {
-        try {
-            const tempDir = await this.fileStorage.createTempDir('pdf_thumbnail');
-            const thumbnailPath = path.join(tempDir, `page_${pageNumber}.png`);
-            
-            await this.generatePageThumbnail(filePath, thumbnailPath, pageNumber, options);
-            
-            // Read the thumbnail as base64
-            const thumbnailData = await fs.readFile(thumbnailPath, { encoding: 'base64' });
-            
-            // Clean up temp directory
-            await fs.remove(tempDir);
-            
-            return {
-                data: `data:image/png;base64,${thumbnailData}`,
-                pageNumber
-            };
-        } catch (error) {
-            console.error('[StandardPdfConverter] Failed to generate thumbnail:', error);
-            throw error;
-        }
+        console.log(`[StandardPdfConverter] Thumbnail generation disabled for page ${pageNumber}`);
+        // Return a placeholder response since thumbnails are not generated
+        return {
+            data: '',
+            pageNumber,
+            disabled: true
+        };
     }
 
     /**
@@ -328,43 +315,9 @@ class StandardPdfConverter extends BasePdfConverter {
      * @returns {Promise<Array>} Array of thumbnail info objects
      */
     async generateThumbnails(filePath, outputDir, pageCount) {
-        try {
-            const thumbnails = [];
-            console.log(`[StandardPdfConverter] Generating thumbnails for ${pageCount} pages`);
-            
-            // Load the PDF document
-            const pdfData = await fs.readFile(filePath);
-            const pdfDoc = await PDFDocument.load(pdfData);
-            
-            // Generate thumbnails for each page
-            for (let i = 0; i < pageCount; i++) {
-                const pageNumber = i + 1;
-                const thumbnailPath = path.join(outputDir, `page_${pageNumber}.png`);
-                
-                try {
-                    // Generate thumbnail for this page
-                    await this.generatePageThumbnail(filePath, thumbnailPath, pageNumber);
-                    
-                    // Read the thumbnail as base64
-                    const thumbnailData = await fs.readFile(thumbnailPath, { encoding: 'base64' });
-                    
-                    thumbnails.push({
-                        pageNumber,
-                        path: thumbnailPath,
-                        data: `data:image/png;base64,${thumbnailData}`
-                    });
-                    
-                    console.log(`[StandardPdfConverter] Generated thumbnail for page ${pageNumber}`);
-                } catch (pageError) {
-                    console.error(`[StandardPdfConverter] Failed to generate thumbnail for page ${pageNumber}:`, pageError);
-                }
-            }
-            
-            return thumbnails;
-        } catch (error) {
-            console.error('[StandardPdfConverter] Failed to generate thumbnails:', error);
-            return [];
-        }
+        // This functionality has been removed to eliminate the canvas dependency
+        console.log(`[StandardPdfConverter] Thumbnail generation disabled`);
+        return [];
     }
 
     /**
@@ -376,72 +329,16 @@ class StandardPdfConverter extends BasePdfConverter {
      * @returns {Promise<void>}
      */
     async generatePageThumbnail(filePath, outputPath, pageNumber, options = {}) {
-        try {
-            console.log(`[StandardPdfConverter] Generating thumbnail for page ${pageNumber}`);
-            
-            // Default options
-            const width = options.width || 300;
-            const height = options.height || 0; // Will be calculated to maintain aspect ratio
-            const quality = options.quality || 0.8;
-            
-            // Import required modules
-            const { createCanvas } = require('canvas');
-            const pdfjsLib = require('@bundled-es-modules/pdfjs-dist');
-            
-            // Configure PDF.js
-            pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('@bundled-es-modules/pdfjs-dist/build/pdf.worker.js');
-            
-            // Load the PDF document
-            const data = await fs.readFile(filePath);
-            const pdfDoc = await pdfjsLib.getDocument({ data }).promise;
-            
-            // Get the requested page
-            const page = await pdfDoc.getPage(pageNumber);
-            
-            // Get the original viewport
-            const originalViewport = page.getViewport({ scale: 1.0 });
-            
-            // Calculate scale to fit the desired width
-            const scale = width / originalViewport.width;
-            
-            // Create a viewport with the desired scale
-            const viewport = page.getViewport({ scale });
-            
-            // Calculate height if not specified
-            const finalHeight = height || Math.floor(viewport.height);
-            
-            // Create a canvas with the desired dimensions
-            const canvas = createCanvas(width, finalHeight);
-            const context = canvas.getContext('2d');
-            
-            // Set white background
-            context.fillStyle = 'white';
-            context.fillRect(0, 0, width, finalHeight);
-            
-            // Render the PDF page to the canvas
-            await page.render({
-                canvasContext: context,
-                viewport
-            }).promise;
-            
-            // Convert canvas to PNG buffer
-            const buffer = canvas.toBuffer('image/png', { quality });
-            
-            // Write the buffer to the output file
-            await fs.writeFile(outputPath, buffer);
-            
-            console.log(`[StandardPdfConverter] Thumbnail generated for page ${pageNumber} at ${outputPath}`);
-        } catch (error) {
-            console.error('[StandardPdfConverter] Failed to generate page thumbnail:', error);
-            throw error;
-        }
+        // This functionality has been removed to eliminate the canvas dependency
+        console.log(`[StandardPdfConverter] Thumbnail generation disabled for page ${pageNumber}`);
+        return Promise.resolve();
     }
 
     /**
      * Generate markdown from PDF metadata and pages
      * @param {Object} metadata - PDF metadata
      * @param {Array} pages - Array of page objects
-     * @param {Array} thumbnails - Array of thumbnail info objects
+     * @param {Array} thumbnails - Array of thumbnail info objects (always empty now that thumbnail generation is disabled)
      * @param {Object} options - Conversion options
      * @returns {string} Markdown content
      */
@@ -450,15 +347,11 @@ class StandardPdfConverter extends BasePdfConverter {
         const markdown = this.generateMarkdownHeader(metadata, options);
         
         // Add content for each page
-        pages.forEach((page, index) => {
+        pages.forEach((page) => {
             markdown.push(`## Page ${page.pageNumber}`);
             markdown.push('');
             
-            // Add thumbnail if available
-            if (thumbnails[index]) {
-                markdown.push(`![Page ${page.pageNumber}](${thumbnails[index].data})`);
-                markdown.push('');
-            }
+            // No thumbnails are added since thumbnail generation is disabled
             
             // Add page text
             markdown.push(page.text);

@@ -51,34 +51,9 @@ exports.default = async function(context) {
     // Setup resource directories
     const resourcesDir = path.join(appOutDir, 'resources');
 
-    // Verify node_modules directory exists
-    const nodeModulesPath = path.join(resourcesDir, 'node_modules');
-    if (await safePathExists(nodeModulesPath)) {
-      console.log('✅ Verified node_modules directory exists');
-      
-      // Check a few critical modules as a sample
-      const criticalModules = [
-        'fs-extra',
-        'node-cache',
-        'axios',
-        'form-data',
-        'mime-types',
-        'mime-db',
-        'combined-stream',
-        'delayed-stream'
-      ];
-      
-      for (const module of criticalModules) {
-        const modulePath = path.join(nodeModulesPath, module);
-        if (await safePathExists(modulePath)) {
-          console.log(`✅ Verified ${module} module`);
-        } else {
-          console.warn(`⚠️ ${module} module not found in resources`);
-        }
-      }
-    } else {
-      console.error('❌ node_modules directory not found in resources');
-    }
+    // We no longer copy the entire node_modules to resources
+    // Instead, we're using asar packaging with specific unpack patterns
+    console.log('✅ Using optimized node_modules packaging with asar');
 
     // Verify critical static assets - these should now be in extraResources
     const staticAssets = [
