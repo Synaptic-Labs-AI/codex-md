@@ -31,8 +31,8 @@ function createStore(name, options = {}) {
   }
 
   try {
-    // Configure store with options to prevent corruption
-    const store = new Store({
+    // Handle encryption key properly
+    const storeOptions = {
       name,
       clearInvalidConfig: true, // Automatically clear invalid config
       serialize: (value) => JSON.stringify(value, null, 2), // Pretty format JSON
@@ -45,7 +45,21 @@ function createStore(name, options = {}) {
         }
       },
       ...options
-    });
+    };
+
+    // Only include encryptionKey if it's actually defined
+    // This allows electron-store to use its default machine-specific encryption
+    // which is more stable across restarts than an undefined/empty key
+    if (options.encryptionKey === undefined || options.encryptionKey === null || options.encryptionKey === '') {
+      console.log(`⚠️ No encryption key provided for store "${name}", using machine-specific encryption`);
+      // Remove the encryptionKey property entirely if it exists but is empty/undefined
+      delete storeOptions.encryptionKey;
+    } else {
+      console.log(`✅ Using provided encryption key for store "${name}"`);
+    }
+
+    // Configure store with options to prevent corruption
+    const store = new Store(storeOptions);
     
     console.log(`✅ Store "${name}" initialized successfully`);
     

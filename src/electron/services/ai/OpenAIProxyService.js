@@ -15,7 +15,7 @@
  */
 
 const BaseService = require('../BaseService');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 const NodeCache = require('node-cache');
 const axios = require('axios');
 const fs = require('fs-extra');
@@ -60,11 +60,11 @@ class OpenAIProxyService extends BaseService {
      */
     async handleConfigure(event, { apiKey }) {
         try {
-            const configuration = new Configuration({ apiKey });
-            const tempOpenAI = new OpenAIApi(configuration);
+            // Instantiate directly with v4 syntax
+            const tempOpenAI = new OpenAI({ apiKey });
 
-            // Verify the API key with a simple request
-            await tempOpenAI.listModels();
+            // Verify the API key with a v4 style request
+            await tempOpenAI.models.list();
 
             // If successful, update the instance
             this.openai = tempOpenAI;
@@ -93,24 +93,23 @@ class OpenAIProxyService extends BaseService {
             // Map our simplified model names to actual API model names
             const modelMapping = {
                 'whisper': 'whisper-1',
-                'gpt-4o-mini-transcribe': 'gpt-4o-mini', 
-                'gpt-4o-transcribe': 'gpt-4o'
+                'gpt-4o-mini-transcribe': 'gpt-4o-mini-transcribe', 
+                'gpt-4o-transcribe': 'gpt-4o-transcribe'
             };
             
             const apiModel = modelMapping[model] || 'whisper-1';
             console.log(`[OpenAIProxyService] Using transcription model: ${apiModel} (from ${model})`);
 
-            const response = await this.openai.createTranscription(
-                fs.createReadStream(audioPath),
-                apiModel,
-                prompt,
-                'text',
-                0,
-                language
-            );
+            const response = await this.openai.audio.transcriptions.create({
+                file: fs.createReadStream(audioPath),
+                model: apiModel,
+                prompt: prompt,
+                response_format: 'text',
+                language: language
+            });
 
             const result = {
-                text: response.data,
+                text: response.text || response, // Handle both object and direct text response
                 language: language,
                 model: model
             };
@@ -138,15 +137,15 @@ class OpenAIProxyService extends BaseService {
                 return cached;
             }
 
-            const response = await this.openai.createChatCompletion({
+            const response = await this.openai.chat.completions.create({
                 model,
                 messages: [{ role: 'user', content: prompt }],
                 ...options
             });
 
             const result = {
-                text: response.data.choices[0].message.content,
-                usage: response.data.usage
+                text: response.choices[0].message.content,
+                usage: response.usage
             };
 
             this.cache.set(cacheKey, result);
@@ -167,7 +166,7 @@ class OpenAIProxyService extends BaseService {
                 return { valid: false, error: 'API not configured' };
             }
 
-            await this.openai.listModels();
+            await this.openai.models.list();
             return { valid: true };
         } catch (error) {
             console.error('[OpenAIProxyService] API key check failed:', error);
@@ -213,4 +212,8 @@ class OpenAIProxyService extends BaseService {
     }
 }
 
-module.exports = OpenAIProxyService;
+// Create a single instance of the service
+const instance = new OpenAIProxyService();
+
+// Export an object containing the instance
+module.exports = { instance };

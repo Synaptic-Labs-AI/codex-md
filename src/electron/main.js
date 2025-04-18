@@ -22,6 +22,9 @@ const TrayManager = require('./features/tray');
 const NotificationManager = require('./features/notifications');
 const UpdateManager = require('./features/updater');
 const { createStore } = require('./utils/storeFactory');
+const ApiKeyService = require('./services/ApiKeyService'); // Import ApiKeyService
+// Import the singleton instance by destructuring the exported object
+const { instance: openAIProxyServiceInstance } = require('./services/ai/OpenAIProxyService'); 
 
 // Keep a global reference of objects
 let mainWindow;
@@ -127,9 +130,31 @@ async function createAndSetupWindow() {
  * Must complete before window creation
  */
 async function initializeApp() {
-    try {
-        // Initialize update manager
-        updateManager = new UpdateManager();
+  try {
+    // Initialize API Key Service early
+    const apiKeyServiceInstance = ApiKeyService; // Assuming singleton export
+    // OpenAIProxyService instance is already created via singleton pattern
+
+    // Attempt to configure the shared OpenAI Proxy instance on startup if key exists
+    const storedOpenAIKey = apiKeyServiceInstance.getApiKey('openai');
+    if (storedOpenAIKey) {
+      console.log('[Startup] Found stored OpenAI key, attempting to configure OpenAIProxyService...');
+      try {
+        const configureResult = await openAIProxyServiceInstance.handleConfigure(null, { apiKey: storedOpenAIKey });
+        if (configureResult.success) {
+          console.log('[Startup] OpenAIProxyService configured successfully on startup.');
+        } else {
+          console.warn('[Startup] OpenAIProxyService configuration failed on startup.');
+        }
+      } catch (configError) {
+        console.error('[Startup] Error configuring OpenAIProxyService on startup:', configError);
+      }
+    } else {
+      console.log('[Startup] No stored OpenAI key found.');
+    }
+
+    // Initialize update manager
+    updateManager = new UpdateManager();
         updateManager.initialize();
         console.log('✅ Update manager initialized');
 

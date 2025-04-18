@@ -228,7 +228,6 @@
         "husky": "^8.0.0",
         "jsdom": "^25.0.1",
         "lint-staged": "^13.1.0",
-        "openai": "^4.77.3",
         "path-browserify": "^1.0.1",
         "png-to-ico": "^2.1.8",
         "sass": "^1.79.4"

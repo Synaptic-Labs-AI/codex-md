@@ -148,4 +148,6 @@ class FileStorageService extends BaseService {
     }
 }
 
-module.exports = FileStorageService;
+// Create and export the singleton instance
+const fileStorageServiceInstance = new FileStorageService();
+module.exports = fileStorageServiceInstance;

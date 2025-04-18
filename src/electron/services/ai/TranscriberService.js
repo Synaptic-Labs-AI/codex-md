@@ -23,6 +23,9 @@ const ffmpeg = require('fluent-ffmpeg');
 const { v4: uuidv4 } = require('uuid');
 const BaseService = require('../BaseService');
 const { createStore } = require('../../utils/storeFactory');
+// Import singleton dependencies by destructuring the exported object
+const { instance: openAIProxyServiceInstance } = require('./OpenAIProxyService'); 
+const fileStorageServiceInstance = require('../storage/FileStorageService'); // Assuming this still exports instance directly
 
 // Settings store for model selection
 const settingsStore = createStore('settings');
@@ -31,10 +34,11 @@ const settingsStore = createStore('settings');
 const MAX_CHUNK_SIZE = 25 * 1024 * 1024;
 
 class TranscriberService extends BaseService {
-    constructor(openAIProxy, fileStorage) {
+    constructor() { 
         super();
-        this.openAIProxy = openAIProxy;
-        this.fileStorage = fileStorage;
+        // Use the imported singleton instances directly
+        this.openAIProxy = openAIProxyServiceInstance; 
+        this.fileStorage = fileStorageServiceInstance; 
         this.activeJobs = new Map();
     }
 
@@ -310,4 +314,6 @@ class TranscriberService extends BaseService {
     }
 }
 
-module.exports = TranscriberService;
+// Create and export the singleton instance
+const transcriberServiceInstance = new TranscriberService();
+module.exports = transcriberServiceInstance;

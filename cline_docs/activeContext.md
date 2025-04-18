@@ -6,6 +6,44 @@ Planning and implementing the consolidation of backend services into the Electro
 
 ## Recent Changes
 
+### Singleton Export/Import Refactor (2025-04-18)
+- Attempted to fix persistent `TypeError: OpenAIProxyService is not a constructor` by changing the singleton export/import pattern.
+  - Modified `src/electron/services/ai/OpenAIProxyService.js` to export an object `{ instance }` instead of the instance directly.
+  - Updated consumers (`TranscriberService.js`, `main.js`, `apikey.js`) to import using destructuring: `const { instance: openAIProxyServiceInstance } = require(...)`.
+- Reverted previous lazy loading implementation as it did not resolve the issue. This new pattern might avoid potential build/packaging issues with direct instance exports.
+
+### Service Singleton Refactor (2025-04-18)
+- Fixed `TypeError: OpenAIProxyService is not a constructor` and related instantiation errors by implementing the singleton pattern for core services.
+  - Modified the following services to export a single, shared instance instead of their class:
+    - `src/electron/services/ai/OpenAIProxyService.js`
+    - `src/electron/services/ai/TranscriberService.js`
+    - `src/electron/services/storage/FileStorageService.js`
+    - `src/electron/services/storage/FileProcessorService.js`
+  - Updated service constructors (`TranscriberService`) to directly import their singleton dependencies instead of receiving them via constructor parameters.
+  - Updated service consumers (`main.js`, `apikey.js`, `ConverterRegistry.js`) to import and use the singleton instances directly, removing local instantiation logic.
+- This ensures consistent use of single service instances across the application, resolving errors caused by multiple, unconfigured, or incorrectly dependency-injected instances.
+
+### OpenAI API Integration Fix (2025-04-18)
+- Fixed "Configuration is not a constructor" error in OpenAIProxyService by updating to OpenAI v4 API syntax:
+  - Modified `src/electron/services/ai/OpenAIProxyService.js` to use the new import style: `const OpenAI = require('openai');`
+  - Updated client instantiation to use v4 syntax: `new OpenAI({ apiKey })`
+  - Updated API method calls to match v4 structure:
+    - Changed `listModels()` to `models.list()`
+    - Changed `createTranscription()` to `audio.transcriptions.create()`
+    - Changed `createChatCompletion()` to `chat.completions.create()`
+  - Updated response handling to match v4 response structure
+  - Removed duplicate `openai` entry from devDependencies in package.json to avoid version conflicts
+- This fix ensures proper integration with the OpenAI API v4 library and resolves the configuration error during API key setup.
+
+### API Key Handling and Configuration Fixes (2025-04-18)
+- Fixed API key persistence issue across application restarts by modifying `storeFactory.js` to use machine-specific encryption when `STORE_ENCRYPTION_KEY` is not provided.
+- Fixed issue where audio files were incorrectly routed to OCR converter by adding special handling in `UnifiedConverterFactory.js` to remove the Mistral API key from multimedia conversion options.
+- Added missing `validateApiKey` method to `ApiKeyService.js`.
+- Fixed "OpenAI API not configured" error during audio transcription:
+  - Modified `src/electron/ipc/handlers/apikey.js` to configure `OpenAIProxyService` immediately after saving an OpenAI key.
+  - Modified `src/electron/main.js` to configure `OpenAIProxyService` on application startup if a stored OpenAI key exists.
+- These fixes ensure API keys persist, audio files use the correct converter, and the OpenAI service is properly configured for transcription.
+
 ### AudioConverter Ffmpeg Path Fix (2025-04-18)
 - Fixed "spawn ... ffmpeg.exe ENOENT" error during audio conversion in packaged app
 - Updated AudioConverter.js to correctly configure the path for ffmpeg.exe, in addition to ffprobe.exe

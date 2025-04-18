@@ -644,6 +644,20 @@ class UnifiedConverterFactory {
         }
       }
       
+      // Special handling for audio/video files to ensure they don't use Mistral API key
+      if (fileType === 'mp3' || fileType === 'wav' || fileType === 'mp4' || fileType === 'mov' || 
+          fileType === 'ogg' || fileType === 'webm' || fileType === 'avi' || 
+          fileType === 'flac' || fileType === 'm4a') {
+        console.log(`🔄 [UnifiedConverterFactory] Converting multimedia file (${fileType})`);
+        
+        // Remove mistralApiKey from options for multimedia files to prevent incorrect routing
+        if (options.mistralApiKey) {
+          console.log('🔍 [UnifiedConverterFactory] Removing Mistral API key from multimedia conversion options');
+          const { mistralApiKey, ...cleanOptions } = options;
+          options = cleanOptions;
+        }
+      }
+      
       // Use the converter's convert method
       const result = await converter.convert(fileContent, fileName, options.apiKey, {
         ...options,

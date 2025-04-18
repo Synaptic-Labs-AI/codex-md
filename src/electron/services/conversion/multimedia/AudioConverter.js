@@ -31,29 +31,51 @@ class AudioConverter extends BaseService {
         this.fileStorage = fileStorage;
         this.supportedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac'];
         this.activeConversions = new Map();
+        this.ffmpegConfigured = false;
         
-        // Configure ffmpeg to use the correct ffprobe path
-        this.configureFfmpeg();
+        // We'll configure ffmpeg lazily to ensure app is ready
+        // This helps avoid timing issues with process.resourcesPath
     }
     
     /**
      * Configure ffmpeg with the correct ffprobe and ffmpeg paths
+     * This method ensures ffmpeg and ffprobe binaries are correctly located
+     * and configured for both development and production environments.
+     * 
+     * @returns {boolean} True if configuration was successful
+     * @throws {Error} If binaries cannot be found in production mode
      */
     configureFfmpeg() {
+        // Skip if already configured
+        if (this.ffmpegConfigured) {
+            return true;
+        }
+
         try {
+            console.log('[AudioConverter] Configuring ffmpeg and ffprobe paths...');
+            
             // Default paths from static packages
             let ffprobePath = ffprobeStatic.path;
             let ffmpegPath = ffmpegInstaller.path;
+            
+            // Store original paths for logging
+            const defaultFfprobePath = ffprobePath;
+            const defaultFfmpegPath = ffmpegPath;
 
             // In production, use the paths from the resources directory
             if (app && app.isPackaged) {
+                console.log('[AudioConverter] Running in packaged mode, checking resources directory');
+                
                 // Check for ffprobe.exe in resources
                 const ffprobeResourcesPath = path.join(process.resourcesPath, 'ffprobe.exe');
                 if (fs.existsSync(ffprobeResourcesPath)) {
                     ffprobePath = ffprobeResourcesPath;
                     console.log(`[AudioConverter] Using ffprobe from resources: ${ffprobePath}`);
                 } else {
-                    console.warn(`[AudioConverter] ffprobe.exe not found in resources, falling back to default path: ${ffprobePath}`);
+                    const errorMsg = `ffprobe.exe not found in resources directory: ${ffprobeResourcesPath}`;
+                    console.error(`[AudioConverter] ${errorMsg}`);
+                    console.error('[AudioConverter] This indicates a build configuration issue with extraFiles');
+                    throw new Error(`[AudioConverter] ${errorMsg}`);
                 }
 
                 // Check for ffmpeg.exe in resources
@@ -62,20 +84,51 @@ class AudioConverter extends BaseService {
                     ffmpegPath = ffmpegResourcesPath;
                     console.log(`[AudioConverter] Using ffmpeg from resources: ${ffmpegPath}`);
                 } else {
-                    console.warn(`[AudioConverter] ffmpeg.exe not found in resources, falling back to default path: ${ffmpegPath}`);
+                    const errorMsg = `ffmpeg.exe not found in resources directory: ${ffmpegResourcesPath}`;
+                    console.error(`[AudioConverter] ${errorMsg}`);
+                    console.error('[AudioConverter] This indicates a build configuration issue with extraFiles');
+                    
+                    // Log the resources directory contents to help diagnose the issue
+                    try {
+                        const resourcesContents = fs.readdirSync(process.resourcesPath);
+                        console.error('[AudioConverter] Resources directory contents:', resourcesContents);
+                    } catch (dirError) {
+                        console.error('[AudioConverter] Could not read resources directory:', dirError.message);
+                    }
+                    
+                    throw new Error(`[AudioConverter] ${errorMsg}`);
                 }
             } else {
+                console.log('[AudioConverter] Running in development mode');
                 console.log(`[AudioConverter] Using default ffprobe path: ${ffprobePath}`);
                 console.log(`[AudioConverter] Using default ffmpeg path: ${ffmpegPath}`);
             }
 
             // Set the paths for fluent-ffmpeg
+            console.log(`[AudioConverter] Setting ffprobe path to: ${ffprobePath}`);
             ffmpeg.setFfprobePath(ffprobePath);
+            
+            console.log(`[AudioConverter] Setting ffmpeg path to: ${ffmpegPath}`);
             ffmpeg.setFfmpegPath(ffmpegPath);
-            console.log(`[AudioConverter] ffprobe path set to: ${ffprobePath}`);
-            console.log(`[AudioConverter] ffmpeg path set to: ${ffmpegPath}`);
+            
+            // Verify the configuration by logging the actual paths used
+            console.log(`[AudioConverter] ffprobe path configured: ${ffprobePath}`);
+            console.log(`[AudioConverter] ffmpeg path configured: ${ffmpegPath}`);
+            
+            // Log if we're using different paths than the defaults
+            if (ffprobePath !== defaultFfprobePath) {
+                console.log(`[AudioConverter] Using custom ffprobe path instead of default: ${defaultFfprobePath}`);
+            }
+            if (ffmpegPath !== defaultFfmpegPath) {
+                console.log(`[AudioConverter] Using custom ffmpeg path instead of default: ${defaultFfmpegPath}`);
+            }
+            
+            this.ffmpegConfigured = true;
+            return true;
         } catch (error) {
             console.error('[AudioConverter] Error configuring ffmpeg:', error);
+            this.ffmpegConfigured = false;
+            throw error; // Re-throw to allow proper error handling upstream
         }
     }
 
@@ -95,6 +148,12 @@ class AudioConverter extends BaseService {
      */
     async handleConvert(event, { filePath, options = {} }) {
         try {
+            // Ensure ffmpeg is configured at the start of the conversion process
+            if (!this.ffmpegConfigured) {
+                console.log('[AudioConverter] Configuring ffmpeg before handling conversion request');
+                this.configureFfmpeg();
+            }
+            
             const conversionId = this.generateConversionId();
             const window = event.sender.getOwnerBrowserWindow();
             
@@ -129,6 +188,13 @@ class AudioConverter extends BaseService {
      */
     async handleGetMetadata(event, { filePath }) {
         try {
+            // Ensure ffmpeg is configured before getting metadata
+            if (!this.ffmpegConfigured) {
+                console.log('[AudioConverter] Configuring ffmpeg before getting metadata');
+                this.configureFfmpeg();
+            }
+            
+            console.log(`[AudioConverter] Handling metadata request for: ${filePath}`);
             const metadata = await this.getAudioMetadata(filePath);
             return metadata;
         } catch (error) {
@@ -164,6 +230,12 @@ class AudioConverter extends BaseService {
      */
     async processConversion(conversionId, filePath, options) {
         try {
+            // Ensure ffmpeg is configured before starting conversion
+            if (!this.ffmpegConfigured) {
+                console.log(`[AudioConverter] Configuring ffmpeg before conversion for ${conversionId}`);
+                this.configureFfmpeg();
+            }
+            
             this.updateConversionStatus(conversionId, 'extracting_metadata');
             const metadata = await this.getAudioMetadata(filePath);
             
@@ -199,30 +271,44 @@ class AudioConverter extends BaseService {
      * @returns {Promise<Object>} Audio metadata
      */
     async getAudioMetadata(filePath) {
+        // Ensure ffmpeg is configured before use
+        if (!this.ffmpegConfigured) {
+            this.configureFfmpeg();
+        }
+        
         return new Promise((resolve, reject) => {
-            ffmpeg.ffprobe(filePath, (err, metadata) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
-                
-                const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
-                if (!audioStream) {
-                    reject(new Error('No audio stream found'));
-                    return;
-                }
-                
-                resolve({
-                    format: metadata.format.format_name,
-                    duration: metadata.format.duration,
-                    size: metadata.format.size,
-                    bitrate: metadata.format.bit_rate,
-                    codec: audioStream.codec_name,
-                    channels: audioStream.channels,
-                    sampleRate: audioStream.sample_rate,
-                    filename: path.basename(filePath)
+            try {
+                console.log(`[AudioConverter] Getting metadata for: ${filePath}`);
+                ffmpeg.ffprobe(filePath, (err, metadata) => {
+                    if (err) {
+                        console.error('[AudioConverter] ffprobe error:', err);
+                        reject(err);
+                        return;
+                    }
+                    
+                    const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
+                    if (!audioStream) {
+                        const error = new Error('No audio stream found');
+                        console.error('[AudioConverter]', error.message);
+                        reject(error);
+                        return;
+                    }
+                    
+                    resolve({
+                        format: metadata.format.format_name,
+                        duration: metadata.format.duration,
+                        size: metadata.format.size,
+                        bitrate: metadata.format.bit_rate,
+                        codec: audioStream.codec_name,
+                        channels: audioStream.channels,
+                        sampleRate: audioStream.sample_rate,
+                        filename: path.basename(filePath)
+                    });
                 });
-            });
+            } catch (error) {
+                console.error('[AudioConverter] Error in getAudioMetadata:', error);
+                reject(error);
+            }
         });
     }
 
@@ -234,6 +320,13 @@ class AudioConverter extends BaseService {
      */
     async transcribeAudio(filePath, language) {
         try {
+            // Ensure ffmpeg is configured before use
+            if (!this.ffmpegConfigured) {
+                this.configureFfmpeg();
+            }
+            
+            console.log(`[AudioConverter] Starting transcription for: ${filePath}`);
+            
             // Use the TranscriberService to transcribe the audio
             const result = await this.transcriber.handleTranscribeStart(null, {
                 filePath,

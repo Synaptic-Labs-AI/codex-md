@@ -73,6 +73,53 @@ class ApiKeyService {
       };
     }
   }
+
+  /**
+   * Validate an API key format
+   * @param {string} key - The API key to validate
+   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  async validateApiKey(key, provider = 'openai') {
+    try {
+      if (!key || typeof key !== 'string' || key.trim() === '') {
+        return { 
+          success: false, 
+          error: `${provider} API key cannot be empty` 
+        };
+      }
+
+      // Basic format validation based on provider
+      if (provider === 'openai') {
+        // OpenAI keys typically start with "sk-" and are 51 characters long
+        if (!key.startsWith('sk-') || key.length < 20) {
+          return { 
+            success: false, 
+            error: 'Invalid OpenAI API key format. Keys should start with "sk-"' 
+          };
+        }
+      } else if (provider === 'mistral') {
+        // Mistral keys are typically long strings
+        if (key.length < 20) {
+          return { 
+            success: false, 
+            error: 'Invalid Mistral API key format. Key appears too short' 
+          };
+        }
+      }
+
+      // Note: For a more thorough validation, you would make a test API call
+      // to verify the key works, but that's beyond the scope of this basic validation
+
+      return { success: true };
+    } catch (error) {
+      console.error(`Error validating ${provider} API key:`, error);
+      return { 
+        success: false, 
+        error: error.message || `Failed to validate ${provider} API key` 
+      };
+    }
+  }
 }
 
 module.exports = new ApiKeyService();

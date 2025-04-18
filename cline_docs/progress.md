@@ -80,6 +80,12 @@ flowchart TD
    - Will be simplified after consolidation
 
 ### Resolved Issues
+- ~~API key persistence issue across application restarts~~ (Fixed - modified storeFactory.js to handle undefined/empty encryption keys properly)
+- ~~Audio files incorrectly routed to OCR converter~~ (Fixed - added special handling in UnifiedConverterFactory.js for multimedia files)
+- ~~Missing validateApiKey method in ApiKeyService~~ (Fixed - implemented method with proper error handling)
+- ~~Application startup failure / TypeError: OpenAIProxyService is not a constructor errors~~ (Fixed - Reverted lazy loading. Changed OpenAIProxyService to export `{ instance }` and updated consumers to import via destructuring as a potential workaround for build/packaging issues.)
+- ~~OpenAI API not configured / TypeError: OpenAIProxyService is not a constructor errors~~ (Fixed - Implemented singleton pattern for OpenAIProxyService, TranscriberService, FileStorageService, FileProcessorService and updated consumers like main.js, apikey.js, ConverterRegistry.js to use shared instances)
+- ~~OpenAI API "Configuration is not a constructor" error~~ (Fixed - updated OpenAIProxyService.js to use OpenAI v4 API syntax instead of v3)
 - ~~Audio conversion "spawn ffmpeg.exe ENOENT" error~~ (Fixed - corrected ffmpeg path configuration in AudioConverter)
 - ~~Audio transcription "Cannot read properties of null (reading 'sender')" error~~ (Fixed - added check for null event in TranscriberService)
 - ~~Audio transcription "uuid is not a function" error~~ (Fixed - corrected uuid import and usage in TranscriberService)

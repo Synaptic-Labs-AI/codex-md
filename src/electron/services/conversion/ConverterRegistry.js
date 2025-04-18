@@ -99,42 +99,27 @@ ConverterRegistry.prototype.setupConverters = function() {
         const UrlConverter = require('./web/UrlConverter');
         const ParentUrlConverter = require('./web/ParentUrlConverter');
 
-        // Import required services for AudioConverter
-        const FileProcessorService = require('../storage/FileProcessorService');
-        const FileStorageService = require('../storage/FileStorageService');
-        const TranscriberService = require('../ai/TranscriberService');
-        const OpenAIProxyService = require('../ai/OpenAIProxyService');
+        // Import singleton service instances
+        const fileProcessorServiceInstance = require('../storage/FileProcessorService');
+        const fileStorageServiceInstance = require('../storage/FileStorageService');
+        const transcriberServiceInstance = require('../ai/TranscriberService');
+        // OpenAIProxyService singleton is already imported by TranscriberService
 
-        // Create service instances needed for AudioConverter
-        const fileProcessorInstance = new FileProcessorService();
-        const fileStorageInstance = new FileStorageService();
-        const openAIProxyInstance = new OpenAIProxyService();
-        const transcriberInstance = new TranscriberService(openAIProxyInstance, fileStorageInstance);
-
-        // Create instances of converter classes
+        // Create instances of converter classes, passing singleton dependencies
         const csvConverterInstance = new CsvConverter();
         const xlsxConverterInstance = new XlsxConverter();
-        const audioConverterInstance = new AudioConverter(fileProcessorInstance, transcriberInstance, fileStorageInstance);
-        const videoConverterInstance = new VideoConverter(fileProcessorInstance, transcriberInstance, fileStorageInstance);
+        // Pass the singleton instances to the constructors
+        const audioConverterInstance = new AudioConverter(fileProcessorServiceInstance, transcriberServiceInstance, fileStorageServiceInstance);
+        const videoConverterInstance = new VideoConverter(fileProcessorServiceInstance, transcriberServiceInstance, fileStorageServiceInstance);
         const pdfConverterFactory = new PdfFactory();
         const docxConverterInstance = new DocxConverter();
         const pptxConverterInstance = new PptxConverter();
         
-        // Create file service mocks for URL converters
-        const fileProcessorMock = {
-            handleFileRead: async (_, options) => {
-                return { content: options.content || '' };
-            }
-        };
-        const fileStorageMock = {
-            createTempDir: async (prefix) => {
-                return path.join(require('os').tmpdir(), `${prefix}_${Date.now()}`);
-            }
-        };
-        
-        // Instantiate URL converters with necessary dependencies
-        const urlConverterInstance = new UrlConverter(fileProcessorMock, fileStorageMock);
-        const parentUrlConverterInstance = new ParentUrlConverter(fileProcessorMock, fileStorageMock);
+        // Instantiate URL converters with singleton dependencies (or mocks if appropriate)
+        // Note: URL converters might not need the full file services, using mocks might still be okay here
+        // Using singletons for consistency, but could revert to mocks if needed.
+        const urlConverterInstance = new UrlConverter(fileProcessorServiceInstance, fileStorageServiceInstance);
+        const parentUrlConverterInstance = new ParentUrlConverter(fileProcessorServiceInstance, fileStorageServiceInstance);
 
         // Create standardized adapter for DOCX converter using the actual implementation
         this.register('docx', {
@@ -345,8 +330,8 @@ ConverterRegistry.prototype.setupConverters = function() {
                         throw new Error('Audio content must be a Buffer');
                     }
                     
-                    // Create a temporary file to process the audio
-                    const tempDir = await fileStorageInstance.createTempDir('audio_conversion');
+                    // Create a temporary file to process the audio using the singleton service
+                    const tempDir = await fileStorageServiceInstance.createTempDir('audio_conversion'); 
                     const tempFile = path.join(tempDir, `${name}_${Date.now()}.mp3`);
                     await fs.writeFile(tempFile, content);
                     
@@ -403,8 +388,8 @@ ConverterRegistry.prototype.setupConverters = function() {
                         throw new Error('Video content must be a Buffer');
                     }
                     
-                    // Create a temporary file to process the video
-                    const tempDir = await fileStorageInstance.createTempDir('video_conversion');
+                    // Create a temporary file to process the video using the singleton service
+                    const tempDir = await fileStorageServiceInstance.createTempDir('video_conversion'); 
                     const tempFile = path.join(tempDir, `${name}_${Date.now()}.mp4`);
                     await fs.writeFile(tempFile, content);
                     
@@ -453,20 +438,9 @@ ConverterRegistry.prototype.setupConverters = function() {
                 try {
                     console.log("[PdfAdapter] Converting PDF document");
                     
-                    // Initialize necessary services as mocks if needed
-                    const fileProcessorMock = {
-                        handleFileRead: async (_, options) => {
-                            return { content: options.content || '' };
-                        }
-                    };
-                    const fileStorageMock = {
-                        createTempDir: async (prefix) => {
-                            return path.join(require('os').tmpdir(), `${prefix}_${Date.now()}`);
-                        }
-                    };
                     
-                    // Create temp directory for conversion
-                    const tempDir = await fileStorageMock.createTempDir('pdf_conversion');
+                    // Create temp directory for conversion using the singleton service
+                    const tempDir = await fileStorageServiceInstance.createTempDir('pdf_conversion'); 
                     
                     // Ensure the directory exists
                     await fs.ensureDir(tempDir);
@@ -492,8 +466,9 @@ ConverterRegistry.prototype.setupConverters = function() {
                             console.log('[ConverterRegistry] Using Mistral OCR converter for PDF conversion');
                             // Use Mistral OCR converter - require it directly to ensure it's in scope
                             // Pass true for skipHandlerSetup to avoid duplicate IPC handler registration
+                            // Pass singleton services
                             const MistralPdfConverterClass = require('./document/MistralPdfConverter');
-                            const mistralConverter = new MistralPdfConverterClass(fileProcessorMock, fileStorageMock, null, true);
+                            const mistralConverter = new MistralPdfConverterClass(fileProcessorServiceInstance, fileStorageServiceInstance, null, true); 
                             // Set the API key
                             mistralConverter.apiKey = options.mistralApiKey;
                             console.log('[ConverterRegistry] Mistral API key set for OCR conversion');
@@ -507,9 +482,10 @@ ConverterRegistry.prototype.setupConverters = function() {
                         } else {
                             // Use standard converter - require it directly to ensure it's in scope
                             // Pass true for skipHandlerSetup to avoid duplicate IPC handler registration
+                            // Pass singleton services
                             console.log('[ConverterRegistry] Using standard PDF converter');
                             const StandardPdfConverterClass = require('./document/StandardPdfConverter');
-                            const standardConverter = new StandardPdfConverterClass(fileProcessorMock, fileStorageMock, true);
+                            const standardConverter = new StandardPdfConverterClass(fileProcessorServiceInstance, fileStorageServiceInstance, true); 
                                 
                             result = await standardConverter.convertToMarkdown(content, {
                                 ...options,
@@ -558,8 +534,8 @@ ConverterRegistry.prototype.setupConverters = function() {
                 try {
                     console.log(`[UrlAdapter] Converting URL: ${content}`);
                     
-                    // Create temporary directory for the conversion
-                    const tempDir = await fileStorageMock.createTempDir('url_conversion');
+                    // Create temporary directory for the conversion using the singleton service
+                    const tempDir = await fileStorageServiceInstance.createTempDir('url_conversion'); 
                     
                     // Launch a browser instance for the conversion
                     const puppeteer = require('puppeteer');
@@ -626,8 +602,8 @@ ConverterRegistry.prototype.setupConverters = function() {
                 try {
                     console.log(`[ParentUrlAdapter] Converting site: ${content}`);
                     
-                    // Create temporary directory for the conversion
-                    const tempDir = await fileStorageMock.createTempDir('parent_url_conversion');
+                    // Create temporary directory for the conversion using the singleton service
+                    const tempDir = await fileStorageServiceInstance.createTempDir('parent_url_conversion'); 
                     
                     // Launch a browser instance for the conversion
                     const puppeteer = require('puppeteer');

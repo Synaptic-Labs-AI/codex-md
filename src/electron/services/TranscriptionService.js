@@ -31,17 +31,17 @@ ffmpeg.setFfmpegPath(ffmpegStatic);
 const { createStore } = require('../utils/storeFactory');
 const store = createStore('transcription-settings');
 
-// Use the new TranscriberService
-const TranscriberService = require('./ai/TranscriberService');
-const OpenAIProxyService = require('./ai/OpenAIProxyService');
-
-// Create instances if needed
-const openAIProxy = new OpenAIProxyService();
+// Use the new TranscriberService - import the singleton instance directly
+// TranscriberService exports the instance directly, not in an object with an 'instance' property
+const transcriberService = require('./ai/TranscriberService');
+// Import the singleton instance using destructuring, following the Service Singleton Pattern
+// This pattern ensures we use the pre-created instance rather than trying to instantiate the class
+const { instance: openAIProxy } = require('./ai/OpenAIProxyService');
 
 class TranscriptionService {
   constructor() {
-    this.transcriber = new TranscriberService(openAIProxy, null);
-    console.log('✅ TranscriptionService initialized with new TranscriberService');
+    this.transcriber = transcriberService; // Use the singleton instance directly
+    console.log('✅ TranscriptionService initialized with TranscriberService singleton');
   }
   
   /**

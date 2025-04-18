@@ -9,6 +9,8 @@
 
 const { ipcMain } = require('electron');
 const apiKeyService = require('../../services/ApiKeyService');
+// Import the singleton instance by destructuring the exported object
+const { instance: openAIProxyServiceInstance } = require('../../services/ai/OpenAIProxyService'); 
 
 /**
  * Register all API key related IPC handlers
@@ -16,7 +18,29 @@ const apiKeyService = require('../../services/ApiKeyService');
 function registerApiKeyHandlers() {
   // Save API key
   ipcMain.handle('codex:apikey:save', async (event, { key, provider = 'openai' }) => {
-    return await apiKeyService.saveApiKey(key, provider);
+    const saveResult = await apiKeyService.saveApiKey(key, provider);
+
+    // If saving was successful and it's the OpenAI key, configure the proxy service
+    if (saveResult.success && provider === 'openai') {
+      console.log('[ApiKeyHandler] OpenAI key saved, attempting to configure OpenAIProxyService...');
+      try {
+        // Use the instance to call handleConfigure
+        const configureResult = await openAIProxyServiceInstance.handleConfigure(null, { apiKey: key });
+        if (configureResult.success) {
+          console.log('[ApiKeyHandler] OpenAIProxyService configured successfully.');
+        } else {
+          console.warn('[ApiKeyHandler] OpenAIProxyService configuration failed after saving key.');
+          // Optionally return a modified result indicating configuration failure
+          // return { ...saveResult, configured: false, configError: 'Configuration failed' };
+        }
+      } catch (configError) {
+        console.error('[ApiKeyHandler] Error configuring OpenAIProxyService:', configError);
+        // Optionally return a modified result indicating configuration error
+        // return { ...saveResult, configured: false, configError: configError.message };
+      }
+    }
+
+    return saveResult;
   });
 
   // Check if API key exists

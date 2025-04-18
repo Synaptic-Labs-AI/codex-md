@@ -181,4 +181,6 @@ class FileProcessorService extends BaseService {
     }
 }
 
-module.exports = FileProcessorService;
+// Create and export the singleton instance
+const fileProcessorServiceInstance = new FileProcessorService();
+module.exports = fileProcessorServiceInstance;

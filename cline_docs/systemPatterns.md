@@ -653,8 +653,488 @@ configureFfmpeg() {
 - **Transparency**: Provides detailed logging for debugging binary path issues
 - **Maintainability**: Clear separation of development and production path resolution logic
 
+### API Key Persistence Pattern
+The application implements a secure and reliable pattern for storing and retrieving API keys across application restarts.
+
+```mermaid
+flowchart TD
+    A[API Key Input] --> B[Frontend Store]
+    B --> C[IPC Channel]
+    C --> D[ApiKeyService]
+    D --> E[Store Factory]
+    E --> F{Encryption Key?}
+    F -->|Yes| G[Use Provided Key]
+    F -->|No| H[Use Machine-Specific Key]
+    G --> I[Electron Store]
+    H --> I
+    I --> J[Encrypted Storage]
+    
+    subgraph Frontend
+        A
+        B
+    end
+    
+    subgraph IPC Layer
+        C
+    end
+    
+    subgraph Main Process
+        D
+        E
+        F
+        G
+        H
+        I
+        J
+    end
+```
+
+#### Implementation Details
+- **Store Factory Pattern**: Uses a factory function to create and manage electron-store instances
+  ```javascript
+  function createStore(name, options = {}) {
+    // Check if we already have this store
+    if (storeInstances.has(name)) {
+      return storeInstances.get(name);
+    }
+
+    try {
+      // Handle encryption key properly
+      const storeOptions = {
+        name,
+        clearInvalidConfig: true,
+        serialize: (value) => JSON.stringify(value, null, 2),
+        deserialize: (value) => {
+          try {
+            return JSON.parse(value);
+          } catch (error) {
+            console.error(`Failed to parse ${name} store data, resetting to defaults:`, error);
+            return {}; // Return empty object if parsing fails
+          }
+        },
+        ...options
+      };
+
+      // Only include encryptionKey if it's actually defined
+      // This allows electron-store to use its default machine-specific encryption
+      if (options.encryptionKey === undefined || options.encryptionKey === null || options.encryptionKey === '') {
+        console.log(`⚠️ No encryption key provided for store "${name}", using machine-specific encryption`);
+        delete storeOptions.encryptionKey;
+      } else {
+        console.log(`✅ Using provided encryption key for store "${name}"`);
+      }
+
+      // Configure store with options to prevent corruption
+      const store = new Store(storeOptions);
+      
+      console.log(`✅ Store "${name}" initialized successfully`);
+      
+      // Save the instance
+      storeInstances.set(name, store);
+      return store;
+    } catch (error) {
+      console.error(`❌ Failed to initialize store "${name}":`, error);
+      
+      // Create a fallback in-memory store
+      const fallbackStore = {
+        get: (key) => null,
+        set: (key, value) => {},
+        has: (key) => false,
+        delete: (key) => {},
+        clear: () => {},
+        store: {},
+        path: null,
+        size: 0,
+        // Add other methods that might be used
+        onDidChange: () => ({ unsubscribe: () => {} }),
+        onDidAnyChange: () => ({ unsubscribe: () => {} }),
+        openInEditor: () => {}
+      };
+      
+      console.log(`⚠️ Using in-memory fallback store for "${name}"`);
+      
+      // Save the fallback instance
+      storeInstances.set(name, fallbackStore);
+      return fallbackStore;
+    }
+  }
+  ```
+
+- **API Key Service Pattern**: Centralizes API key management in a dedicated service
+  ```javascript
+  class ApiKeyService {
+    constructor() {
+      // Initialize store with encryption key from environment and error handling
+      this.store = createStore('api-keys', {
+        encryptionKey: process.env.STORE_ENCRYPTION_KEY
+      });
+    }
+
+    async saveApiKey(key, provider = 'openai') {
+      try {
+        this.store.set(`${provider}-api-key`, key);
+        return { success: true };
+      } catch (error) {
+        console.error(`Error saving ${provider} API key:`, error);
+        return { 
+          success: false, 
+          error: error.message || `Failed to save ${provider} API key` 
+        };
+      }
+    }
+
+    getApiKey(provider = 'openai') {
+      return this.store.get(`${provider}-api-key`, null);
+    }
+
+    hasApiKey(provider = 'openai') {
+      return !!this.getApiKey(provider);
+    }
+
+    deleteApiKey(provider = 'openai') {
+      try {
+        this.store.delete(`${provider}-api-key`);
+        return { success: true };
+      } catch (error) {
+        console.error(`Error deleting ${provider} API key:`, error);
+        return { 
+          success: false, 
+          error: error.message || `Failed to delete ${provider} API key` 
+        };
+      }
+    }
+
+    async validateApiKey(key, provider = 'openai') {
+      try {
+        if (!key || typeof key !== 'string' || key.trim() === '') {
+          return { 
+            success: false, 
+            error: `${provider} API key cannot be empty` 
+          };
+        }
+
+        // Basic format validation based on provider
+        if (provider === 'openai') {
+          // OpenAI keys typically start with "sk-" and are 51 characters long
+          if (!key.startsWith('sk-') || key.length < 20) {
+            return { 
+              success: false, 
+              error: 'Invalid OpenAI API key format. Keys should start with "sk-"' 
+            };
+          }
+        } else if (provider === 'mistral') {
+          // Mistral keys are typically long strings
+          if (key.length < 20) {
+            return { 
+              success: false, 
+              error: 'Invalid Mistral API key format. Key appears too short' 
+            };
+          }
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error(`Error validating ${provider} API key:`, error);
+        return { 
+          success: false, 
+          error: error.message || `Failed to validate ${provider} API key` 
+        };
+      }
+    }
+  }
+  ```
+
+- **Frontend Store Pattern**: Manages API key state in the frontend
+  ```javascript
+  // Create store with initialization tracking
+  const apiKeyStore = writable(initialState);
+
+  // Initialize store from electron
+  async function initializeStore() {
+    if (!isBrowser) return;
+
+    try {
+      if (!window?.electron) {
+        apiKeyStore.update(state => ({
+          ...state,
+          isInitialized: true,
+          error: 'Electron API not available'
+        }));
+        return;
+      }
+
+      window.electron.onReady(async () => {
+        try {
+          // Check existing keys
+          const [openaiExists, mistralExists] = await Promise.all([
+            window.electron.checkApiKeyExists('openai'),
+            window.electron.checkApiKeyExists('mistral')
+          ]);
+
+          // Get keys if they exist
+          const keys = {
+            openai: openaiExists.exists ? (await window.electron.getApiKey('openai')).key || '' : '',
+            mistral: mistralExists.exists ? (await window.electron.getApiKey('mistral')).key || '' : ''
+          };
+
+          apiKeyStore.update(state => ({
+            ...state,
+            keys,
+            isInitialized: true,
+            error: null
+          }));
+        } catch (error) {
+          console.error('Failed to load API keys:', error);
+          apiKeyStore.update(state => ({
+            ...state,
+            isInitialized: true,
+            error: error.message
+          }));
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize API key store:', error);
+      apiKeyStore.update(state => ({
+        ...state,
+        isInitialized: true,
+        error: error.message
+      }));
+    }
+  }
+  ```
+
+- **IPC Handler Pattern**: Registers handlers for API key operations
+  ```javascript
+  function registerApiKeyHandlers() {
+    // Save API key
+    ipcMain.handle('codex:apikey:save', async (event, { key, provider = 'openai' }) => {
+      return await apiKeyService.saveApiKey(key, provider);
+    });
+
+    // Check if API key exists
+    ipcMain.handle('codex:apikey:exists', async (event, { provider = 'openai' }) => {
+      return { exists: apiKeyService.hasApiKey(provider) };
+    });
+
+    // Delete API key
+    ipcMain.handle('codex:apikey:delete', async (event, { provider = 'openai' }) => {
+      return await apiKeyService.deleteApiKey(provider);
+    });
+
+    // Validate API key
+    ipcMain.handle('codex:apikey:validate', async (event, { key, provider = 'openai' }) => {
+      return await apiKeyService.validateApiKey(key, provider);
+    });
+
+    // Get API key
+    ipcMain.handle('codex:apikey:get', async (event, { provider = 'openai' }) => {
+      const key = apiKeyService.getApiKey(provider);
+      if (!key) {
+        return { success: false, error: 'API key not found' };
+      }
+      return { success: true, key };
+    });
+  }
+  ```
+
+#### Benefits
+- **Reliability**: Ensures API keys persist across application restarts
+- **Security**: Uses encryption to protect sensitive API keys
+- **Flexibility**: Supports multiple API providers (OpenAI, Mistral, etc.)
+- **Robustness**: Handles edge cases like missing encryption keys
+- **Fallback Mechanism**: Uses machine-specific encryption when no key is provided
+- **Error Handling**: Provides clear error messages for API key operations
+- **Validation**: Validates API keys before saving them
+
+### File Type Routing Pattern
+The application implements a specialized pattern for routing different file types to the appropriate converters, with special handling for multimedia files to prevent incorrect routing.
+
+```mermaid
+flowchart TD
+    A[File Input] --> B[File Type Detection]
+    B --> C[Converter Selection]
+    C --> D[Special Handling]
+    D --> E[Conversion Process]
+    
+    subgraph File Type Detection
+        F[Extract Extension] --> G[Normalize Type]
+        G --> H[Map to Category]
+    end
+    
+    subgraph Converter Selection
+        I[Get Converter by Type] --> J[Validate Converter]
+        J --> K[Create Converter Instance]
+    end
+    
+    subgraph Special Handling
+        L[Check File Type] --> M{Is Multimedia?}
+        M -->|Yes| N[Remove Mistral API Key]
+        M -->|No| O[Keep All Options]
+        N --> P[Clean Options]
+        O --> P
+    end
+    
+    subgraph Conversion Process
+        Q[Prepare Input] --> R[Call Convert Method]
+        R --> S[Process Result]
+        S --> T[Standardize Output]
+    end
+```
+
+#### Implementation Details
+- **File Type Detection**: Extracts and normalizes file extensions
+  ```javascript
+  // Normalize file type (remove dot, lowercase)
+  const normalizedType = fileType.toLowerCase().replace(/^\./, '');
+  ```
+
+- **Converter Selection**: Gets the appropriate converter based on file type
+  ```javascript
+  // For all other types, get converter from registry
+  const converter = await registry.getConverterByExtension(normalizedType);
+  if (converter) {
+    return {
+      converter,
+      type: normalizedType,
+      category: FILE_TYPE_CATEGORIES[normalizedType] || 'document'
+    };
+  }
+  ```
+
+- **Special Handling for Multimedia Files**: Prevents incorrect routing of multimedia files to OCR converter
+  ```javascript
+  // Special handling for audio/video files to ensure they don't use Mistral API key
+  if (fileType === 'mp3' || fileType === 'wav' || fileType === 'mp4' || fileType === 'mov' || 
+      fileType === 'ogg' || fileType === 'webm' || fileType === 'avi' || 
+      fileType === 'flac' || fileType === 'm4a') {
+    console.log(`🔄 [UnifiedConverterFactory] Converting multimedia file (${fileType})`);
+    
+    // Remove mistralApiKey from options for multimedia files to prevent incorrect routing
+    if (options.mistralApiKey) {
+      console.log('🔍 [UnifiedConverterFactory] Removing Mistral API key from multimedia conversion options');
+      const { mistralApiKey, ...cleanOptions } = options;
+      options = cleanOptions;
+    }
+  }
+  ```
+
+- **Conversion Process**: Calls the converter's convert method with the appropriate options
+  ```javascript
+  // Use the converter's convert method
+  const result = await converter.convert(fileContent, fileName, options.apiKey, {
+    ...options,
+    name: fileName,
+    onProgress: (progress) => {
+      if (progressTracker) {
+        progressTracker.updateScaled(progress, 20, 90, { 
+          status: typeof progress === 'object' ? progress.status : `converting_${fileType}` 
+        });
+      }
+    }
+  });
+  ```
+
+- **Result Standardization**: Ensures consistent result format
+  ```javascript
+  standardizeResult(result, fileType, fileName, category) {
+    // Ensure the result has all required properties
+    return {
+      success: result.success !== false,
+      content: result.content || '',
+      type: result.type || fileType,
+      fileType: fileType, // Explicitly include fileType
+      name: result.name || fileName,
+      category: result.category || category,
+      metadata: {
+        ...(result.metadata || {}),
+        converter: result.converter || 'unknown'
+      },
+      images: result.images || [],
+      ...result
+    };
+  }
+  ```
+
+#### Benefits
+- **Correctness**: Ensures files are routed to the appropriate converters
+- **Reliability**: Prevents incorrect routing of multimedia files to OCR converter
+- **Clarity**: Clear separation of file type detection and converter selection
+- **Robustness**: Handles edge cases like missing converters
+- **Extensibility**: Easy to add new file types and converters
+- **Consistency**: Ensures consistent result format across all converters
+
 ### Development vs. Production
 - **Development Mode**: Uses local dev server with hot reloading
 - **Production Mode**: Uses file:// protocol with enhanced path resolution
 - **Static Asset Handling**: Different paths for development and production
 - **Build Process**: Different strategies for development builds vs. production packaging
+
+### Service Singleton Pattern
+The application implements a singleton pattern for services to ensure only one instance exists throughout the application lifecycle.
+
+```mermaid
+flowchart TD
+    A[Service Class] --> B[Create Instance]
+    B --> C[Export Instance]
+    C --> D[Import in Consumer]
+    
+    subgraph Service Implementation
+        E[Define Class] --> F[Instantiate Once]
+        F --> G[Export Object with Instance]
+    end
+    
+    subgraph Consumer Usage
+        H[Import Object] --> I[Destructure to Get Instance]
+        I --> J[Use Instance Methods]
+    end
+```
+
+#### Implementation Details
+- **Service Class Definition**: Define the service class with its methods and properties
+  ```javascript
+  class OpenAIProxyService extends BaseService {
+      constructor() {
+          super();
+          this.openai = null;
+          this.cache = new NodeCache({ stdTTL: 3600 }); // 1 hour cache
+          this.setupAxiosRetry();
+      }
+      
+      // Service methods...
+  }
+  ```
+
+- **Single Instance Creation**: Create a single instance of the service
+  ```javascript
+  // Create a single instance of the service
+  const instance = new OpenAIProxyService();
+  ```
+
+- **Export Pattern**: Export an object containing the instance, not the class itself
+  ```javascript
+  // Export an object containing the instance
+  module.exports = { instance };
+  ```
+
+- **Import and Usage Pattern**: Import and destructure to get the instance
+  ```javascript
+  // Correct import pattern
+  const { instance: openAIProxy } = require('./ai/OpenAIProxyService');
+  
+  // Use the instance directly
+  await openAIProxy.handleConfigure(null, { apiKey });
+  ```
+
+- **Incorrect Usage Pattern**: Attempting to use the exported object as a constructor
+  ```javascript
+  // Incorrect import and usage - will cause "OpenAIProxyService is not a constructor" error
+  const OpenAIProxyService = require('./ai/OpenAIProxyService');
+  const openAIProxy = new OpenAIProxyService(); // Error: OpenAIProxyService is not a constructor
+  ```
+
+#### Benefits
+- **Resource Efficiency**: Ensures only one instance of a service exists, reducing memory usage
+- **State Consistency**: Maintains consistent state across the application
+- **Initialization Control**: Centralizes service initialization logic
+- **Dependency Management**: Simplifies dependency injection and management
+- **Error Prevention**: Prevents "X is not a constructor" errors when services export instances
