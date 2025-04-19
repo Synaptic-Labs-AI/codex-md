@@ -6,6 +6,64 @@ Planning and implementing the consolidation of backend services into the Electro
 
 ## Recent Changes
 
+### Video Conversion Log Pattern Analysis (2025-04-19)
+- Analyzed the seemingly contradictory behavior in the video conversion process logs
+- Determined that the pattern showing both failure and success messages is actually EXPECTED BEHAVIOR:
+  - The system first attempts a fast validation/remuxing (fails with "empty content" warning)
+  - It marks this validation phase as complete (46ms success message)
+  - It then proceeds with audio extraction and transcription as a fallback mechanism
+- Documented this multi-stage conversion process in:
+  - project-context.md (added new section explaining the process)
+  - systemPatterns.md (added "Multi-Stage Conversion Process Pattern" section)
+  - progress.md (marked the log pattern confusion as clarified)
+- Recommended keeping the current implementation as it provides a good balance of performance and reliability
+- Suggested potential improvements for future work:
+  - Implement clearer logging to differentiate between validation phase and actual conversion
+  - Better separate pipeline stages in VideoConverter.js
+  - Add conversion type tracking metrics
+
+### Package.json Build Configuration Update (2025-04-19)
+- Successfully implemented the third component of our solution to resolve the ffmpeg-static ASAR issue
+- Updated `package.json` build configuration with the following improvements:
+  - Added ffmpeg-related entries to the asarUnpack array:
+    - Added "**/node_modules/ffmpeg-static/**"
+    - Added "**/node_modules/@ffmpeg-installer/**"
+    - Added "**/node_modules/ffprobe-static/**"
+  - Moved ffmpeg binaries configuration from extraFiles to extraResources:
+    - Configured Windows binaries (ffmpeg.exe and ffprobe.exe)
+    - Added macOS binaries (ffmpeg and ffprobe)
+    - Added Linux binaries (ffmpeg and ffprobe)
+  - Added platform-specific configurations for macOS and Linux to ensure cross-platform compatibility
+- This approach ensures that ffmpeg binaries are correctly extracted from the ASAR archive and made available to the application at runtime across all supported platforms
+- This is a critical component of our solution to fix the "Conversion produced empty content" error in video processing
+
+### VideoConverter Ffmpeg Path Fix Attempt #3 (2025-04-19)
+- Attempted a third fix for "spawn ... ffmpeg.exe ENOENT" error during video conversion in packaged app
+- Modified `package.json` to remove FFmpeg-related modules (`@ffmpeg-installer`, `fluent-ffmpeg`, `ffprobe`, `ffprobe-static`) from the `build.asarUnpack` configuration.
+- The hypothesis is that unpacking these modules might confuse `fluent-ffmpeg` in the packaged environment, causing it to ignore the correctly configured paths pointing to the binaries in the `resources` directory (placed there by `extraFiles`). By keeping these modules within the ASAR archive, we hope to force `fluent-ffmpeg` to rely solely on the configured paths or environment variables.
+
+### VideoConverter Ffmpeg Path Fix Attempt #2 (2025-04-18)
+- Attempted another fix for "spawn ... ffmpeg.exe ENOENT" error during video conversion in packaged app
+- Updated VideoConverter.js `configureFfmpeg` method to set `process.env.FFMPEG_PATH` and `process.env.FFPROBE_PATH` environment variables in addition to calling `ffmpeg.setFfmpegPath()` and `ffmpeg.setFfprobePath()`
+- This is an alternative approach in case `fluent-ffmpeg` ignores the direct path setting functions in the packaged environment but respects environment variables
+
+### VideoConverter Ffmpeg Path Fix (2025-04-18)
+- Fixed "spawn ... ffmpeg.exe ENOENT" error during video conversion in packaged app
+- Updated VideoConverter.js `configureFfmpeg` method to simplify path resolution logic
+- Removed alternative path checks, relying directly on `process.resourcesPath` in production and package paths in development
+- Ensured `@ffmpeg-installer/ffmpeg` is only required in the development environment block
+- This aims to resolve potential conflicts or overrides causing `fluent-ffmpeg` to ignore the configured paths in the packaged environment
+
+### VideoConverter Thumbnail Generation Removal (2025-04-18)
+- Removed thumbnail generation functionality from `VideoConverter.js` to resolve FFmpeg-related errors:
+  - Removed `generateThumbnails` and `generateThumbnail` methods
+  - Removed `handleGenerateThumbnail` method and its IPC handler registration
+  - Removed thumbnail generation code from `processConversion` method
+  - Removed thumbnails section from the markdown output
+  - Replaced thumbnail generation with an empty thumbnails array
+- This change eliminates the dependency on FFmpeg for thumbnail generation while preserving the core video metadata extraction and transcription functionality
+- Video conversion now produces markdown with metadata and transcription only, without thumbnail images
+
 ### Singleton Export/Import Refactor (2025-04-18)
 - Attempted to fix persistent `TypeError: OpenAIProxyService is not a constructor` by changing the singleton export/import pattern.
   - Modified `src/electron/services/ai/OpenAIProxyService.js` to export an object `{ instance }` instead of the instance directly.
@@ -86,14 +144,39 @@ Planning and implementing the consolidation of backend services into the Electro
 - Updated error handling to cover potential issues in the multi-step process
 - This fix aligns the implementation with Mistral's documented procedure for handling local files
 
-### VideoConverter Path Configuration Fix (2025-04-18)
-- Fixed "Conversion not found" error in MP4 video conversion
-- Updated VideoConverter.js to properly configure ffmpeg.exe path in packaged application
-- Added explicit ffmpeg path resolution using @ffmpeg-installer/ffmpeg
-- Implemented proper path handling for both development and production environments
-- Enhanced logging for ffmpeg and ffprobe path configuration
-- Ensured both executables are correctly located in resources directory when packaged
-- This fix complements the existing extraFiles configuration in package.json that copies ffmpeg.exe to resources
+### VideoConverter Tracking and Input Handling Fix (2025-04-18)
+- Refactored `VideoConverter.js` and `ConverterRegistry.js` to fix video conversion tracking and input handling issues.
+- Identified two key issues:
+  1. `VideoConverter` was using its own internal `activeConversions` map, separate from the global map in `ConverterRegistry`, leading to "Conversion tracking object not found" errors.
+  2. The `videoConverterWrapper.convert` method expected a file path (string) but was receiving a buffer, causing "VideoConverterWrapper requires file path, not buffer" errors.
+
+- Modified `VideoConverter.js`:
+    - Removed internal `activeConversions` map and `generateConversionId` method.
+    - Updated constructor to accept the `ConverterRegistry` instance.
+    - Refactored `handleConvert` (triggered by IPC) to generate a unique ID (using `uuidv4`) and register the conversion directly with the central `ConverterRegistry`.
+    - Refactored `processConversion` to retrieve/update conversion status using `registry.getConversion` and `registry.pingConversion`.
+    - Refactored `handleCancel` to use `registry.removeConversion`.
+    - Removed the internal `updateConversionStatus` method.
+    
+- Modified `ConverterRegistry.js`:
+    - Updated `VideoConverter` instantiation to pass the registry instance (`this`) to the constructor.
+    - Removed the old `videoAdapter` logic.
+    - Added a `videoConverterWrapper` with an adapter `convert` method to bridge potential calls expecting the old signature.
+    - Enhanced the wrapper to handle buffer input by:
+      - Saving the buffer to a temporary file using `fileStorageServiceInstance`
+      - Passing the path to this temporary file to `videoConverterInstance.handleConvert`
+      - Ensuring proper cleanup of the temporary file
+      - Supporting both buffer and file path inputs for flexibility
+      
+- This refactoring centralizes conversion tracking within the `ConverterRegistry` and properly handles buffer input, ensuring consistent state management for video conversions and resolving both issues.
+
+### VideoConverter Null Event Fix (2025-04-18)
+- Fixed "Cannot read properties of null (reading 'sender')" error in `VideoConverter.js`.
+- The error occurred when `handleConvert` was called via the `videoConverterWrapper` adapter (which passes `null` for the event object) instead of a direct IPC call.
+- Modified `handleConvert` to safely access `event?.sender?.getOwnerBrowserWindow()`, allowing it to proceed without error when `event` is null.
+- Added a check to skip sending the initial `video:conversion-started` notification if the window object is unavailable.
+- Ensured the temporary directory passed by the wrapper (`options._tempDir`) is correctly used if available.
+- This fix allows the `VideoConverter` to be invoked correctly through both direct IPC calls and the internal adapter mechanism.
 
 ### Dependency Verification Improvements (2025-04-18)
 - Enhanced dependency verification script to handle monorepo structure

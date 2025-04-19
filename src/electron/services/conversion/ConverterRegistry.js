@@ -25,8 +25,174 @@ const { ipcMain } = require('electron');
  */
 function ConverterRegistry() {
     this.converters = {};
+    this.activeConversions = new Map(); // Global map to track all active conversions
     this.setupConverters();
+    this.setupConversionValidation();
+    
+    // Clean up resources when the process exits
+    process.on('exit', () => this.cleanup());
+    process.on('SIGINT', () => {
+        this.cleanup();
+        process.exit(0);
+    });
 }
+
+/**
+ * Sets up periodic validation of active conversions to clean up stale ones.
+ * This helps prevent memory leaks and resource issues by removing conversions
+ * that haven't been updated recently.
+ */
+ConverterRegistry.prototype.setupConversionValidation = function() {
+    // Set up interval to check for stale conversions every minute
+    this.validationInterval = setInterval(() => {
+        try {
+            const now = Date.now();
+            let staleCount = 0;
+            
+            // Check all active conversions
+            Array.from(this.activeConversions.entries()).forEach(([id, conv]) => {
+                // Consider a conversion stale if it hasn't pinged in the last 30 seconds
+                if (now - conv.lastPing > 30000) {
+                    // Remove the stale conversion
+                    this.activeConversions.delete(id);
+                    staleCount++;
+                    
+                    // Log the removal
+                    console.warn(`[ConverterRegistry] Stale conversion ${id} removed (inactive for ${Math.round((now - conv.lastPing) / 1000)}s)`);
+                    
+                    // If the conversion has a cleanup function, call it
+                    if (typeof conv.cleanup === 'function') {
+                        try {
+                            conv.cleanup();
+                        } catch (cleanupError) {
+                            console.error(`[ConverterRegistry] Error cleaning up conversion ${id}:`, cleanupError);
+                        }
+                    }
+                }
+            });
+            
+            // Log summary if any stale conversions were removed
+            if (staleCount > 0) {
+                console.log(`[ConverterRegistry] Removed ${staleCount} stale conversions. Active conversions remaining: ${this.activeConversions.size}`);
+            }
+        } catch (error) {
+            console.error('[ConverterRegistry] Error during conversion validation:', error);
+        }
+    }, 60000); // Run every 60 seconds
+};
+
+/**
+ * Registers an active conversion with the registry.
+ * @param {string} id - Unique identifier for the conversion
+ * @param {Object} conversionData - Data about the conversion
+ * @param {Function} [cleanup] - Optional cleanup function to call when the conversion is removed
+ */
+ConverterRegistry.prototype.registerConversion = function(id, conversionData, cleanup) {
+    if (!id) {
+        console.error('[ConverterRegistry] Cannot register conversion without ID');
+        return;
+    }
+    
+    this.activeConversions.set(id, {
+        ...conversionData,
+        lastPing: Date.now(),
+        cleanup: cleanup
+    });
+    
+    console.log(`[ConverterRegistry] Registered conversion ${id}. Total active: ${this.activeConversions.size}`);
+};
+
+/**
+ * Updates the last ping time for an active conversion to keep it alive.
+ * @param {string} id - Unique identifier for the conversion
+ * @param {Object} [updates] - Optional updates to the conversion data
+ * @returns {boolean} - Whether the conversion was found and updated
+ */
+ConverterRegistry.prototype.pingConversion = function(id, updates = {}) {
+    const conversion = this.activeConversions.get(id);
+    if (!conversion) {
+        return false;
+    }
+    
+    // Update the last ping time and any other provided updates
+    this.activeConversions.set(id, {
+        ...conversion,
+        ...updates,
+        lastPing: Date.now()
+    });
+    
+    return true;
+};
+
+/**
+ * Removes an active conversion from the registry.
+ * @param {string} id - Unique identifier for the conversion
+ * @returns {boolean} - Whether the conversion was found and removed
+ */
+ConverterRegistry.prototype.removeConversion = function(id) {
+    const conversion = this.activeConversions.get(id);
+    if (!conversion) {
+        return false;
+    }
+    
+    // If the conversion has a cleanup function, call it
+    if (typeof conversion.cleanup === 'function') {
+        try {
+            conversion.cleanup();
+        } catch (cleanupError) {
+            console.error(`[ConverterRegistry] Error cleaning up conversion ${id}:`, cleanupError);
+        }
+    }
+    
+    // Remove the conversion
+    this.activeConversions.delete(id);
+    console.log(`[ConverterRegistry] Removed conversion ${id}. Total active: ${this.activeConversions.size}`);
+    
+    return true;
+};
+
+/**
+ * Gets an active conversion from the registry.
+ * @param {string} id - Unique identifier for the conversion
+ * @returns {Object|null} - The conversion data or null if not found
+ */
+ConverterRegistry.prototype.getConversion = function(id) {
+    return this.activeConversions.get(id) || null;
+};
+
+/**
+ * Cleans up resources used by the registry.
+ * This should be called when the application is shutting down.
+ */
+ConverterRegistry.prototype.cleanup = function() {
+    // Clear the validation interval
+    if (this.validationInterval) {
+        clearInterval(this.validationInterval);
+        this.validationInterval = null;
+    }
+    
+    // Clean up all active conversions
+    const conversionCount = this.activeConversions.size;
+    if (conversionCount > 0) {
+        console.log(`[ConverterRegistry] Cleaning up ${conversionCount} active conversions`);
+        
+        Array.from(this.activeConversions.entries()).forEach(([id, conv]) => {
+            // If the conversion has a cleanup function, call it
+            if (typeof conv.cleanup === 'function') {
+                try {
+                    conv.cleanup();
+                } catch (cleanupError) {
+                    console.error(`[ConverterRegistry] Error cleaning up conversion ${id}:`, cleanupError);
+                }
+            }
+        });
+        
+        // Clear the map
+        this.activeConversions.clear();
+    }
+    
+    console.log('[ConverterRegistry] Cleanup complete');
+};
 
 /**
  * Register a converter for a specific file type
@@ -110,7 +276,8 @@ ConverterRegistry.prototype.setupConverters = function() {
         const xlsxConverterInstance = new XlsxConverter();
         // Pass the singleton instances to the constructors
         const audioConverterInstance = new AudioConverter(fileProcessorServiceInstance, transcriberServiceInstance, fileStorageServiceInstance);
-        const videoConverterInstance = new VideoConverter(fileProcessorServiceInstance, transcriberServiceInstance, fileStorageServiceInstance);
+        // Pass the registry instance (this) to the VideoConverter constructor
+        const videoConverterInstance = new VideoConverter(this, fileProcessorServiceInstance, transcriberServiceInstance, fileStorageServiceInstance);
         const pdfConverterFactory = new PdfFactory();
         const docxConverterInstance = new DocxConverter();
         const pptxConverterInstance = new PptxConverter();
@@ -376,62 +543,109 @@ ConverterRegistry.prototype.setupConverters = function() {
         // Register ppt extension to use the same converter as pptx
         this.register('ppt', this.converters['pptx']);
 
-        // Create standardized adapter for video converter
-        // Create standardized adapter for video converters
-        const videoAdapter = {
-            convert: async (content, name, apiKey, options) => {
-                try {
-                    console.log(`[VideoAdapter] Converting video file: ${name}`);
-                    
-                    // Ensure content is a Buffer
-                    if (!Buffer.isBuffer(content)) {
-                        throw new Error('Video content must be a Buffer');
-                    }
-                    
-                    // Create a temporary file to process the video using the singleton service
-                    const tempDir = await fileStorageServiceInstance.createTempDir('video_conversion'); 
-                    const tempFile = path.join(tempDir, `${name}_${Date.now()}.mp4`);
-                    await fs.writeFile(tempFile, content);
-                    
-                    // Process the video file using the VideoConverter
-                    const result = await videoConverterInstance.processConversion(
-                        `video_${Date.now()}`,
-                        tempFile,
-                        {
-                            ...options,
-                            transcribe: options.transcribe !== false,
-                            language: options.language || 'en',
-                            title: options.title || name
-                        }
-                    );
-                    
-                    // Clean up temp file
-                    await fs.remove(tempDir);
-                    
-                    // Return the conversion result
-                    return {
-                        success: true,
-                        content: result,
-                        name: name,
-                        type: 'video'
-                    };
-                } catch (error) {
-                    console.error(`[VideoAdapter] Error converting video: ${error.message}`);
-                    throw new Error(`Video conversion failed: ${error.message}`);
-                }
-            },
-            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
-            config: {
-                name: 'Video Converter',
-                extensions: ['.mp4', '.webm', '.mov', '.avi'],
-                mimeTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'],
-                maxSize: 500 * 1024 * 1024 // 500MB
-            }
+        // --- Removed Video Adapter ---
+        // The VideoConverter instance itself will handle IPC calls via its BaseService methods
+        // Register the VideoConverter instance directly for relevant extensions
+        const videoConverterConfig = {
+            name: 'Video Converter',
+            extensions: ['.mp4', '.webm', '.mov', '.avi'],
+            mimeTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'],
+            maxSize: 500 * 1024 * 1024 // 500MB
         };
-        this.register('mp4', videoAdapter);
-        this.register('webm', videoAdapter);
-        this.register('mov', videoAdapter);
-        this.register('avi', videoAdapter);
+        
+        // We need a wrapper here if the IPC handler expects a specific 'convert' function signature
+        // Or, ideally, the IPC handler should call the appropriate method on the service instance
+        // For now, let's assume the IPC handler can call `videoConverterInstance.handleConvert`
+        // If not, we'd need an adapter similar to the others, but calling handleConvert
+        // Let's register the instance directly for now, assuming IPC routing handles it.
+         // If errors occur, we might need to re-introduce a simple adapter.
+         const videoConverterWrapper = {
+             // This 'convert' method acts as an adapter if the calling code
+             // (like UnifiedConverterFactory) expects a simple convert function.
+             // It simulates the necessary parts of an IPC call to trigger the
+             // VideoConverter's internal handling logic via handleConvert.
+             convert: async (content, name, apiKey, options) => {
+                 console.log("[ConverterRegistry] VideoConverterWrapper 'convert' called. Simulating IPC call to handleConvert.");
+                 
+                 try {
+                     // Create a temporary file for the video content
+                     // The original videoAdapter did this, and handleConvert expects a file path
+                     let tempDir;
+                     let tempFile;
+                     
+                     // Check if content is a Buffer (which is what we expect from UnifiedConverterFactory)
+                     if (Buffer.isBuffer(content)) {
+                         console.log(`[VideoConverterWrapper] Content is a Buffer of size: ${content.length} bytes`);
+                         
+                         // Create a temporary directory for this conversion
+                         tempDir = await fileStorageServiceInstance.createTempDir('video_conversion');
+                         console.log(`[VideoConverterWrapper] Created temp directory: ${tempDir}`);
+                         
+                         // Write the buffer to a temporary file
+                         tempFile = path.join(tempDir, `${name}_${Date.now()}.mp4`);
+                         console.log(`[VideoConverterWrapper] Writing video content to temp file: ${tempFile}`);
+                         await fs.writeFile(tempFile, content);
+                         
+                         // Verify the temp file was created successfully
+                         const tempFileExists = await fs.pathExists(tempFile);
+                         const tempFileStats = tempFileExists ? await fs.stat(tempFile) : null;
+                         console.log(`[VideoConverterWrapper] Temp file created: ${tempFileExists}, size: ${tempFileStats ? tempFileStats.size : 'N/A'} bytes`);
+                         
+                         if (!tempFileExists || (tempFileStats && tempFileStats.size === 0)) {
+                             throw new Error('Failed to write video content to temporary file');
+                         }
+                     } else if (typeof content === 'string') {
+                         // If content is already a string (file path), use it directly
+                         console.log(`[VideoConverterWrapper] Content is a file path: ${content}`);
+                         tempFile = content;
+                     } else {
+                         // If content is neither a Buffer nor a string, throw an error
+                         console.error("[VideoConverterWrapper] Unexpected content type:", typeof content);
+                         throw new Error(`VideoConverterWrapper requires buffer or file path, received: ${typeof content}`);
+                     }
+                     
+                     // Simulate the event object minimally or pass null
+                     const mockEvent = null; // Or { sender: { getOwnerBrowserWindow: () => null } } if needed
+                     
+                     // Call the instance's handleConvert method with the temp file path
+                     console.log(`[VideoConverterWrapper] Calling handleConvert with file path: ${tempFile}`);
+                     const result = await videoConverterInstance.handleConvert(mockEvent, { 
+                         filePath: tempFile, 
+                         options: { 
+                             ...options, 
+                             apiKey,
+                             // Pass the tempDir so it can be cleaned up properly
+                             _tempDir: tempDir
+                         } 
+                     });
+                     
+                     // Note: The VideoConverter will handle cleanup of the temp directory
+                     // through the registry's conversion tracking and cleanup mechanism
+                     
+                     // Return an object indicating the process started
+                     return { 
+                         success: true, 
+                         conversionId: result.conversionId, 
+                         async: true,
+                         name: name,
+                         type: 'video'
+                     };
+                 } catch (error) {
+                     console.error(`[VideoConverterWrapper] Error in convert:`, error);
+                     throw new Error(`Video conversion failed: ${error.message}`);
+                 }
+             },
+             validate: (content) => Buffer.isBuffer(content) && content.length > 0, // Validation might need adjustment if content is path
+             config: videoConverterConfig,
+             // Store the actual instance so it can be accessed if needed by the caller
+             instance: videoConverterInstance
+         };
+
+        this.register('mp4', videoConverterWrapper);
+        this.register('webm', videoConverterWrapper);
+        this.register('mov', videoConverterWrapper);
+        this.register('avi', videoConverterWrapper);
+
         // Register the PDF factory adapter with proper implementation
         this.register('pdf', {
             convert: async (content, name, apiKey, options) => {

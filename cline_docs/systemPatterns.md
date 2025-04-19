@@ -497,644 +497,586 @@ flowchart TD
 - **Direct File Requests**: Handles cases where files are referenced without a path
 - **Enhanced Logging**: Detailed logging of path resolution for debugging
 
-## UI Patterns
-
-### Modern Navigation Pattern
-The application implements a modern, unified navigation bar that provides a cohesive user experience.
+## External Binary Management Pattern
+The application implements a robust pattern for handling external binaries (like FFmpeg) in Electron applications, ensuring they are properly included in the packaged application and correctly resolved in both development and production environments.
 
 ```mermaid
 flowchart TD
-    A[Navigation Component] --> B[Brand/Logo]
-    A --> C[Navigation Links]
-    
-    subgraph Navigation Links
-        D[Unified Container] --> E[Link Items]
-        E --> F[Hover Effects]
-        E --> G[Active State]
-    end
-    
-    subgraph Visual Elements
-        H[Subtle Background] --> I[Animated Underlines]
-        I --> J[Color Transitions]
-        J --> K[Responsive Sizing]
-    end
-```
-
-#### Implementation Details
-- **Unified Navigation Bar**: Single cohesive container instead of separate boxes for each item
-- **Subtle Hover Effects**: Animated underline and background color changes on hover
-- **Active State Indicators**: Clear visual indicators for the current route
-- **Accessibility Support**: High contrast mode support with appropriate outlines
-- **Responsive Design**: Adjusts spacing, sizing, and layout for different screen sizes
-- **Animation**: Smooth transitions for hover and active states
-- **CSS Variables**: Uses theme variables for consistent styling
-
-## Cross-Platform Considerations
-
-### Windows-Specific Patterns
-- **Drive Letter Handling**: Special handling for Windows paths with drive letters (e.g., C:/)
-- **Backslash Normalization**: Handles both forward and backslashes in paths
-- **ASAR Path Resolution**: Ensures paths work correctly in ASAR-packaged apps on Windows
-- **File Locking Handling**: Implements strategies to deal with stricter file locking on Windows
-
-### External Binary Path Resolution Pattern
-The application implements a specialized pattern for resolving paths to external binary dependencies (like ffmpeg and ffprobe) in both development and packaged production environments.
-
-```mermaid
-flowchart TD
-    A[Converter Service] --> B{Is Packaged?}
-    B -->|Yes| C[Use Resources Path]
-    B -->|No| D[Use Node Module Path]
+    A[External Binary] --> B{Environment?}
+    B -->|Development| C[Use from node_modules]
+    B -->|Production| D[Use from resources]
     
     C --> E[Verify Binary Exists]
     D --> E
     
-    E -->|Yes| F[Configure Library]
-    E -->|No| G[Fallback to Default]
+    E -->|Success| F[Configure Binary Path]
+    E -->|Failure| G[Throw Clear Error]
+    
+    subgraph Binary Packaging
+        H[afterPack Script] --> I[Copy Binaries]
+        I --> J[Primary Source]
+        I --> K[Fallback Source]
+        J --> L[Verify Copy Success]
+        K --> L
+    end
     
     subgraph Path Resolution
-        H[Check app.isPackaged] --> I[Resolve process.resourcesPath]
-        I --> J[Join with Binary Name]
-        J --> K[Check File Exists]
+        M[Detect Environment] --> N[Resolve Appropriate Path]
+        N --> O[Verify Path]
+        O --> P[Set Path in Library]
     end
     
-    subgraph Configuration
-        L[Set Both Paths] --> M[ffmpeg.setFfmpegPath]
-        L --> N[ffmpeg.setFfprobePath]
-        M --> O[Log Path Configuration]
-        N --> O
+    subgraph Error Handling
+        Q[Check Binary Exists] --> R[Detailed Error Message]
+        R --> S[Log Error Location]
+        S --> T[Suggest Solutions]
+    end
+```
+
+### Implementation Details
+- **Environment Detection**: Reliably detect whether the application is running in development or production:
+  ```javascript
+  const isProduction = process.env.NODE_ENV === 'production' || (app && app.isPackaged);
+  ```
+
+- **Path Resolution Pattern**: Resolve binary paths differently based on environment:
+  ```javascript
+  // For production environment
+  if (isProduction) {
+    binaryPath = path.join(process.resourcesPath, 'binary.exe');
+  } else {
+    // For development environment
+    const binaryPackage = require('binary-package');
+    binaryPath = binaryPackage.path;
+  }
+  ```
+
+- **Binary Verification**: Always verify that binaries exist before attempting to use them:
+  ```javascript
+  if (!fs.existsSync(binaryPath)) {
+    const errorMsg = `Binary missing at ${binaryPath}`;
+    console.error(`[Service] ${errorMsg}`);
+    throw new Error(errorMsg);
+  }
+  ```
+
+- **Binary Packaging**: Use the afterPack script to ensure binaries are included in the packaged application:
+  ```javascript
+  // In afterPack.js
+  async function safeCopyFile(source, destination) {
+    try {
+      await fs.ensureDir(path.dirname(destination));
+      await fs.copyFile(source, destination);
+      console.log(`✅ Successfully copied: ${path.basename(source)} to ${destination}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error copying ${source} to ${destination}:`, error.message);
+      return false;
+    }
+  }
+  
+  // Copy binary with fallback
+  try {
+    const primarySrc = require.resolve('primary-package/binary.exe');
+    const binaryDest = path.join(resourcesDir, 'binary.exe');
+    await safeCopyFile(primarySrc, binaryDest);
+  } catch (primaryError) {
+    console.error('❌ Error with primary source:', primaryError.message);
+    console.log('⚠️ Attempting to use alternative source...');
+    
+    try {
+      // Try alternative source
+      const fallbackSrc = require.resolve('fallback-package/binary.exe');
+      const binaryDest = path.join(resourcesDir, 'binary.exe');
+      await safeCopyFile(fallbackSrc, binaryDest);
+    } catch (fallbackError) {
+      console.error('❌ Error with fallback source:', fallbackError.message);
+    }
+  }
+  ```
+
+- **Verification After Packaging**: Verify that binaries were successfully copied:
+  ```javascript
+  const binaryPath = path.join(resourcesDir, 'binary.exe');
+  if (await safePathExists(binaryPath)) {
+    console.log('✅ Verified binary.exe');
+  } else {
+    console.warn('⚠️ binary.exe not found in resources after copy attempt');
+  }
+  ```
+
+- **Clear Error Messages**: Provide clear error messages when binaries are missing:
+  ```javascript
+  throw new Error(`Conversion failed: Binary missing at ${binaryPath}. Please ensure the application is properly installed.`);
+  ```
+
+- **Library Configuration**: Configure external libraries to use the correct binary paths:
+  ```javascript
+  // For libraries like fluent-ffmpeg
+  library.setPath(binaryPath);
+  ```
+
+### Benefits
+- **Reliability**: Ensures binaries are available in both development and production environments
+- **Clarity**: Provides clear error messages when binaries are missing
+- **Robustness**: Implements fallback mechanisms for binary resolution
+- **Maintainability**: Centralizes binary management in a single location
+- **Consistency**: Ensures consistent binary resolution across the application
+- **Debugging**: Provides detailed logging for troubleshooting binary issues
+
+### Common Pitfalls to Avoid
+- **Hardcoded Paths**: Avoid hardcoding binary paths, as they will differ between environments
+- **Missing Verification**: Always verify that binaries exist before attempting to use them
+- **Incomplete Packaging**: Ensure binaries are properly included in the packaged application
+- **Unclear Error Messages**: Provide clear error messages that help users understand and resolve issues
+- **Single Source Dependency**: Implement fallback mechanisms for binary resolution to handle package changes
+
+### ASAR-Compatible Binary Management
+The application implements specialized handling for external binaries when packaged in ASAR archives, addressing a common issue where binaries cannot be executed directly from within an ASAR archive.
+
+```mermaid
+flowchart TD
+    A[External Binary] --> B{ASAR Packaging}
+    B -->|Problem| C[Binary Inaccessible in ASAR]
+    C --> D[Solutions]
+    
+    subgraph Solutions
+        E[Path Remapping] --> F[Replace app.asar with app.asar.unpacked]
+        G[Electron-Builder Config] --> H[asarUnpack Configuration]
+        G --> I[extraResources Configuration]
+        J[Specialized Packages] --> K[Use ffmpeg-static-electron-forge]
+    end
+    
+    subgraph Implementation
+        L[Detect Environment] --> M[Resolve Path with Remapping]
+        M --> N[Verify Binary Exists]
+        N --> O[Configure Library]
     end
 ```
 
 #### Implementation Details
-- **Environment Detection**: Uses Electron's `app.isPackaged` to determine if running in development or production
-- **Path Resolution Strategy**: Different path resolution strategies for development and production
-  - Development: Uses paths from node modules (e.g., `ffmpeg-installer`, `ffprobe-static`)
-  - Production: Uses paths from the resources directory (`process.resourcesPath`)
-- **Explicit Path Configuration**: Explicitly sets paths for all required binaries
-  - For ffmpeg: `ffmpeg.setFfmpegPath(ffmpegPath)`
-  - For ffprobe: `ffmpeg.setFfprobePath(ffprobePath)`
-- **Existence Verification**: Verifies that binaries exist at the resolved paths before using them
-- **Fallback Mechanism**: Falls back to default paths if binaries are not found in the expected locations
-- **Detailed Logging**: Logs the resolved paths and configuration status for debugging
-- **Error Handling**: Provides clear error messages when binaries cannot be found or configured
+- **ASAR Incompatibility Issue**: Binaries cannot be executed directly from within an ASAR archive, causing "Conversion produced empty content" errors.
 
-#### Example Implementation
-```javascript
-configureFfmpeg() {
-    try {
-        // Default paths from static packages
-        let ffprobePath = ffprobeStatic.path;
-        const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-        let ffmpegPath = ffmpegInstaller.path;
-        
-        // In production, use the paths from the resources directory
-        if (app && app.isPackaged) {
-            // Check for ffprobe.exe in resources
-            const ffprobeResourcesPath = path.join(process.resourcesPath, 'ffprobe.exe');
-            if (fs.existsSync(ffprobeResourcesPath)) {
-                ffprobePath = ffprobeResourcesPath;
-                console.log(`Using ffprobe from resources: ${ffprobePath}`);
-            } else {
-                console.warn(`ffprobe not found in resources, falling back to default path: ${ffprobePath}`);
-            }
-            
-            // Check for ffmpeg.exe in resources
-            const ffmpegResourcesPath = path.join(process.resourcesPath, 'ffmpeg.exe');
-            if (fs.existsSync(ffmpegResourcesPath)) {
-                ffmpegPath = ffmpegResourcesPath;
-                console.log(`Using ffmpeg from resources: ${ffmpegPath}`);
-            } else {
-                console.warn(`ffmpeg not found in resources, falling back to default path: ${ffmpegPath}`);
-            }
-        } else {
-            console.log(`Using default ffprobe path: ${ffprobePath}`);
-            console.log(`Using default ffmpeg path: ${ffmpegPath}`);
-        }
-        
-        // Set the paths for fluent-ffmpeg
-        ffmpeg.setFfprobePath(ffprobePath);
-        ffmpeg.setFfmpegPath(ffmpegPath);
-        console.log(`ffprobe path set to: ${ffprobePath}`);
-        console.log(`ffmpeg path set to: ${ffmpegPath}`);
-    } catch (error) {
-        console.error('Error configuring ffmpeg:', error);
-    }
-}
-```
+- **Solution 1: Path Remapping Technique**:
+  ```javascript
+  const ffmpegPath = process.env.NODE_ENV === 'production'
+    ? require('ffmpeg-static').replace('app.asar', 'app.asar.unpacked')
+    : require('ffmpeg-static');
+  ```
 
-#### Build Configuration
-- **extraFiles Configuration**: Uses electron-builder's `extraFiles` configuration to copy binaries to the resources directory
+- **Solution 2: Electron-Builder Configuration**:
   ```json
-  "extraFiles": [
-      {
-          "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
-          "to": "resources/ffmpeg.exe"
-      },
-      {
-          "from": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
-          "to": "resources/ffprobe.exe"
-      }
-  ]
-  ```
-- **asarUnpack Configuration**: Ensures required node modules are unpacked from the ASAR archive
-  ```json
-  "asarUnpack": [
-      "node_modules/@ffmpeg-installer/**/*",
-      "node_modules/ffprobe/**/*",
-      "node_modules/ffprobe-static/**/*"
-  ]
-  ```
-
-#### Benefits
-- **Reliability**: Ensures external binaries are correctly located in both development and production
-- **Consistency**: Provides a consistent approach to binary path resolution across the application
-- **Robustness**: Handles edge cases and provides fallbacks when binaries cannot be found
-- **Transparency**: Provides detailed logging for debugging binary path issues
-- **Maintainability**: Clear separation of development and production path resolution logic
-
-### API Key Persistence Pattern
-The application implements a secure and reliable pattern for storing and retrieving API keys across application restarts.
-
-```mermaid
-flowchart TD
-    A[API Key Input] --> B[Frontend Store]
-    B --> C[IPC Channel]
-    C --> D[ApiKeyService]
-    D --> E[Store Factory]
-    E --> F{Encryption Key?}
-    F -->|Yes| G[Use Provided Key]
-    F -->|No| H[Use Machine-Specific Key]
-    G --> I[Electron Store]
-    H --> I
-    I --> J[Encrypted Storage]
-    
-    subgraph Frontend
-        A
-        B
-    end
-    
-    subgraph IPC Layer
-        C
-    end
-    
-    subgraph Main Process
-        D
-        E
-        F
-        G
-        H
-        I
-        J
-    end
-```
-
-#### Implementation Details
-- **Store Factory Pattern**: Uses a factory function to create and manage electron-store instances
-  ```javascript
-  function createStore(name, options = {}) {
-    // Check if we already have this store
-    if (storeInstances.has(name)) {
-      return storeInstances.get(name);
-    }
-
-    try {
-      // Handle encryption key properly
-      const storeOptions = {
-        name,
-        clearInvalidConfig: true,
-        serialize: (value) => JSON.stringify(value, null, 2),
-        deserialize: (value) => {
-          try {
-            return JSON.parse(value);
-          } catch (error) {
-            console.error(`Failed to parse ${name} store data, resetting to defaults:`, error);
-            return {}; // Return empty object if parsing fails
-          }
-        },
-        ...options
-      };
-
-      // Only include encryptionKey if it's actually defined
-      // This allows electron-store to use its default machine-specific encryption
-      if (options.encryptionKey === undefined || options.encryptionKey === null || options.encryptionKey === '') {
-        console.log(`⚠️ No encryption key provided for store "${name}", using machine-specific encryption`);
-        delete storeOptions.encryptionKey;
-      } else {
-        console.log(`✅ Using provided encryption key for store "${name}"`);
-      }
-
-      // Configure store with options to prevent corruption
-      const store = new Store(storeOptions);
-      
-      console.log(`✅ Store "${name}" initialized successfully`);
-      
-      // Save the instance
-      storeInstances.set(name, store);
-      return store;
-    } catch (error) {
-      console.error(`❌ Failed to initialize store "${name}":`, error);
-      
-      // Create a fallback in-memory store
-      const fallbackStore = {
-        get: (key) => null,
-        set: (key, value) => {},
-        has: (key) => false,
-        delete: (key) => {},
-        clear: () => {},
-        store: {},
-        path: null,
-        size: 0,
-        // Add other methods that might be used
-        onDidChange: () => ({ unsubscribe: () => {} }),
-        onDidAnyChange: () => ({ unsubscribe: () => {} }),
-        openInEditor: () => {}
-      };
-      
-      console.log(`⚠️ Using in-memory fallback store for "${name}"`);
-      
-      // Save the fallback instance
-      storeInstances.set(name, fallbackStore);
-      return fallbackStore;
-    }
+  "build": {
+    "asarUnpack": ["**/node_modules/ffmpeg-static/**"],
+    "extraResources": [{
+      "from": "node_modules/ffmpeg-static/ffmpeg.exe",
+      "to": "app/node_modules/ffmpeg-static"
+    }]
   }
   ```
 
-- **API Key Service Pattern**: Centralizes API key management in a dedicated service
+- **Solution 3: Specialized Packaging Solution**:
+  Using electron-forge optimized packages like ffmpeg-static-electron-forge
+
+- **Recommended Implementation**: Combine path remapping with Electron-Builder configuration:
   ```javascript
-  class ApiKeyService {
-    constructor() {
-      // Initialize store with encryption key from environment and error handling
-      this.store = createStore('api-keys', {
-        encryptionKey: process.env.STORE_ENCRYPTION_KEY
-      });
-    }
-
-    async saveApiKey(key, provider = 'openai') {
+  configureFfmpeg() {
+    let ffmpegPath, ffprobePath;
+    
+    // Detect if we're in production
+    const isProduction = process.env.NODE_ENV === 'production' || (app && app.isPackaged);
+    
+    if (isProduction) {
+      // For production, use the unpacked path
       try {
-        this.store.set(`${provider}-api-key`, key);
-        return { success: true };
-      } catch (error) {
-        console.error(`Error saving ${provider} API key:`, error);
-        return { 
-          success: false, 
-          error: error.message || `Failed to save ${provider} API key` 
-        };
-      }
-    }
-
-    getApiKey(provider = 'openai') {
-      return this.store.get(`${provider}-api-key`, null);
-    }
-
-    hasApiKey(provider = 'openai') {
-      return !!this.getApiKey(provider);
-    }
-
-    deleteApiKey(provider = 'openai') {
-      try {
-        this.store.delete(`${provider}-api-key`);
-        return { success: true };
-      } catch (error) {
-        console.error(`Error deleting ${provider} API key:`, error);
-        return { 
-          success: false, 
-          error: error.message || `Failed to delete ${provider} API key` 
-        };
-      }
-    }
-
-    async validateApiKey(key, provider = 'openai') {
-      try {
-        if (!key || typeof key !== 'string' || key.trim() === '') {
-          return { 
-            success: false, 
-            error: `${provider} API key cannot be empty` 
-          };
+        // First try the path from ffmpeg-static but replace app.asar with app.asar.unpacked
+        ffmpegPath = require('ffmpeg-static').replace('app.asar', 'app.asar.unpacked');
+        
+        // If that doesn't exist, fall back to resources directory
+        if (!fs.existsSync(ffmpegPath)) {
+          ffmpegPath = path.join(process.resourcesPath, 'ffmpeg.exe');
         }
-
-        // Basic format validation based on provider
-        if (provider === 'openai') {
-          // OpenAI keys typically start with "sk-" and are 51 characters long
-          if (!key.startsWith('sk-') || key.length < 20) {
-            return { 
-              success: false, 
-              error: 'Invalid OpenAI API key format. Keys should start with "sk-"' 
-            };
-          }
-        } else if (provider === 'mistral') {
-          // Mistral keys are typically long strings
-          if (key.length < 20) {
-            return { 
-              success: false, 
-              error: 'Invalid Mistral API key format. Key appears too short' 
-            };
-          }
-        }
-
-        return { success: true };
-      } catch (error) {
-        console.error(`Error validating ${provider} API key:`, error);
-        return { 
-          success: false, 
-          error: error.message || `Failed to validate ${provider} API key` 
-        };
+      } catch (err) {
+        // If ffmpeg-static fails, use resources directory
+        ffmpegPath = path.join(process.resourcesPath, 'ffmpeg.exe');
       }
+    } else {
+      // For development, use the paths from the packages
+      ffmpegPath = require('ffmpeg-static');
     }
+    
+    // Verify binary exists
+    this.verifyBinary(ffmpegPath, 'FFmpeg');
+    
+    return { ffmpegPath };
   }
   ```
 
-- **Frontend Store Pattern**: Manages API key state in the frontend
+- **Enhanced afterPack.js Verification**:
   ```javascript
-  // Create store with initialization tracking
-  const apiKeyStore = writable(initialState);
-
-  // Initialize store from electron
-  async function initializeStore() {
-    if (!isBrowser) return;
-
-    try {
-      if (!window?.electron) {
-        apiKeyStore.update(state => ({
-          ...state,
-          isInitialized: true,
-          error: 'Electron API not available'
-        }));
-        return;
-      }
-
-      window.electron.onReady(async () => {
-        try {
-          // Check existing keys
-          const [openaiExists, mistralExists] = await Promise.all([
-            window.electron.checkApiKeyExists('openai'),
-            window.electron.checkApiKeyExists('mistral')
-          ]);
-
-          // Get keys if they exist
-          const keys = {
-            openai: openaiExists.exists ? (await window.electron.getApiKey('openai')).key || '' : '',
-            mistral: mistralExists.exists ? (await window.electron.getApiKey('mistral')).key || '' : ''
-          };
-
-          apiKeyStore.update(state => ({
-            ...state,
-            keys,
-            isInitialized: true,
-            error: null
-          }));
-        } catch (error) {
-          console.error('Failed to load API keys:', error);
-          apiKeyStore.update(state => ({
-            ...state,
-            isInitialized: true,
-            error: error.message
-          }));
-        }
-      });
-    } catch (error) {
-      console.error('Failed to initialize API key store:', error);
-      apiKeyStore.update(state => ({
-        ...state,
-        isInitialized: true,
-        error: error.message
-      }));
+  // Add specific checks for unpacked FFmpeg binaries
+  const unpackedDir = path.join(appOutDir, 'resources', 'app.asar.unpacked');
+  console.log('Checking unpacked directory:', unpackedDir);
+  
+  if (await safePathExists(unpackedDir)) {
+    console.log('✅ app.asar.unpacked directory exists');
+    
+    // Check for ffmpeg-static in unpacked directory
+    const ffmpegUnpackedPath = path.join(unpackedDir, 'node_modules', 'ffmpeg-static', 'ffmpeg.exe');
+    if (await safePathExists(ffmpegUnpackedPath)) {
+      console.log('✅ ffmpeg.exe found in unpacked directory');
+      await verifyBinary(ffmpegUnpackedPath);
+    } else {
+      console.warn('⚠️ ffmpeg.exe not found in unpacked directory');
     }
-  }
-  ```
-
-- **IPC Handler Pattern**: Registers handlers for API key operations
-  ```javascript
-  function registerApiKeyHandlers() {
-    // Save API key
-    ipcMain.handle('codex:apikey:save', async (event, { key, provider = 'openai' }) => {
-      return await apiKeyService.saveApiKey(key, provider);
-    });
-
-    // Check if API key exists
-    ipcMain.handle('codex:apikey:exists', async (event, { provider = 'openai' }) => {
-      return { exists: apiKeyService.hasApiKey(provider) };
-    });
-
-    // Delete API key
-    ipcMain.handle('codex:apikey:delete', async (event, { provider = 'openai' }) => {
-      return await apiKeyService.deleteApiKey(provider);
-    });
-
-    // Validate API key
-    ipcMain.handle('codex:apikey:validate', async (event, { key, provider = 'openai' }) => {
-      return await apiKeyService.validateApiKey(key, provider);
-    });
-
-    // Get API key
-    ipcMain.handle('codex:apikey:get', async (event, { provider = 'openai' }) => {
-      const key = apiKeyService.getApiKey(provider);
-      if (!key) {
-        return { success: false, error: 'API key not found' };
-      }
-      return { success: true, key };
-    });
+  } else {
+    console.warn('⚠️ app.asar.unpacked directory not found');
   }
   ```
 
 #### Benefits
-- **Reliability**: Ensures API keys persist across application restarts
-- **Security**: Uses encryption to protect sensitive API keys
-- **Flexibility**: Supports multiple API providers (OpenAI, Mistral, etc.)
-- **Robustness**: Handles edge cases like missing encryption keys
-- **Fallback Mechanism**: Uses machine-specific encryption when no key is provided
-- **Error Handling**: Provides clear error messages for API key operations
-- **Validation**: Validates API keys before saving them
+- **Reliability**: Ensures binaries are accessible in packaged applications
+- **Flexibility**: Multiple solutions to address the issue based on project needs
+- **Robustness**: Fallback mechanisms ensure binaries can be found even if primary method fails
+- **Verification**: Enhanced verification in afterPack.js confirms binaries are properly unpacked
+- **Clarity**: Clear error messages when binaries cannot be found
 
-### File Type Routing Pattern
-The application implements a specialized pattern for routing different file types to the appropriate converters, with special handling for multimedia files to prevent incorrect routing.
+## Service Singleton Pattern
+The application implements a consistent pattern for service singletons to ensure proper instantiation and usage throughout the application.
 
 ```mermaid
 flowchart TD
-    A[File Input] --> B[File Type Detection]
-    B --> C[Converter Selection]
-    C --> D[Special Handling]
-    D --> E[Conversion Process]
-    
-    subgraph File Type Detection
-        F[Extract Extension] --> G[Normalize Type]
-        G --> H[Map to Category]
-    end
-    
-    subgraph Converter Selection
-        I[Get Converter by Type] --> J[Validate Converter]
-        J --> K[Create Converter Instance]
-    end
-    
-    subgraph Special Handling
-        L[Check File Type] --> M{Is Multimedia?}
-        M -->|Yes| N[Remove Mistral API Key]
-        M -->|No| O[Keep All Options]
-        N --> P[Clean Options]
-        O --> P
-    end
-    
-    subgraph Conversion Process
-        Q[Prepare Input] --> R[Call Convert Method]
-        R --> S[Process Result]
-        S --> T[Standardize Output]
-    end
-```
-
-#### Implementation Details
-- **File Type Detection**: Extracts and normalizes file extensions
-  ```javascript
-  // Normalize file type (remove dot, lowercase)
-  const normalizedType = fileType.toLowerCase().replace(/^\./, '');
-  ```
-
-- **Converter Selection**: Gets the appropriate converter based on file type
-  ```javascript
-  // For all other types, get converter from registry
-  const converter = await registry.getConverterByExtension(normalizedType);
-  if (converter) {
-    return {
-      converter,
-      type: normalizedType,
-      category: FILE_TYPE_CATEGORIES[normalizedType] || 'document'
-    };
-  }
-  ```
-
-- **Special Handling for Multimedia Files**: Prevents incorrect routing of multimedia files to OCR converter
-  ```javascript
-  // Special handling for audio/video files to ensure they don't use Mistral API key
-  if (fileType === 'mp3' || fileType === 'wav' || fileType === 'mp4' || fileType === 'mov' || 
-      fileType === 'ogg' || fileType === 'webm' || fileType === 'avi' || 
-      fileType === 'flac' || fileType === 'm4a') {
-    console.log(`🔄 [UnifiedConverterFactory] Converting multimedia file (${fileType})`);
-    
-    // Remove mistralApiKey from options for multimedia files to prevent incorrect routing
-    if (options.mistralApiKey) {
-      console.log('🔍 [UnifiedConverterFactory] Removing Mistral API key from multimedia conversion options');
-      const { mistralApiKey, ...cleanOptions } = options;
-      options = cleanOptions;
-    }
-  }
-  ```
-
-- **Conversion Process**: Calls the converter's convert method with the appropriate options
-  ```javascript
-  // Use the converter's convert method
-  const result = await converter.convert(fileContent, fileName, options.apiKey, {
-    ...options,
-    name: fileName,
-    onProgress: (progress) => {
-      if (progressTracker) {
-        progressTracker.updateScaled(progress, 20, 90, { 
-          status: typeof progress === 'object' ? progress.status : `converting_${fileType}` 
-        });
-      }
-    }
-  });
-  ```
-
-- **Result Standardization**: Ensures consistent result format
-  ```javascript
-  standardizeResult(result, fileType, fileName, category) {
-    // Ensure the result has all required properties
-    return {
-      success: result.success !== false,
-      content: result.content || '',
-      type: result.type || fileType,
-      fileType: fileType, // Explicitly include fileType
-      name: result.name || fileName,
-      category: result.category || category,
-      metadata: {
-        ...(result.metadata || {}),
-        converter: result.converter || 'unknown'
-      },
-      images: result.images || [],
-      ...result
-    };
-  }
-  ```
-
-#### Benefits
-- **Correctness**: Ensures files are routed to the appropriate converters
-- **Reliability**: Prevents incorrect routing of multimedia files to OCR converter
-- **Clarity**: Clear separation of file type detection and converter selection
-- **Robustness**: Handles edge cases like missing converters
-- **Extensibility**: Easy to add new file types and converters
-- **Consistency**: Ensures consistent result format across all converters
-
-### Development vs. Production
-- **Development Mode**: Uses local dev server with hot reloading
-- **Production Mode**: Uses file:// protocol with enhanced path resolution
-- **Static Asset Handling**: Different paths for development and production
-- **Build Process**: Different strategies for development builds vs. production packaging
-
-### Service Singleton Pattern
-The application implements a singleton pattern for services to ensure only one instance exists throughout the application lifecycle.
-
-```mermaid
-flowchart TD
-    A[Service Class] --> B[Create Instance]
+    A[Service Implementation] --> B[Create Instance]
     B --> C[Export Instance]
-    C --> D[Import in Consumer]
+    C --> D[Import in Other Services]
     
-    subgraph Service Implementation
-        E[Define Class] --> F[Instantiate Once]
-        F --> G[Export Object with Instance]
+    subgraph Correct Pattern
+        E[Export Object with Instance] --> F[Import Object]
+        F --> G[Access Instance Property]
     end
     
-    subgraph Consumer Usage
-        H[Import Object] --> I[Destructure to Get Instance]
-        I --> J[Use Instance Methods]
+    subgraph Incorrect Pattern
+        H[Export Class] --> I[Import Class]
+        I --> J[Instantiate Again]
     end
 ```
 
-#### Implementation Details
-- **Service Class Definition**: Define the service class with its methods and properties
-  ```javascript
-  class OpenAIProxyService extends BaseService {
-      constructor() {
-          super();
-          this.openai = null;
-          this.cache = new NodeCache({ stdTTL: 3600 }); // 1 hour cache
-          this.setupAxiosRetry();
-      }
-      
-      // Service methods...
-  }
-  ```
-
-- **Single Instance Creation**: Create a single instance of the service
+### Implementation Details
+- **Singleton Creation**: Create a single instance of the service class:
   ```javascript
   // Create a single instance of the service
-  const instance = new OpenAIProxyService();
-  ```
-
-- **Export Pattern**: Export an object containing the instance, not the class itself
-  ```javascript
+  const instance = new ServiceClass();
+  
   // Export an object containing the instance
   module.exports = { instance };
   ```
 
-- **Import and Usage Pattern**: Import and destructure to get the instance
+- **Singleton Usage**: Import and use the singleton instance:
   ```javascript
-  // Correct import pattern
-  const { instance: openAIProxy } = require('./ai/OpenAIProxyService');
+  // Import the object containing the instance
+  const { instance: serviceInstance } = require('./ServiceClass');
   
   // Use the instance directly
-  await openAIProxy.handleConfigure(null, { apiKey });
+
+serviceInstance.method();
   ```
 
-- **Incorrect Usage Pattern**: Attempting to use the exported object as a constructor
+- **Avoid Constructor Usage**: Do not treat the imported module as a constructor:
   ```javascript
-  // Incorrect import and usage - will cause "OpenAIProxyService is not a constructor" error
-  const OpenAIProxyService = require('./ai/OpenAIProxyService');
-  const openAIProxy = new OpenAIProxyService(); // Error: OpenAIProxyService is not a constructor
+  // INCORRECT - will cause "is not a constructor" error
+  const ServiceClass = require('./ServiceClass');
+  const serviceInstance = new ServiceClass();
+  
+  // CORRECT
+  const { instance: serviceInstance } = require('./ServiceClass');
   ```
 
-#### Benefits
-- **Resource Efficiency**: Ensures only one instance of a service exists, reducing memory usage
-- **State Consistency**: Maintains consistent state across the application
-- **Initialization Control**: Centralizes service initialization logic
-- **Dependency Management**: Simplifies dependency injection and management
-- **Error Prevention**: Prevents "X is not a constructor" errors when services export instances
+### Benefits
+- **Consistency**: Ensures a single instance is used throughout the application
+- **Resource Efficiency**: Prevents multiple instances of resource-intensive services
+- **State Management**: Maintains consistent state across the application
+- **Error Prevention**: Avoids "is not a constructor" errors in packaged applications
+
+## Multi-Stage Conversion Process Pattern
+The application implements a multi-stage conversion process for video files, providing both performance optimization and fallback reliability.
+
+```mermaid
+flowchart TD
+    A[Video File] --> B[Initial Fast Validation]
+    B -->|Success| C[Quick Conversion Complete]
+    B -->|Failure| D[Fallback Comprehensive Conversion]
+    D --> E[Extract Audio]
+    E --> F[Transcribe Audio]
+    F --> G[Generate Markdown]
+    
+    subgraph Fast Path
+        B
+        C
+    end
+    
+    subgraph Fallback Path
+        D
+        E
+        F
+        G
+    end
+    
+    subgraph Log Pattern
+        H[Failure Log] --> I[Success Log]
+        I --> J[Progress Updates]
+    end
+```
+
+### Implementation Details
+- **Two-Phase Approach**: The system first attempts a fast validation/remuxing before falling back to a more comprehensive conversion:
+  ```javascript
+  // First attempt: Quick validation and potential remuxing
+  try {
+    // Fast path attempt
+    const result = await quickValidation(filePath);
+    return result;
+  } catch (error) {
+    console.log(`[VideoConverter] Fast path failed with error: ${error.message}`);
+    console.log(`[VideoConverter] Falling back to comprehensive conversion`);
+    
+    // Fallback to comprehensive conversion
+    return await comprehensiveConversion(filePath);
+  }
+  ```
+
+- **Expected Log Pattern**: The logs show both failure and success messages in sequence:
+  ```
+  [VERBOSE] Conversion failed: {
+    error: 'MP4 conversion failed: Video conversion failed: Conversion not found',
+    // other details...
+  }
+  [INFO] Conversion completed in 46ms
+  ```
+
+- **Comprehensive Conversion Flow**: The fallback path includes multiple stages:
+  ```javascript
+  async processConversion(conversionId, filePath, options) {
+    try {
+      // Extract metadata
+      const metadata = await this.getVideoMetadata(filePath);
+      
+      // Extract audio for transcription
+      const audioPath = path.join(tempDir, 'audio.mp3');
+      await this.extractAudio(filePath, audioPath);
+      
+      // Transcribe audio
+      const transcription = await this.transcribeAudio(audioPath, options.language || 'en');
+      
+      // Generate markdown
+      const markdown = this.generateMarkdown(metadata, thumbnails, transcription, options);
+      
+      return markdown;
+    } catch (error) {
+      // Handle errors
+    }
+  }
+  ```
+
+- **Registry Integration**: The conversion registry tracks the conversion through all stages:
+  ```javascript
+  // Update registry with status changes
+  this.registry.pingConversion(conversionId, { status: 'extracting_metadata', progress: 5 });
+  // Later...
+  this.registry.pingConversion(conversionId, { status: 'extracting_audio', progress: 30 });
+  // Later...
+  this.registry.pingConversion(conversionId, { status: 'transcribing', progress: 40 });
+  // Finally...
+  this.registry.pingConversion(conversionId, {
+    status: 'completed',
+    progress: 100,
+    result: markdown
+  });
+  ```
+
+### Benefits
+- **Performance Optimization**: Fast path for compatible files completes in milliseconds
+- **Reliability**: Fallback mechanism ensures conversion succeeds even when fast path fails
+- **Comprehensive Results**: Full conversion includes metadata, transcription, and formatting
+- **Progress Tracking**: Detailed progress updates throughout the conversion process
+- **Graceful Degradation**: System recovers automatically from initial conversion failures
+- **Resource Efficiency**: Only performs expensive operations (transcription) when necessary
+
+### Common Pitfalls to Avoid
+- **Misinterpreting Logs**: The failure-then-success log pattern is expected behavior, not an error
+- **Removing Fallback**: Removing the fallback path would break conversion for many file types
+- **Incorrect Status Updates**: Ensure the registry is updated with the correct status at each stage
+- **Missing Error Handling**: Each stage needs proper error handling to prevent silent failures
+- **Incomplete Cleanup**: Temporary files must be cleaned up even when conversion fails
+
+## Standardized Logging Pattern
+The application implements a standardized logging pattern for conversion processes, ensuring consistent, clear, and contextual log messages across all converters.
+
+```mermaid
+flowchart TD
+    A[Conversion Process] --> B[ConversionLogger]
+    B --> C[Log Message Generation]
+    C --> D[Console Output]
+    
+    subgraph ConversionLogger
+        E[Component Prefix] --> F[Phase Indicator]
+        F --> G[Context Details]
+        G --> H[Message Content]
+    end
+    
+    subgraph Log Levels
+        I[DEBUG] --> J[INFO]
+        J --> K[WARN]
+        K --> L[ERROR]
+    end
+    
+    subgraph Context Preservation
+        M[Conversion ID] --> N[File Type]
+        N --> O[Phase]
+        O --> P[Timing Info]
+    end
+```
+
+### Implementation Details
+- **Standardized Log Format**: Consistent format across all log messages:
+  ```javascript
+  // Format: [Component:PHASE][filetype] Message
+  log(level, component, phase, fileType, message, details = null) {
+    const prefix = `[${component}:${phase}]`;
+    const contextInfo = fileType ? `[${fileType}]` : '';
+    const formattedMessage = `${prefix}${contextInfo} ${message}`;
+    
+    switch (level) {
+      case 'debug':
+        console.debug(formattedMessage);
+        break;
+      case 'info':
+        console.log(formattedMessage);
+        break;
+      case 'warn':
+        console.warn(formattedMessage);
+        break;
+      case 'error':
+        console.error(formattedMessage, details || '');
+        break;
+    }
+    
+    return formattedMessage;
+  }
+  ```
+
+- **Conversion Status Tracking**: Explicit pipeline stages with human-readable descriptions:
+  ```javascript
+  // ConversionStatus.js
+  const CONVERSION_PHASES = {
+    STARTING: 'STARTING',
+    VALIDATING: 'VALIDATING',
+    FAST_ATTEMPT: 'FAST_ATTEMPT',
+    EXTRACTING_METADATA: 'EXTRACTING_METADATA',
+    EXTRACTING_AUDIO: 'EXTRACTING_AUDIO',
+    TRANSCRIBING: 'TRANSCRIBING',
+    GENERATING_MARKDOWN: 'GENERATING_MARKDOWN',
+    COMPLETED: 'COMPLETED',
+    FAILED: 'FAILED',
+    CANCELLED: 'CANCELLED'
+  };
+  
+  const PHASE_DESCRIPTIONS = {
+    [CONVERSION_PHASES.STARTING]: 'Starting conversion process',
+    [CONVERSION_PHASES.VALIDATING]: 'Validating input file',
+    [CONVERSION_PHASES.FAST_ATTEMPT]: 'Attempting fast conversion path',
+    [CONVERSION_PHASES.EXTRACTING_METADATA]: 'Extracting file metadata',
+    [CONVERSION_PHASES.EXTRACTING_AUDIO]: 'Extracting audio from video',
+    [CONVERSION_PHASES.TRANSCRIBING]: 'Transcribing audio content',
+    [CONVERSION_PHASES.GENERATING_MARKDOWN]: 'Generating markdown output',
+    [CONVERSION_PHASES.COMPLETED]: 'Conversion completed successfully',
+    [CONVERSION_PHASES.FAILED]: 'Conversion failed',
+    [CONVERSION_PHASES.CANCELLED]: 'Conversion cancelled by user'
+  };
+  ```
+
+- **Logger Usage in Converters**: Consistent logging across all conversion phases:
+  ```javascript
+  // In VideoConverter.js
+  const logger = new ConversionLogger('VideoConverter');
+  
+  async processConversion(conversionId, filePath, options) {
+    try {
+      logger.info(PHASES.STARTING, 'mp4', `Starting conversion for ${path.basename(filePath)}`);
+      
+      // Fast path attempt
+      try {
+        logger.info(PHASES.FAST_ATTEMPT, 'mp4', 'Attempting fast conversion path');
+        const result = await this.quickValidation(filePath);
+        logger.info(PHASES.COMPLETED, 'mp4', `Fast conversion completed in ${Date.now() - startTime}ms`);
+        return result;
+      } catch (fastPathError) {
+        logger.warn(PHASES.FAST_ATTEMPT, 'mp4', `Fast path failed: ${fastPathError.message}`);
+        logger.info(PHASES.EXTRACTING_METADATA, 'mp4', 'Falling back to comprehensive conversion');
+      }
+      
+      // Extract metadata
+      logger.info(PHASES.EXTRACTING_METADATA, 'mp4', 'Extracting video metadata');
+      const metadata = await this.getVideoMetadata(filePath);
+      
+      // Extract audio
+      logger.info(PHASES.EXTRACTING_AUDIO, 'mp4', 'Extracting audio from video');
+      await this.extractAudio(filePath, audioPath);
+      
+      // Transcribe audio
+      logger.info(PHASES.TRANSCRIBING, 'mp4', 'Transcribing audio content');
+      const transcription = await this.transcribeAudio(audioPath);
+      
+      // Generate markdown
+      logger.info(PHASES.GENERATING_MARKDOWN, 'mp4', 'Generating markdown output');
+      const markdown = this.generateMarkdown(metadata, transcription);
+      
+      logger.info(PHASES.COMPLETED, 'mp4', `Conversion completed in ${Date.now() - startTime}ms`);
+      return markdown;
+    } catch (error) {
+      logger.error(PHASES.FAILED, 'mp4', `Conversion failed: ${error.message}`, error);
+      throw error;
+    }
+  }
+  ```
+
+- **Example Log Output**: Clear, contextual log messages:
+  ```
+  [VideoConverter:STARTING][mp4] Starting conversion for video.mp4
+  [VideoConverter:FAST_ATTEMPT][mp4] Attempting fast conversion path
+  [VideoConverter:FAST_ATTEMPT][mp4] Fast path failed: Empty content produced
+  [VideoConverter:EXTRACTING_METADATA][mp4] Falling back to comprehensive conversion
+  [VideoConverter:EXTRACTING_METADATA][mp4] Extracting video metadata
+  [VideoConverter:EXTRACTING_AUDIO][mp4] Extracting audio from video
+  [VideoConverter:TRANSCRIBING][mp4] Transcribing audio content
+  [VideoConverter:GENERATING_MARKDOWN][mp4] Generating markdown output
+  [VideoConverter:COMPLETED][mp4] Conversion completed in 12463ms
+  ```
+
+### Benefits
+- **Clarity**: Clear indication of which component and phase generated each log message
+- **Context Preservation**: File type and conversion phase included in every log message
+- **Consistency**: Standardized format across all converters and phases
+- **Traceability**: Easy to follow the conversion flow through the logs
+- **Debugging**: Simplified troubleshooting with clear phase transitions
+- **Documentation**: Logs serve as implicit documentation of the conversion process
+
+### Implementation Plan
+1. **Create ConversionLogger Utility**:
+   - Implement standardized logging format
+   - Support different log levels
+   - Include component, phase, and file type context
+
+2. **Define ConversionStatus Model**:
+   - Define explicit pipeline stages
+   - Map statuses to human-readable descriptions
+   - Document phase transitions
+
+3. **Update Existing Converters**:
+   - Replace console.log calls with ConversionLogger
+   - Add explicit phase transitions
+   - Ensure consistent context information
+
+4. **Update Registry Integration**:
+   - Ensure registry status updates align with logging phases
+   - Preserve context between components
+   - Maintain timing information

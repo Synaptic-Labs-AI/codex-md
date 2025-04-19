@@ -11,6 +11,7 @@
  */
 
 const { ProgressTracker } = require('./progress');
+const ConversionStatus = require('./ConversionStatus');
 
 // Registry to store converter factories
 const converterFactories = new Map();
@@ -56,6 +57,7 @@ async function convertToMarkdown(type, content, options = {}) {
 
 module.exports = {
     ProgressTracker,
+    ConversionStatus,
     registerConverterFactory,
     registerConverter,
     convertToMarkdown

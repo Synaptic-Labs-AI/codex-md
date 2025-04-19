@@ -53,11 +53,10 @@
         "afterPack": "./scripts/afterPack.js",
         "asar": true,
         "asarUnpack": [
-            "node_modules/@ffmpeg-installer/**/*",
             "node_modules/puppeteer/**/*",
-            "node_modules/fluent-ffmpeg/**/*",
-            "node_modules/ffprobe/**/*",
-            "node_modules/ffprobe-static/**/*"
+            "**/node_modules/ffmpeg-static/**",
+            "**/node_modules/@ffmpeg-installer/**",
+            "**/node_modules/ffprobe-static/**"
         ],
         "win": {
             "target": [
@@ -121,14 +120,57 @@
         ],
         "extraFiles": [
             {
-                "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
-                "to": "resources/ffmpeg.exe"
+                "from": "node_modules/ffmpeg-static/ffmpeg.exe",
+                "to": "ffmpeg.exe",
+                "platform": "win32"
             },
             {
                 "from": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
-                "to": "resources/ffprobe.exe"
+                "to": "ffprobe.exe",
+                "platform": "win32"
+            },
+            {
+                "from": "node_modules/ffmpeg-static/ffmpeg",
+                "to": "ffmpeg",
+                "platform": "darwin"
+            },
+            {
+                "from": "node_modules/ffprobe-static/bin/darwin/x64/ffprobe",
+                "to": "ffprobe",
+                "platform": "darwin"
+            },
+            {
+                "from": "node_modules/ffmpeg-static/ffmpeg",
+                "to": "ffmpeg",
+                "platform": "linux"
+            },
+            {
+                "from": "node_modules/ffprobe-static/bin/linux/x64/ffprobe",
+                "to": "ffprobe",
+                "platform": "linux"
             }
-        ]
+        ],
+        "mac": {
+            "target": [
+                {
+                    "target": "dmg",
+                    "arch": ["x64", "arm64"]
+                }
+            ],
+            "icon": "build/icons/icon.icns",
+            "category": "public.app-category.productivity"
+        },
+        "linux": {
+            "target": [
+                {
+                    "target": "AppImage",
+                    "arch": ["x64"]
+                }
+            ],
+            "icon": "build/icons/icon.png",
+            "category": "Utility"
+        },
+        "extraFiles": []
     },
     "config": {
         "forge": {

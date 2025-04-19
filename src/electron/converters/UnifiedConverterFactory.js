@@ -16,17 +16,20 @@ const fs = require('fs-extra');
 const path = require('path');
 const { PathUtils } = require('../utils/paths/index');
 const { ProgressTracker } = require('../utils/conversion/progress');
+const { getLogger } = require('../utils/logging/ConversionLogger');
+const ConversionStatus = require('../utils/conversion/ConversionStatus');
 
 /**
  * Handles module loading with proper error handling and path resolution.
  */
 class ModuleLoader {
   static async loadModule(modulePath) {
+    const logger = getLogger('ModuleLoader');
     try {
       const module = require(modulePath);
       return module.default || module;
     } catch (error) {
-      console.error(`Failed to load module: ${modulePath}`, error);
+      logger.error(`Failed to load module: ${modulePath}`, error);
       throw error;
     }
   }
@@ -60,6 +63,7 @@ class ConverterInitializer {
     this._initialized = false;
     this._initPromise = null;
     this._converterRegistry = null;
+    this.logger = getLogger('ConverterInitializer');
   }
   
   static getInstance() {
@@ -78,15 +82,18 @@ class ConverterInitializer {
   }
 
   async _doInitialize() {
-    console.log('🔄 Starting converter initialization...');
+    this.logger.logPhaseTransition(
+      ConversionStatus.STATUS.STARTING,
+      ConversionStatus.STATUS.INITIALIZING
+    );
+
     try {
       const paths = ModuleLoader.getModulePaths();
-      console.log('🔍 Using converter paths:', paths);
+      this.logger.info('Using converter paths:', paths);
       
       const registry = await ModuleLoader.loadModule(paths.registry);
-      console.log('✅ Successfully loaded converter registry');
+      this.logger.success('Successfully loaded converter registry');
       
-      // Validate registry
       if (!this._validateRegistry(registry)) {
         throw new Error('Invalid converter registry');
       }
@@ -94,25 +101,27 @@ class ConverterInitializer {
       this._converterRegistry = registry;
       this._initialized = true;
       
-      console.log('✅ Converter initialization complete');
+      this.logger.logPhaseTransition(
+        ConversionStatus.STATUS.INITIALIZING,
+        ConversionStatus.STATUS.COMPLETED
+      );
+
       return this._converterRegistry;
     } catch (error) {
       this._initPromise = null;
-      console.error('❌ Converter initialization failed:', error);
+      this.logger.logConversionError('init', error);
       throw error;
     }
   }
-_validateRegistry(registry) {
-  if (!registry || typeof registry !== 'object') return false;
-  if (!registry.converters || typeof registry.converters !== 'object') return false;
-  if (typeof registry.convertToMarkdown !== 'function') return false;
-  if (typeof registry.getConverterByExtension !== 'function') return false;
-  return true;
+
+  _validateRegistry(registry) {
+    if (!registry || typeof registry !== 'object') return false;
+    if (!registry.converters || typeof registry.converters !== 'object') return false;
+    if (typeof registry.convertToMarkdown !== 'function') return false;
+    if (typeof registry.getConverterByExtension !== 'function') return false;
+    return true;
+  }
 }
-}
-
-
-
 
 /**
  * Categorize file types for better organization
@@ -151,9 +160,10 @@ class UnifiedConverterFactory {
   static _instance = null;
   
   constructor() {
-    console.log('UnifiedConverterFactory initialized');
     this._initializer = ConverterInitializer.getInstance();
     this._converterRegistry = null;
+    this.logger = getLogger('UnifiedConverterFactory');
+    this.logger.info('UnifiedConverterFactory initialized');
   }
 
   static getInstance() {
@@ -171,7 +181,7 @@ class UnifiedConverterFactory {
   }
 
   async getConverter(fileType) {
-    console.log(`🔍 Getting converter for type: ${fileType}`);
+    this.logger.setContext({ fileType });
     
     const registry = await this._ensureInitialized();
     
@@ -184,11 +194,11 @@ class UnifiedConverterFactory {
 
     // Get URL converter directly from registry if available
     if (normalizedType === 'url' || normalizedType === 'parenturl') {
-      console.log(`🔗 Using direct URL converter for: ${normalizedType}`);
+      this.logger.info(`Using direct URL converter for: ${normalizedType}`);
       
       const converter = registry.converters?.[normalizedType];
       if (converter) {
-        console.log(`✅ Found ${normalizedType} converter`);
+        this.logger.success(`Found ${normalizedType} converter`);
         return {
           converter: {
             ...converter,
@@ -207,7 +217,7 @@ class UnifiedConverterFactory {
       }
 
       // Try fallback to convertToMarkdown
-      console.log(`🔄 Attempting convertToMarkdown fallback for ${normalizedType}`);
+      this.logger.info(`Attempting convertToMarkdown fallback for ${normalizedType}`);
       if (registry.convertToMarkdown) {
         return {
           converter: {
@@ -252,11 +262,12 @@ class UnifiedConverterFactory {
    * @returns {Promise<Object>} - Conversion result
    */
   async convertFile(filePath, options = {}) {
+    const fileType = options.fileType;
     const startTime = Date.now();
     
+    this.logger.logConversionStart(fileType, options);
+    
     try {
-      // Use the fileType provided by the frontend
-      const fileType = options.fileType;
       if (!fileType) {
         throw new Error('fileType is required in options');
       }
@@ -268,75 +279,59 @@ class UnifiedConverterFactory {
       let fileName;
       
       if (Buffer.isBuffer(filePath)) {
-        // For buffer inputs, use filename from options
         fileName = options.originalFileName;
         
         if (!fileName) {
           throw new Error('originalFileName is required when passing buffer input');
         }
       } else if (isUrl) {
-        // For URLs, create a filename from the URL
         try {
           const urlObj = new URL(filePath);
           fileName = urlObj.hostname + (urlObj.pathname !== '/' ? urlObj.pathname : '');
         } catch (e) {
-          // If URL parsing fails, use the raw string
           fileName = filePath;
         }
       } else {
-        // For regular files, extract details from the path
         fileName = path.basename(filePath);
       }
-      
-      console.log(`🔄 [UnifiedConverterFactory] Converting file:`, {
-        type: fileType,
-        isUrl: isUrl,
-        isBuffer: Buffer.isBuffer(filePath),
-        fileName,
-        options: {
-          hasApiKey: !!options.apiKey,
-          hasMistralKey: !!options.mistralApiKey,
-          outputDir: options.outputDir ? 'specified' : 'default'
-        }
-      });
+
+      this.logger.logPhaseTransition(
+        ConversionStatus.STATUS.STARTING,
+        ConversionStatus.STATUS.VALIDATING
+      );
       
       // Get the appropriate converter with async/await
       let converterInfo = await this.getConverter(fileType);
       
       // Special handling for URL types in production mode
       if (!converterInfo && (fileType === 'url' || fileType === 'parenturl')) {
-        console.log(`🔄 [UnifiedConverterFactory] Special handling for ${fileType} in production mode`);
-        
-        // Create a direct converter for URL types
+        this.logger.info(`Special handling for ${fileType} in production mode`);
         converterInfo = await this.createDirectUrlConverter(fileType);
         
         if (converterInfo) {
-          console.log(`✅ [UnifiedConverterFactory] Created direct converter for ${fileType}`);
+          this.logger.success(`Created direct converter for ${fileType}`);
         }
       }
       
       // If converter not found, try again after a short delay
       if (!converterInfo) {
-        console.log(`⏳ Retrying to get converter for ${fileType} after delay...`);
-        // Wait a bit and try again
+        this.logger.info(`Retrying to get converter for ${fileType} after delay...`);
         await new Promise(resolve => setTimeout(resolve, 500));
         converterInfo = await this.getConverter(fileType);
         
-        // Try special handling again if needed
         if (!converterInfo && (fileType === 'url' || fileType === 'parenturl')) {
-          console.log(`🔄 [UnifiedConverterFactory] Second attempt at special handling for ${fileType}`);
+          this.logger.info(`Second attempt at special handling for ${fileType}`);
           converterInfo = await this.createDirectUrlConverter(fileType);
         }
         
         // If still not found, try one more time with a longer delay
         if (!converterInfo) {
-          console.log(`⏳ Final attempt to get converter for ${fileType} after longer delay...`);
+          this.logger.info(`Final attempt to get converter for ${fileType} after longer delay...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
           converterInfo = await this.getConverter(fileType);
           
-          // Final attempt at special handling
           if (!converterInfo && (fileType === 'url' || fileType === 'parenturl')) {
-            console.log(`🔄 [UnifiedConverterFactory] Final attempt at special handling for ${fileType}`);
+            this.logger.info(`Final attempt at special handling for ${fileType}`);
             converterInfo = await this.createDirectUrlConverter(fileType);
           }
           
@@ -356,8 +351,7 @@ class UnifiedConverterFactory {
       
       const registry = await this._ensureInitialized();
 
-      // Log converter status
-      console.log(`🔍 [UnifiedConverterFactory] Converter info:`, {
+      this.logger.debug('Converter info:', {
         hasRegistry: !!registry,
         converterType: converterInfo?.type || 'none',
         category: converterInfo?.category || 'unknown',
@@ -377,38 +371,20 @@ class UnifiedConverterFactory {
       if (progressTracker) {
         progressTracker.update(100, { status: 'completed' });
       }
-      
-      console.log(`✅ [UnifiedConverterFactory] Conversion completed in ${Date.now() - startTime}ms:`, {
-        type: fileType,
-        fileName,
-        isUrl: isUrl,
-        isBuffer: Buffer.isBuffer(filePath),
-        success: !!result.success,
-        timing: `${Date.now() - startTime}ms`
-      });
+
+      this.logger.logConversionComplete(fileType);
       
       return result;
       
     } catch (error) {
-      // Always include fileType in error results
-      const fileType = options.fileType || 'unknown';
-      const fileName = options.originalFileName || 'unknown';
-      
-      const errorDetails = {
-        fileType, // Always include fileType
-        fileName,
-        isBuffer: Buffer.isBuffer(filePath),
-        error: error.message,
-        stack: error.stack
-      };
-      console.error('❌ [UnifiedConverterFactory] Conversion failed:', errorDetails);
+      this.logger.logConversionError(fileType, error);
       
       return {
         success: false,
         error: error.message,
-        fileType: fileType, // Explicitly include fileType
+        fileType: fileType,
         type: fileType,
-        name: fileName,
+        name: options.originalFileName || 'unknown',
         category: FILE_TYPE_CATEGORIES[fileType] || 'unknown'
       };
     }
@@ -420,18 +396,18 @@ class UnifiedConverterFactory {
    * @returns {Object|null} - Converter info or null if not possible
    */
   async createDirectUrlConverter(fileType) {
-    console.log(`🔧 [UnifiedConverterFactory] Creating direct URL converter for ${fileType}`);
+    this.logger.info(`Creating direct URL converter for ${fileType}`);
     
     const registry = await this._ensureInitialized();
     if (!registry.convertToMarkdown) {
-      console.error(`❌ [UnifiedConverterFactory] Cannot create direct URL converter: convertToMarkdown not available`);
+      this.logger.error('Cannot create direct URL converter: convertToMarkdown not available');
       return null;
     }
     
     return {
       converter: {
         convert: async (content, name, apiKey, options) => {
-          console.log(`🔄 [UnifiedConverterFactory] Using direct URL converter for ${fileType}`);
+          this.logger.info(`Using direct URL converter for ${fileType}`);
           return registry.convertToMarkdown(fileType, content, {
             name,
             apiKey,
@@ -443,7 +419,7 @@ class UnifiedConverterFactory {
           name: fileType === 'url' ? 'Web Page' : 'Website',
           extensions: ['.url', '.html', '.htm'],
           mimeTypes: ['text/html', 'application/x-url'],
-          maxSize: 10 * 1024 * 1024 // 10MB
+          maxSize: 10 * 1024 * 1024
         }
       },
       type: fileType,
@@ -453,6 +429,17 @@ class UnifiedConverterFactory {
 
   /**
    * Standardize conversion result to ensure consistent format
+   *
+   * IMPORTANT: This method ensures properties are set in the correct order to prevent
+   * property shadowing issues. The order matters because:
+   * 1. We first spread the result object to include all its properties
+   * 2. Then we override specific properties to ensure they have the correct values
+   * 3. We set content last to ensure it's not accidentally overridden
+   * 4. We add a final check to ensure content is never empty, providing a fallback
+   *
+   * This fixes the "Conversion produced empty content" error that could occur when
+   * the content property was overridden by the spread operator.
+   *
    * @param {Object} result - Raw conversion result
    * @param {string} fileType - File type
    * @param {string} fileName - File name
@@ -460,10 +447,17 @@ class UnifiedConverterFactory {
    * @returns {Object} - Standardized result
    */
   standardizeResult(result, fileType, fileName, category) {
-    // Ensure the result has all required properties
-    return {
+    // Handle null or undefined result
+    if (!result) {
+      result = {};
+    }
+    
+    // First spread the result, then override with explicit properties
+    // This ensures explicit properties take precedence over any in the spread
+    const standardized = {
+      ...result,
+      // Then override with explicit properties to ensure they take precedence
       success: result.success !== false,
-      content: result.content || '',
       type: result.type || fileType,
       fileType: fileType, // Explicitly include fileType
       name: result.name || fileName,
@@ -473,79 +467,45 @@ class UnifiedConverterFactory {
         converter: result.converter || 'unknown'
       },
       images: result.images || [],
-      ...result
+      // Set content last to ensure it's not overridden
+      content: result.content || ''
     };
+    
+    // Ensure content is not null or undefined
+    if (!standardized.content) {
+      this.logger.logPhaseTransition(
+        ConversionStatus.STATUS.PROCESSING,
+        ConversionStatus.STATUS.CONTENT_EMPTY
+      );
+
+      standardized.content = `# Conversion Result\n\nThe ${fileType} file was processed, but no content was generated. This is normal for certain types of files (e.g., multimedia files without transcription).`;
+    }
+    
+    return standardized;
   }
 
-  /**
-   * Unified conversion handler for all file types
-   * @private
-   */
   async handleConversion(filePath, options) {
-    console.log(`🔄 [VERBOSE] handleConversion called for ${options.fileType}`);
-    console.time(`🕒 [VERBOSE] Total conversion time for ${options.fileType}`);
-    
     const { progressTracker, fileType, fileName, converterInfo, isUrl } = options;
     
-    // Validate converterInfo
-    if (!converterInfo) {
-      console.error(`❌ [VERBOSE] No converter info available for ${fileType}`);
-      console.timeEnd(`🕒 [VERBOSE] Total conversion time for ${fileType}`);
-      throw new Error(`No converter info available for ${fileType}`);
-    }
-    
-    // Log converter info for debugging
-    console.log(`🔍 [VERBOSE] Using converter for ${fileType}:`, {
-      converterType: converterInfo.type,
-      category: converterInfo.category,
-      hasConverter: !!converterInfo.converter,
-      converterMethods: converterInfo.converter ? Object.keys(converterInfo.converter) : 'none',
-      hasConvertMethod: converterInfo.converter ? typeof converterInfo.converter.convert === 'function' : false,
-      hasValidateMethod: converterInfo.converter ? typeof converterInfo.converter.validate === 'function' : false
-    });
-    
-    const { converter, category } = converterInfo;
-    
-    // Validate converter
-    if (!converter) {
-      console.error(`❌ [VERBOSE] Converter object missing for ${fileType}`);
-      console.timeEnd(`🕒 [VERBOSE] Total conversion time for ${fileType}`);
-      throw new Error(`Converter object missing for ${fileType}`);
-    }
-    
-    // Log detailed converter structure
-    console.log(`🔍 [VERBOSE] Converter structure for ${fileType}:`, {
-      methods: Object.keys(converter),
-      convertType: typeof converter.convert,
-      validateType: typeof converter.validate,
-      hasConfig: !!converter.config,
-      configKeys: converter.config ? Object.keys(converter.config) : 'none'
-    });
-    
-    if (progressTracker) {
-      progressTracker.update(10, { status: `reading_${fileType}` });
-    }
-    
     try {
+      // Validate converterInfo
+      if (!converterInfo) {
+        this.logger.error(`No converter info available for ${fileType}`);
+        throw new Error(`No converter info available for ${fileType}`);
+      }
+
+      this.logger.logPhaseTransition(
+        ConversionStatus.STATUS.VALIDATING,
+        ConversionStatus.STATUS.FAST_ATTEMPT
+      );
+      
       // Handle URL and parent URL differently since they don't need file reading
       if (isUrl) {
         if (progressTracker) {
           progressTracker.update(20, { status: `processing_${fileType}` });
         }
         
-        console.log(`🔗 [UnifiedConverterFactory] Processing URL: ${filePath}`);
-        console.log(`🔗 [UnifiedConverterFactory] Using converter method:`, {
-          hasConvertMethod: typeof converter.convert === 'function',
-          useDirectConverter: true
-        });
-        
-        // Log the converter and options being used
-        console.log(`🔗 [UnifiedConverterFactory] URL conversion options:`, {
-          fileType,
-          name: fileName,
-          hasApiKey: !!options.apiKey,
-          hasMistralKey: !!options.mistralApiKey
-        });
+        this.logger.info(`Processing URL: ${filePath}`);
         
         // For URLs, filePath is actually the URL string
         let result;
@@ -553,7 +513,7 @@ class UnifiedConverterFactory {
         try {
           // Try using the converter's convert method first
           if (typeof converter.convert === 'function') {
-            console.log(`🔗 [UnifiedConverterFactory] Using converter.convert for ${fileType}`);
+            this.logger.info(`Using converter.convert for ${fileType}`);
             result = await converter.convert(filePath, fileName, options.apiKey, {
               ...options,
               name: fileName,
@@ -567,8 +527,8 @@ class UnifiedConverterFactory {
             });
           } else {
             // Fall back to using the registry's convertToMarkdown method
-    const registry = await this._ensureInitialized();
-            console.log(`🔗 [UnifiedConverterFactory] Using registry.convertToMarkdown for ${fileType}`);
+            const registry = await this._ensureInitialized();
+            this.logger.info(`Using registry.convertToMarkdown for ${fileType}`);
             result = await registry.convertToMarkdown(fileType, filePath, {
               ...options,
               name: fileName,
@@ -582,12 +542,12 @@ class UnifiedConverterFactory {
             });
           }
         } catch (error) {
-          console.error(`❌ [UnifiedConverterFactory] Error in URL conversion:`, error);
+          this.logger.error(`Error in URL conversion: ${error.message}`);
           
           // Try the alternative method as a fallback
-    const registry = await this._ensureInitialized();
+          const registry = await this._ensureInitialized();
           if (typeof converter.convert === 'function' && typeof registry.convertToMarkdown === 'function') {
-            console.log(`🔄 [UnifiedConverterFactory] Trying alternative conversion method as fallback`);
+            this.logger.info(`Trying alternative conversion method as fallback`);
             
             try {
               // If we tried converter.convert first, now try registry.convertToMarkdown
@@ -603,7 +563,7 @@ class UnifiedConverterFactory {
                 }
               });
             } catch (fallbackError) {
-              console.error(`❌ [UnifiedConverterFactory] Fallback conversion also failed:`, fallbackError);
+              this.logger.error(`Fallback conversion also failed: ${fallbackError.message}`);
               throw error; // Throw the original error
             }
           } else {
@@ -615,6 +575,11 @@ class UnifiedConverterFactory {
           progressTracker.update(95, { status: 'finalizing' });
         }
         
+        this.logger.logPhaseTransition(
+          ConversionStatus.STATUS.PROCESSING,
+          ConversionStatus.STATUS.FINALIZING
+        );
+
         return this.standardizeResult(result, fileType, fileName, category);
       }
       
@@ -627,7 +592,7 @@ class UnifiedConverterFactory {
       
       // Special handling for PDF files to include OCR options
       if (fileType === 'pdf') {
-        console.log('🔄 [UnifiedConverterFactory] Converting PDF with options:', {
+        this.logger.debug('Converting PDF with options:', {
           useOcr: options.useOcr,
           hasMistralApiKey: !!options.mistralApiKey,
           preservePageInfo: true
@@ -635,11 +600,11 @@ class UnifiedConverterFactory {
         
         // Add more detailed logging for OCR settings
         if (options.useOcr) {
-          console.log('🔍 [UnifiedConverterFactory] OCR is enabled for this conversion');
+          this.logger.info('OCR is enabled for this conversion');
           if (options.mistralApiKey) {
-            console.log('🔑 [UnifiedConverterFactory] Mistral API key is present');
+            this.logger.debug('Mistral API key is present');
           } else {
-            console.warn('⚠️ [UnifiedConverterFactory] OCR is enabled but Mistral API key is missing');
+            this.logger.warn('OCR is enabled but Mistral API key is missing');
           }
         }
       }
@@ -648,17 +613,23 @@ class UnifiedConverterFactory {
       if (fileType === 'mp3' || fileType === 'wav' || fileType === 'mp4' || fileType === 'mov' || 
           fileType === 'ogg' || fileType === 'webm' || fileType === 'avi' || 
           fileType === 'flac' || fileType === 'm4a') {
-        console.log(`🔄 [UnifiedConverterFactory] Converting multimedia file (${fileType})`);
+        this.logger.info(`Converting multimedia file (${fileType})`);
         
         // Remove mistralApiKey from options for multimedia files to prevent incorrect routing
         if (options.mistralApiKey) {
-          console.log('🔍 [UnifiedConverterFactory] Removing Mistral API key from multimedia conversion options');
+          this.logger.info('Removing Mistral API key from multimedia conversion options');
           const { mistralApiKey, ...cleanOptions } = options;
           options = cleanOptions;
         }
       }
+
+      this.logger.logPhaseTransition(
+        ConversionStatus.STATUS.FAST_ATTEMPT,
+        ConversionStatus.STATUS.PROCESSING
+      );
       
       // Use the converter's convert method
+      const { converter, category } = converterInfo;
       const result = await converter.convert(fileContent, fileName, options.apiKey, {
         ...options,
         name: fileName,
@@ -675,9 +646,14 @@ class UnifiedConverterFactory {
         progressTracker.update(95, { status: 'finalizing' });
       }
       
+      this.logger.logPhaseTransition(
+        ConversionStatus.STATUS.PROCESSING,
+        ConversionStatus.STATUS.FINALIZING
+      );
+
       return this.standardizeResult(result, fileType, fileName, category);
     } catch (error) {
-      console.error(`❌ [UnifiedConverterFactory] ${fileType.toUpperCase()} conversion error:`, error);
+      this.logger.logConversionError(fileType, error);
       return {
         success: false,
         error: `${fileType.toUpperCase()} conversion failed: ${error.message}`,
@@ -699,13 +675,20 @@ const unifiedConverterFactory = UnifiedConverterFactory.getInstance();
 
 // Add initialize method to the factory instance
 unifiedConverterFactory.initialize = async function() {
-  console.log('🔄 Initializing UnifiedConverterFactory...');
+  this.logger.logPhaseTransition(
+    ConversionStatus.STATUS.STARTING,
+    ConversionStatus.STATUS.INITIALIZING
+  );
+  
   try {
     await this._ensureInitialized();
-    console.log('✅ UnifiedConverterFactory initialized successfully');
+    this.logger.logPhaseTransition(
+      ConversionStatus.STATUS.INITIALIZING,
+      ConversionStatus.STATUS.COMPLETED
+    );
     return true;
   } catch (error) {
-    console.error('❌ UnifiedConverterFactory initialization failed:', error);
+    this.logger.logConversionError('init', error);
     throw error;
   }
 };

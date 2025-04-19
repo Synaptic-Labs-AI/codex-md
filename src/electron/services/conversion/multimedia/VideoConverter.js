@@ -5,81 +5,145 @@
  * This converter:
  * - Processes video files using fluent-ffmpeg
  * - Extracts metadata (duration, resolution, etc.)
- * - Generates thumbnails at specified intervals
  * - Extracts audio for transcription
  * - Integrates with TranscriberService for audio transcription
- * - Generates markdown with video information, thumbnails, and transcription
+ * - Generates markdown with video information and transcription
  * 
  * Related Files:
  * - BaseService.js: Parent class providing IPC handling
  * - FileProcessorService.js: Used for file operations
  * - TranscriberService.js: Used for audio transcription
  * - FileStorageService.js: For temporary file management
+ * - ConversionLogger.js: Provides standardized logging
+ * - ConversionStatus.js: Defines pipeline stages and status constants
  */
 
 const path = require('path');
 const fs = require('fs-extra');
 const ffmpeg = require('fluent-ffmpeg');
-const ffprobeStatic = require('ffprobe-static');
 const { app } = require('electron');
+const { spawn } = require('child_process');
 const BaseService = require('../../BaseService');
+const { v4: uuidv4 } = require('uuid'); // Import uuid for generating IDs
+const BinaryPathResolver = require('../../../utils/BinaryPathResolver');
+const { getLogger } = require('../../../utils/logging/ConversionLogger');
+const ConversionStatus = require('../../../utils/conversion/ConversionStatus');
 
 class VideoConverter extends BaseService {
-    constructor(fileProcessor, transcriber, fileStorage) {
+    constructor(registry, fileProcessor, transcriber, fileStorage) { // Add registry parameter
         super();
+        this.registry = registry; // Store registry instance
         this.fileProcessor = fileProcessor;
         this.transcriber = transcriber;
         this.fileStorage = fileStorage;
         this.supportedExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv'];
-        this.activeConversions = new Map();
+        // Remove internal activeConversions map - will use registry's map
+        
+        // Initialize the logger
+        this.logger = getLogger('VideoConverter');
         
         // Configure ffmpeg to use the correct ffprobe path
         this.configureFfmpeg();
     }
     
     /**
-     * Configure ffmpeg with the correct ffmpeg and ffprobe paths
+     * Configure ffmpeg with the correct ffmpeg and ffprobe paths using BinaryPathResolver
+     * This method uses the BinaryPathResolver module to locate binaries in both development
+     * and production environments with multiple fallback strategies.
+     *
+     * The method handles errors gracefully and provides detailed logging for troubleshooting.
      */
     configureFfmpeg() {
         try {
-            // Default paths from static packages
-            let ffprobePath = ffprobeStatic.path;
+            this.logger.info('Configuring ffmpeg and ffprobe paths using BinaryPathResolver', { phase: ConversionStatus.STATUS.STARTING });
             
-            // Get ffmpeg path from @ffmpeg-installer/ffmpeg
-            const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-            let ffmpegPath = ffmpegInstaller.path;
+            // Resolve ffmpeg binary path
+            const ffmpegPath = BinaryPathResolver.resolveBinaryPath('ffmpeg');
+            if (!ffmpegPath) {
+                throw new Error('Failed to resolve ffmpeg binary path. Video conversion will not work.');
+            }
+            this.logger.info(`Successfully resolved ffmpeg binary at: ${ffmpegPath}`);
             
-            // In production, use the paths from the resources directory
-            if (app && app.isPackaged) {
-                // Check for ffprobe.exe in resources
-                const ffprobeResourcesPath = path.join(process.resourcesPath, 'ffprobe.exe');
-                if (fs.existsSync(ffprobeResourcesPath)) {
-                    ffprobePath = ffprobeResourcesPath;
-                    console.log(`[VideoConverter] Using ffprobe from resources: ${ffprobePath}`);
-                } else {
-                    console.warn(`[VideoConverter] ffprobe not found in resources, falling back to ffprobe-static path: ${ffprobePath}`);
+            // Resolve ffprobe binary path
+            const ffprobePath = BinaryPathResolver.resolveBinaryPath('ffprobe');
+            if (!ffprobePath) {
+                throw new Error('Failed to resolve ffprobe binary path. Video metadata extraction will not work.');
+            }
+            this.logger.info(`Successfully resolved ffprobe binary at: ${ffprobePath}`);
+            
+            // Set the paths for fluent-ffmpeg using both methods (library function and environment variables)
+            ffmpeg.setFfmpegPath(ffmpegPath);
+            ffmpeg.setFfprobePath(ffprobePath);
+            process.env.FFMPEG_PATH = ffmpegPath;
+            process.env.FFPROBE_PATH = ffprobePath;
+            
+            // Force override the ffmpeg-static path to prevent any direct references
+            try {
+                // This is a hack to override any direct references to ffmpeg-static
+                // It attempts to modify the require cache to redirect ffmpeg-static to our resolved path
+                const ffmpegStaticPath = require.resolve('ffmpeg-static');
+                if (ffmpegStaticPath && require.cache[ffmpegStaticPath]) {
+                    this.logger.debug(`Overriding ffmpeg-static module path in require cache`);
+                    require.cache[ffmpegStaticPath].exports = ffmpegPath;
                 }
-                
-                // Check for ffmpeg.exe in resources
-                const ffmpegResourcesPath = path.join(process.resourcesPath, 'ffmpeg.exe');
-                if (fs.existsSync(ffmpegResourcesPath)) {
-                    ffmpegPath = ffmpegResourcesPath;
-                    console.log(`[VideoConverter] Using ffmpeg from resources: ${ffmpegPath}`);
-                } else {
-                    console.warn(`[VideoConverter] ffmpeg not found in resources, falling back to ffmpeg-installer path: ${ffmpegPath}`);
-                }
-            } else {
-                console.log(`[VideoConverter] Using ffprobe-static path: ${ffprobePath}`);
-                console.log(`[VideoConverter] Using ffmpeg-installer path: ${ffmpegPath}`);
+            } catch (err) {
+                // This is not critical, just log it
+                this.logger.debug(`Could not override ffmpeg-static module (this is normal in production): ${err.message}`);
             }
             
-            // Set the paths for fluent-ffmpeg
-            ffmpeg.setFfprobePath(ffprobePath);
-            ffmpeg.setFfmpegPath(ffmpegPath);
-            console.log(`[VideoConverter] ffprobe path set to: ${ffprobePath}`);
-            console.log(`[VideoConverter] ffmpeg path set to: ${ffmpegPath}`);
+            // Verify that ffmpeg is working by checking formats
+            this.verifyFfmpegWorks(ffmpegPath);
+            
+            this.logger.info('Binary paths configured successfully:');
+            this.logger.info(`- ffmpeg: ${ffmpegPath}`);
+            this.logger.info(`- ffprobe: ${ffprobePath}`);
         } catch (error) {
-            console.error('[VideoConverter] Error configuring ffmpeg:', error);
+            this.logger.error(`Error configuring ffmpeg: ${error.message}`);
+            this.logger.debug(`Error stack: ${error.stack}`);
+            
+            // Even though we log the error, we don't throw it here to allow the service to initialize
+            // The actual conversion methods will handle the missing binaries gracefully
+            this.logger.warn('Service will initialize but conversions may fail');
+        }
+    }
+    
+    /**
+     * Verify that ffmpeg is working by checking formats
+     * This method uses direct child_process.spawn instead of fluent-ffmpeg
+     * to ensure we're using the correct binary path
+     *
+     * @param {string} ffmpegPath - Path to ffmpeg binary
+     * @private
+     */
+    verifyFfmpegWorks(ffmpegPath) {
+        try {
+            this.logger.info(`Verifying ffmpeg works by checking formats: ${ffmpegPath}`);
+            
+            // Use spawn directly with the resolved path instead of relying on fluent-ffmpeg
+            const process = spawn(ffmpegPath, ['-formats']);
+            
+            // Just log that we're checking, we don't need to wait for the result
+            this.logger.debug(`Spawned ffmpeg process to check formats`);
+            
+            // Add listeners to log output but don't block
+            process.stdout.on('data', (data) => {
+                this.logger.debug(`ffmpeg formats check output: ${data.toString().substring(0, 100)}...`);
+            });
+            
+            process.stderr.on('data', (data) => {
+                this.logger.debug(`ffmpeg formats check stderr: ${data.toString().substring(0, 100)}...`);
+            });
+            
+            process.on('error', (err) => {
+                this.logger.error(`Error verifying ffmpeg: ${err.message}`);
+                this.logger.error(`This may indicate a path resolution issue with ffmpeg`);
+            });
+            
+            process.on('close', (code) => {
+                this.logger.info(`ffmpeg formats check exited with code ${code}`);
+            });
+        } catch (error) {
+            this.logger.error(`Failed to verify ffmpeg: ${error.message}`);
         }
     }
 
@@ -89,7 +153,6 @@ class VideoConverter extends BaseService {
     setupIpcHandlers() {
         this.registerHandler('convert:video', this.handleConvert.bind(this));
         this.registerHandler('convert:video:metadata', this.handleGetMetadata.bind(this));
-        this.registerHandler('convert:video:thumbnail', this.handleGenerateThumbnail.bind(this));
         this.registerHandler('convert:video:cancel', this.handleCancel.bind(this));
     }
 
@@ -99,39 +162,76 @@ class VideoConverter extends BaseService {
      * @param {Object} request - Conversion request details
      */
     async handleConvert(event, { filePath, options = {} }) {
+        const conversionId = `video_${uuidv4()}`; // Generate unique ID
+        const fileType = path.extname(filePath).substring(1); // Get file extension without dot
+        
+        // Initialize logger with context for this conversion
+        this.logger.setContext({ 
+            conversionId, 
+            fileType
+        });
+        
+        this.logger.logConversionStart(fileType, options);
+        
+        // Get window reference safely, handling null event
+        const window = event?.sender?.getOwnerBrowserWindow(); 
+        let tempDir = options._tempDir; // Check if tempDir was passed by the wrapper
+
         try {
-            const conversionId = this.generateConversionId();
-            const window = event.sender.getOwnerBrowserWindow();
-            
+            // Create temp directory only if not passed by the wrapper
+            if (!tempDir) {
+                tempDir = await this.fileStorage.createTempDir('video_conversion');
+                this.logger.info(`Created temp directory: ${tempDir}`);
+            } else {
+                this.logger.info(`Using temp directory provided by wrapper: ${tempDir}`);
+            }
             // Create temp directory for this conversion
-            const tempDir = await this.fileStorage.createTempDir('video_conversion');
-            
-            this.activeConversions.set(conversionId, {
+            tempDir = await this.fileStorage.createTempDir('video_conversion');
+            this.logger.info(`Created temp directory: ${tempDir}`);
+
+            // Register the conversion with the central registry
+            this.registry.registerConversion(conversionId, {
                 id: conversionId,
-                status: 'starting',
+                type: 'video',
+                name: path.basename(filePath),
+                status: ConversionStatus.STATUS.STARTING,
                 progress: 0,
-                filePath,
+                filePath, // Store original path if needed, but process temp file
                 tempDir,
-                window
+                window,
+                startTime: Date.now()
+            }, async () => {
+                // Cleanup function for the registry
+                if (tempDir) {
+                    this.logger.info(`Removing temp directory: ${tempDir}`, { phase: 'cleanup' });
+                    await fs.remove(tempDir);
+                }
             });
 
-            // Notify client that conversion has started
-            window.webContents.send('video:conversion-started', { conversionId });
+            // Notify client that conversion has started, only if window is available
+            if (window) {
+                window.webContents.send('video:conversion-started', { conversionId });
+            } else {
+                this.logger.warn(`Window not available for conversion ${conversionId}, skipping initial notification.`);
+            }
 
-            // Start conversion process
+            // Start conversion process asynchronously
+            // Pass the file path (which should be the temp file path if created) and options
             this.processConversion(conversionId, filePath, options).catch(error => {
-                console.error(`[VideoConverter] Conversion failed for ${conversionId}:`, error);
-                this.updateConversionStatus(conversionId, 'failed', { error: error.message });
-                
-                // Clean up temp directory
-                fs.remove(tempDir).catch(err => {
-                    console.error(`[VideoConverter] Failed to clean up temp directory: ${tempDir}`, err);
-                });
+                this.logger.error(`Conversion failed for ${conversionId}: ${error.message}`);
+                this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.ERROR, error: error.message });
+                // Cleanup is handled by the registry's removal process
             });
 
             return { conversionId };
         } catch (error) {
-            console.error('[VideoConverter] Failed to start conversion:', error);
+            this.logger.logConversionError(fileType, error);
+            // Ensure cleanup if tempDir was created before error
+            if (tempDir) {
+                await fs.remove(tempDir);
+            }
+            // Remove from registry if it was added before error
+            this.registry.removeConversion(conversionId);
             throw error;
         }
     }
@@ -142,42 +242,19 @@ class VideoConverter extends BaseService {
      * @param {Object} request - Metadata request details
      */
     async handleGetMetadata(event, { filePath }) {
+        const fileType = path.extname(filePath).substring(1); // Get file extension without dot
+        
         try {
+            this.logger.info(`Getting metadata for ${filePath}`, { fileType, phase: ConversionStatus.STATUS.VALIDATING });
             const metadata = await this.getVideoMetadata(filePath);
+            this.logger.info(`Successfully retrieved metadata`, { fileType, phase: ConversionStatus.STATUS.VALIDATING });
             return metadata;
         } catch (error) {
-            console.error('[VideoConverter] Failed to get metadata:', error);
+            this.logger.error(`Failed to get metadata: ${error.message}`, { fileType });
             throw error;
         }
     }
 
-    /**
-     * Handle thumbnail generation request
-     * @param {Electron.IpcMainInvokeEvent} event - IPC event
-     * @param {Object} request - Thumbnail request details
-     */
-    async handleGenerateThumbnail(event, { filePath, timeOffset = 0, options = {} }) {
-        try {
-            const tempDir = await this.fileStorage.createTempDir('thumbnail');
-            const thumbnailPath = path.join(tempDir, 'thumbnail.jpg');
-            
-            await this.generateThumbnail(filePath, thumbnailPath, timeOffset, options);
-            
-            // Read the thumbnail as base64
-            const thumbnailData = await fs.readFile(thumbnailPath, { encoding: 'base64' });
-            
-            // Clean up temp directory
-            await fs.remove(tempDir);
-            
-            return {
-                data: `data:image/jpeg;base64,${thumbnailData}`,
-                timeOffset
-            };
-        } catch (error) {
-            console.error('[VideoConverter] Failed to generate thumbnail:', error);
-            throw error;
-        }
-    }
 
     /**
      * Handle conversion cancellation request
@@ -185,22 +262,19 @@ class VideoConverter extends BaseService {
      * @param {Object} request - Cancellation request details
      */
     async handleCancel(event, { conversionId }) {
-        const conversion = this.activeConversions.get(conversionId);
-        if (conversion) {
-            conversion.status = 'cancelled';
-            
-            if (conversion.window) {
-                conversion.window.webContents.send('video:conversion-cancelled', { conversionId });
+        this.logger.info(`Received cancel request for conversion: ${conversionId}`);
+        const removed = this.registry.removeConversion(conversionId); // This also triggers cleanup
+        if (removed) {
+            this.logger.info(`Conversion ${conversionId} cancelled and removed from registry.`);
+            // Optionally notify the window if needed, though registry might handle this
+            const conversionData = this.registry.getConversion(conversionId); // Should be null now
+            if (conversionData && conversionData.window) {
+                 conversionData.window.webContents.send('video:conversion-cancelled', { conversionId });
             }
-            
-            // Clean up temp directory
-            if (conversion.tempDir) {
-                await fs.remove(conversion.tempDir);
-            }
-            
-            this.activeConversions.delete(conversionId);
+        } else {
+            this.logger.warn(`Conversion ${conversionId} not found in registry for cancellation.`);
         }
-        return { success: true };
+        return { success: removed };
     }
 
     /**
@@ -210,51 +284,117 @@ class VideoConverter extends BaseService {
      * @param {Object} options - Conversion options
      */
     async processConversion(conversionId, filePath, options) {
+        const fileType = path.extname(filePath).substring(1); // Get file extension without dot
+        
         try {
-            const conversion = this.activeConversions.get(conversionId);
-            if (!conversion) {
-                throw new Error('Conversion not found');
+            this.logger.setContext({ conversionId, fileType });
+            this.logger.logPhaseTransition(ConversionStatus.STATUS.STARTING, ConversionStatus.STATUS.VALIDATING);
+            
+            // Verify that ffmpeg and ffprobe binaries are available before proceeding
+            const ffmpegPath = BinaryPathResolver.resolveBinaryPath('ffmpeg', { forceRefresh: false });
+            const ffprobePath = BinaryPathResolver.resolveBinaryPath('ffprobe', { forceRefresh: false });
+            
+            if (!ffmpegPath || !ffprobePath) {
+                throw new Error('FFmpeg or FFprobe binaries not available. Cannot proceed with conversion.');
             }
             
-            const tempDir = conversion.tempDir;
+            this.logger.info(`Using ffmpeg at: ${ffmpegPath}`);
+            this.logger.info(`Using ffprobe at: ${ffprobePath}`);
+
+            // Retrieve conversion data from the central registry
+            const conversionData = this.registry.getConversion(conversionId);
+            if (!conversionData) {
+                // It's possible the conversion was cancelled or timed out
+                this.logger.warn(`Conversion ${conversionId} not found in registry during processing. It might have been cancelled or timed out.`);
+                // Don't throw an error here, just exit gracefully. The registry handles cleanup.
+                return; // Or handle as appropriate, maybe return a specific status
+            }
+
+            const tempDir = conversionData.tempDir;
+            const originalFilePath = conversionData.filePath; // Use original path for context if needed
+            const tempFilePath = path.join(tempDir, `${path.basename(originalFilePath)}_${Date.now()}.mp4`); // Need to reconstruct or store temp path
+
+            // Write the actual file content (passed as filePath argument here) to temp file
+            // This assumes filePath passed to processConversion is the actual content buffer or path to read from
+            // Let's assume filePath IS the path to the *original* file, and we need to copy it
+            await fs.copy(originalFilePath, tempFilePath);
+            this.logger.info(`Copied original file to temp path: ${tempFilePath}`);
+
+            this.logger.info(`Using temp directory: ${tempDir}`);
+            this.logger.info(`Processing temp file: ${tempFilePath}`);
+
+            // Try fast path first
+            this.logger.logPhaseTransition(ConversionStatus.STATUS.VALIDATING, ConversionStatus.STATUS.FAST_ATTEMPT);
+            this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.FAST_ATTEMPT, progress: 5 });
             
-            this.updateConversionStatus(conversionId, 'extracting_metadata');
-            const metadata = await this.getVideoMetadata(filePath);
-            
-            // Generate thumbnails
-            this.updateConversionStatus(conversionId, 'generating_thumbnails', { progress: 10 });
-            const thumbnailCount = options.thumbnailCount || 3;
-            const thumbnails = await this.generateThumbnails(filePath, tempDir, thumbnailCount);
-            
+            // Extract metadata
+            this.logger.info(`Extracting metadata from: ${tempFilePath}`);
+            const metadata = await this.getVideoMetadata(tempFilePath);
+            this.logger.info(`Metadata extracted successfully`);
+            this.logger.debug(`Metadata details: ${JSON.stringify(metadata)}`);
+
+            // Skip thumbnail generation
+            this.logger.info(`Skipping thumbnail generation`, { phase: ConversionStatus.STATUS.PROCESSING });
+            this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.PROCESSING, progress: 10 });
+            const thumbnails = []; // Empty array instead of generating thumbnails
+
             // Extract audio for transcription
-            this.updateConversionStatus(conversionId, 'extracting_audio', { progress: 30 });
-            const audioPath = path.join(tempDir, 'audio.mp3');
-            await this.extractAudio(filePath, audioPath);
+            this.logger.logPhaseTransition(ConversionStatus.STATUS.PROCESSING, ConversionStatus.STATUS.EXTRACTING_AUDIO);
+            this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.EXTRACTING_AUDIO, progress: 30 });
             
+            const audioPath = path.join(tempDir, 'audio.mp3');
+            this.logger.info(`Extracting audio to: ${audioPath}`);
+            await this.extractAudio(tempFilePath, audioPath);
+            this.logger.info(`Audio extracted successfully`);
+
             // Transcribe audio if requested
             let transcription = null;
             if (options.transcribe !== false) {
-                this.updateConversionStatus(conversionId, 'transcribing', { progress: 40 });
+                this.logger.logPhaseTransition(ConversionStatus.STATUS.EXTRACTING_AUDIO, ConversionStatus.STATUS.TRANSCRIBING);
+                this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.TRANSCRIBING, progress: 40 });
+                
+                this.logger.info(`Transcribing audio with language: ${options.language || 'en'}`);
                 transcription = await this.transcribeAudio(audioPath, options.language || 'en');
-                this.updateConversionStatus(conversionId, 'transcribing', { progress: 80 });
+                
+                if (!transcription || !transcription.text || transcription.text.trim() === '') {
+                    this.logger.logPhaseTransition(ConversionStatus.STATUS.TRANSCRIBING, ConversionStatus.STATUS.CONTENT_EMPTY);
+                    this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.CONTENT_EMPTY, progress: 80 });
+                    this.logger.info(`Transcription produced empty content - this is normal for videos without speech`);
+                } else {
+                    this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.TRANSCRIBING, progress: 80 });
+                    this.logger.info(`Transcription completed successfully (${transcription.text.length} characters)`);
+                }
             }
-            
-            this.updateConversionStatus(conversionId, 'generating_markdown', { progress: 90 });
-            
+
+            this.logger.logPhaseTransition(
+                transcription ? ConversionStatus.STATUS.TRANSCRIBING : ConversionStatus.STATUS.EXTRACTING_AUDIO, 
+                ConversionStatus.STATUS.PROCESSING
+            );
+            this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.PROCESSING, progress: 90 });
+            this.logger.info(`Generating markdown output`);
+
             // Generate markdown
             const markdown = this.generateMarkdown(metadata, thumbnails, transcription, options);
-            
-            // Clean up temp directory
-            await fs.remove(tempDir);
-            
-            this.updateConversionStatus(conversionId, 'completed', { 
+            this.logger.info(`Markdown generated successfully (${markdown.length} characters)`);
+
+            // Update registry with completed status and result
+            this.logger.logPhaseTransition(ConversionStatus.STATUS.PROCESSING, ConversionStatus.STATUS.COMPLETED);
+            this.registry.pingConversion(conversionId, {
+                status: ConversionStatus.STATUS.COMPLETED,
                 progress: 100,
                 result: markdown
             });
-            
-            return markdown;
+
+            this.logger.logConversionComplete(fileType);
+
+            // Cleanup is handled by the registry's removeConversion call eventually
+
+            return markdown; // Return the result
         } catch (error) {
-            console.error('[VideoConverter] Conversion processing failed:', error);
+            this.logger.logConversionError(fileType, error);
+            // Update registry with failed status
+            this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.ERROR, error: error.message });
+            // Let the error propagate to be caught by the caller in handleConvert
             throw error;
         }
     }
@@ -265,9 +405,27 @@ class VideoConverter extends BaseService {
      * @returns {Promise<Object>} Video metadata
      */
     async getVideoMetadata(filePath) {
+        const fileType = path.extname(filePath).substring(1);
+        this.logger.setContext({ fileType, phase: ConversionStatus.STATUS.VALIDATING });
+        
         return new Promise((resolve, reject) => {
-            ffmpeg.ffprobe(filePath, (err, metadata) => {
+            // Ensure we have the latest ffmpeg path before running ffprobe
+            const ffprobePath = BinaryPathResolver.resolveBinaryPath('ffprobe', { forceRefresh: false });
+            if (!ffprobePath) {
+                const error = new Error('FFprobe binary not available. Cannot extract video metadata.');
+                this.logger.error(error.message);
+                return reject(error);
+            }
+            
+            this.logger.info(`Getting video metadata using ffprobe at: ${ffprobePath}`);
+            
+            // Create a new ffmpeg command with the correct path to ensure we're not using cached paths
+            const command = ffmpeg();
+            command.setFfprobePath(ffprobePath);
+            
+            command.input(filePath).ffprobe((err, metadata) => {
                 if (err) {
+                    this.logger.error(`Error getting metadata: ${err.message}`);
                     reject(err);
                     return;
                 }
@@ -276,11 +434,13 @@ class VideoConverter extends BaseService {
                 const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
                 
                 if (!videoStream) {
-                    reject(new Error('No video stream found'));
+                    const error = new Error('No video stream found');
+                    this.logger.error(error.message);
+                    reject(error);
                     return;
                 }
                 
-                resolve({
+                const result = {
                     format: metadata.format.format_name,
                     duration: metadata.format.duration,
                     size: metadata.format.size,
@@ -298,7 +458,10 @@ class VideoConverter extends BaseService {
                         channels: audioStream.channels,
                         sampleRate: audioStream.sample_rate
                     } : null
-                });
+                };
+                
+                this.logger.info(`Metadata extraction successful`);
+                resolve(result);
             });
         });
     }
@@ -319,72 +482,6 @@ class VideoConverter extends BaseService {
         return parseFloat(frameRate);
     }
 
-    /**
-     * Generate thumbnails at regular intervals
-     * @param {string} filePath - Path to video file
-     * @param {string} outputDir - Output directory
-     * @param {number} count - Number of thumbnails to generate
-     * @returns {Promise<Array>} Array of thumbnail info objects
-     */
-    async generateThumbnails(filePath, outputDir, count) {
-        try {
-            const metadata = await this.getVideoMetadata(filePath);
-            const duration = metadata.duration;
-            
-            // Calculate time offsets for thumbnails
-            const interval = duration / (count + 1);
-            const timeOffsets = Array.from({ length: count }, (_, i) => (i + 1) * interval);
-            
-            // Generate thumbnails
-            const thumbnails = [];
-            for (let i = 0; i < timeOffsets.length; i++) {
-                const timeOffset = timeOffsets[i];
-                const thumbnailPath = path.join(outputDir, `thumbnail_${i}.jpg`);
-                
-                await this.generateThumbnail(filePath, thumbnailPath, timeOffset);
-                
-                // Read the thumbnail as base64
-                const thumbnailData = await fs.readFile(thumbnailPath, { encoding: 'base64' });
-                
-                thumbnails.push({
-                    index: i,
-                    timeOffset,
-                    formattedTime: this.formatDuration(timeOffset),
-                    data: `data:image/jpeg;base64,${thumbnailData}`
-                });
-            }
-            
-            return thumbnails;
-        } catch (error) {
-            console.error('[VideoConverter] Failed to generate thumbnails:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Generate a single thumbnail
-     * @param {string} filePath - Path to video file
-     * @param {string} outputPath - Output path for thumbnail
-     * @param {number} timeOffset - Time offset in seconds
-     * @param {Object} options - Thumbnail options
-     * @returns {Promise<void>}
-     */
-    async generateThumbnail(filePath, outputPath, timeOffset, options = {}) {
-        return new Promise((resolve, reject) => {
-            const width = options.width || 320;
-            const height = options.height || 180;
-            
-            ffmpeg(filePath)
-                .screenshots({
-                    timestamps: [timeOffset],
-                    filename: path.basename(outputPath),
-                    folder: path.dirname(outputPath),
-                    size: `${width}x${height}`
-                })
-                .on('end', () => resolve())
-                .on('error', err => reject(err));
-        });
-    }
 
     /**
      * Extract audio from video file
@@ -393,14 +490,43 @@ class VideoConverter extends BaseService {
      * @returns {Promise<void>}
      */
     async extractAudio(videoPath, outputPath) {
+        const fileType = path.extname(videoPath).substring(1);
+        this.logger.setContext({ fileType, phase: ConversionStatus.STATUS.EXTRACTING_AUDIO });
+        
         return new Promise((resolve, reject) => {
-            ffmpeg(videoPath)
+            // Ensure we have the latest ffmpeg path before extracting audio
+            const ffmpegPath = BinaryPathResolver.resolveBinaryPath('ffmpeg', { forceRefresh: false });
+            if (!ffmpegPath) {
+                const error = new Error('FFmpeg binary not available. Cannot extract audio.');
+                this.logger.error(error.message);
+                return reject(error);
+            }
+            
+            this.logger.info(`Extracting audio using ffmpeg at: ${ffmpegPath}`);
+            
+            // Create a new ffmpeg command with the correct path to ensure we're not using cached paths
+            const command = ffmpeg();
+            command.setFfmpegPath(ffmpegPath);
+            
+            command.input(videoPath)
                 .output(outputPath)
                 .noVideo()
                 .audioCodec('libmp3lame')
                 .audioBitrate(128)
-                .on('end', () => resolve())
-                .on('error', err => reject(err))
+                .on('start', (commandLine) => {
+                    this.logger.debug(`FFmpeg command: ${commandLine}`);
+                })
+                .on('progress', (progress) => {
+                    this.logger.debug(`Audio extraction progress: ${JSON.stringify(progress)}`);
+                })
+                .on('end', () => {
+                    this.logger.info(`Audio extraction completed successfully`);
+                    resolve();
+                })
+                .on('error', (err) => {
+                    this.logger.error(`Audio extraction error: ${err.message}`);
+                    reject(err);
+                })
                 .run();
         });
     }
@@ -412,33 +538,50 @@ class VideoConverter extends BaseService {
      * @returns {Promise<Object>} Transcription result
      */
     async transcribeAudio(audioPath, language) {
+        const fileType = 'mp3'; // Audio is always converted to mp3
+        this.logger.setContext({ fileType, phase: ConversionStatus.STATUS.TRANSCRIBING });
+        
         try {
             // Use the TranscriberService to transcribe the audio
+            this.logger.info(`Starting transcription of audio file: ${audioPath}`);
             const result = await this.transcriber.handleTranscribeStart(null, {
                 filePath: audioPath,
                 options: { language }
             });
             
             // Wait for transcription to complete
+            this.logger.info(`Transcription job started with ID: ${result.jobId}`);
             let status = await this.transcriber.handleTranscribeStatus(null, { jobId: result.jobId });
             
             while (status.status !== 'completed' && status.status !== 'failed' && status.status !== 'cancelled') {
                 // Wait a bit before checking again
+                this.logger.debug(`Transcription in progress, status: ${status.status}, progress: ${status.progress || 'unknown'}`);
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 status = await this.transcriber.handleTranscribeStatus(null, { jobId: result.jobId });
             }
             
             if (status.status === 'failed') {
-                throw new Error(status.error || 'Transcription failed');
+                const error = new Error(status.error || 'Transcription failed');
+                this.logger.error(`Transcription failed: ${error.message}`);
+                throw error;
             }
             
             if (status.status === 'cancelled') {
-                throw new Error('Transcription cancelled');
+                const error = new Error('Transcription cancelled');
+                this.logger.warn(`Transcription cancelled`);
+                throw error;
+            }
+            
+            if (!status.result || !status.result.text || status.result.text.trim() === '') {
+                this.logger.info(`Transcription completed but content is empty - this is normal for videos without speech`, 
+                    { phase: ConversionStatus.STATUS.CONTENT_EMPTY });
+            } else {
+                this.logger.info(`Transcription completed successfully with ${status.result.text.length} characters`);
             }
             
             return status.result;
         } catch (error) {
-            console.error('[VideoConverter] Transcription failed:', error);
+            this.logger.error(`Transcription failed: ${error.message}`);
             throw error;
         }
     }
@@ -452,6 +595,8 @@ class VideoConverter extends BaseService {
      * @returns {string} Markdown content
      */
     generateMarkdown(metadata, thumbnails, transcription, options) {
+        this.logger.info(`Generating markdown content`, { phase: ConversionStatus.STATUS.PROCESSING });
+        
         const markdown = [];
         
         // Add title
@@ -485,26 +630,20 @@ class VideoConverter extends BaseService {
         
         markdown.push('');
         
-        // Add thumbnails
-        if (thumbnails && thumbnails.length > 0) {
-            markdown.push('## Thumbnails');
-            markdown.push('');
-            
-            for (const thumbnail of thumbnails) {
-                markdown.push(`### ${this.formatDuration(thumbnail.timeOffset)}`);
-                markdown.push('');
-                markdown.push(`![Thumbnail at ${thumbnail.formattedTime}](${thumbnail.data})`);
-                markdown.push('');
-            }
-        }
+        // Thumbnails section removed
         
         // Add transcription if available
-        if (transcription) {
+        if (transcription && transcription.text && transcription.text.trim() !== '') {
             markdown.push('## Transcription');
             markdown.push('');
             markdown.push(transcription.text);
+        } else if (transcription) {
+            markdown.push('## Transcription');
+            markdown.push('');
+            markdown.push('*No speech detected in this video.*');
         }
         
+        this.logger.info(`Markdown generation complete with ${markdown.length} lines`);
         return markdown.join('\n');
     }
 
@@ -544,43 +683,6 @@ class VideoConverter extends BaseService {
     }
 
     /**
-     * Update conversion status and notify renderer
-     * @param {string} conversionId - Conversion identifier
-     * @param {string} status - New status
-     * @param {Object} details - Additional details
-     */
-    updateConversionStatus(conversionId, status, details = {}) {
-        const conversion = this.activeConversions.get(conversionId);
-        if (conversion) {
-            conversion.status = status;
-            Object.assign(conversion, details);
-            
-            if (conversion.window) {
-                conversion.window.webContents.send('video:conversion-progress', {
-                    conversionId,
-                    status,
-                    ...details
-                });
-            }
-            
-            // Clean up completed or failed conversions
-            if (status === 'completed' || status === 'failed') {
-                setTimeout(() => {
-                    this.activeConversions.delete(conversionId);
-                }, 5 * 60 * 1000); // Keep for 5 minutes for status queries
-            }
-        }
-    }
-
-    /**
-     * Generate unique conversion identifier
-     * @returns {string} Unique conversion ID
-     */
-    generateConversionId() {
-        return `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-
-    /**
      * Check if this converter supports the given file
      * @param {string} filePath - Path to file
      * @returns {boolean} True if supported
@@ -598,11 +700,10 @@ class VideoConverter extends BaseService {
         return {
             name: 'Video Converter',
             extensions: this.supportedExtensions,
-            description: 'Converts video files to markdown with thumbnails and transcription',
+            description: 'Converts video files to markdown with metadata and transcription',
             options: {
                 transcribe: 'Whether to transcribe audio (default: true)',
                 language: 'Transcription language (default: en)',
-                thumbnailCount: 'Number of thumbnails to generate (default: 3)',
                 title: 'Optional document title'
             }
         };

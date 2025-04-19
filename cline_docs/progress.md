@@ -59,22 +59,23 @@ flowchart TD
 ## Known Issues
 
 ### Active Issues
-1. ESM vs CommonJS module system conflicts:
+
+2. ESM vs CommonJS module system conflicts:
    - Causing production issues
    - Affects URL conversion particularly
    - Being addressed by consolidation plan
 
-2. Complex three-component architecture:
+3. Complex three-component architecture:
    - Frontend, Backend, Electron separation causing issues
    - Will be simplified to two components
    - Migration plan in place
 
-3. Duplicate code and utilities:
+4. Duplicate code and utilities:
    - Found across components
    - Will be consolidated during migration
    - Single source of truth being established
 
-4. File locking issues during builds:
+5. File locking issues during builds:
    - Affects Windows particularly
    - Build process improvements planned
    - Will be simplified after consolidation
@@ -92,7 +93,9 @@ flowchart TD
 - ~~Mistral OCR API error handling~~ (Fixed - improved error handling for non-JSON responses in MistralPdfConverter)
 - ~~Mistral OCR 500 Internal Server Error~~ (Fixed - updated API integration with correct endpoint, request format, and model parameter)
 - ~~Mistral OCR 422 Unprocessable Entity Error~~ (Fixed - implemented correct file upload workflow using /files and /ocr endpoints)
-- ~~Video conversion "Conversion not found" error~~ (Fixed - properly configured ffmpeg.exe path in VideoConverter)
+- ~~Video conversion "Conversion tracking object not found" error~~ (Fixed - Refactored VideoConverter and ConverterRegistry to use a single, central tracking map in the registry, resolving issues caused by separate internal tracking maps and incorrect instance handling)
+| | - ~~Video conversion "Conversion produced empty content" error~~ (Fixed - Implemented BinaryPathResolver module and refactored VideoConverter.js to use it, ensuring reliable FFmpeg binary resolution across all environments)
+| | - ~~Video conversion log pattern confusion~~ (Clarified - Documented the multi-stage conversion process that shows both failure and success messages as expected behavior)
 - ~~Navigation bar missing in final build~~ (Fixed)
 - ~~Asset loading issues~~ (Fixed)
 - ~~PDF conversion errors~~ (Fixed)
@@ -104,6 +107,7 @@ flowchart TD
 - ~~Converter initialization failure due to missing node-cache dependency~~ (Fixed)
 - ~~Multiple dependency-related failures in production build~~ (Fixed - moved axios, axios-retry, canvas, formdata-node, and tmp-promise to runtime dependencies)
 - ~~False positive dependency warnings for built-in Node.js modules~~ (Fixed - enhanced verification script)
+| - ~~FFmpeg binary detection in packaged application~~ (Fixed - Implemented comprehensive solution with BinaryPathResolver module and VideoConverter.js refactoring to handle ASAR archive incompatibility)
 
 ## Next Major Features
 1. Consolidated Architecture:
@@ -117,6 +121,7 @@ flowchart TD
    - Better error reporting
    - More reliable asset handling
    - Simplified configuration
+   - ASAR-aware binary handling
 
 3. Enhanced Testing:
    - Expanded test coverage
@@ -167,6 +172,9 @@ pie title Test Coverage
 - Status tracking system
 - Architecture overview
 - Build optimization documentation (BUILD-OPTIMIZATION.md)
+| | - FFmpeg ASAR compatibility research
+| | - FFmpeg ASAR compatibility implementation (BinaryPathResolver + VideoConverter.js)
+| | - Multi-stage video conversion process documentation
 
 ### In Progress
 - API documentation updates
@@ -188,5 +196,7 @@ pie title Test Coverage
 - Cross-platform consistency
 - Optimized installer creation
 - Reduced package size
+- Proper ASAR unpacking configuration
+- Reliable binary detection and access
 
 Remember: The consolidation effort is our current priority. All other feature work is on hold until this is complete.
