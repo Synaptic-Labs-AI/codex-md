@@ -1,20 +1,38 @@
 /**
  * ConversionLogger.js
- * 
+ *
  * Provides standardized logging methods for conversion processes, integrating
  * with the ConversionStatus module to ensure consistent status tracking and
  * reporting throughout the conversion pipeline.
- * 
+ *
  * This utility implements a class-based logger with methods for different log
  * levels and specialized methods for tracking conversion pipeline phases.
- * 
+ *
+ * Implements tiered buffer sanitization through LogSanitizer:
+ * - Small buffers (<1MB): Include truncated preview
+ * - Medium buffers (1-50MB): Include metadata only
+ * - Large buffers (>50MB): Basic metadata only
+ *
  * Related Files:
+ * - src/electron/utils/logging/LogSanitizer.js: Handles buffer sanitization
  * - src/electron/utils/conversion/ConversionStatus.js: Provides status constants and utilities
  * - src/electron/services/conversion/multimedia/VideoConverter.js: Uses logger for conversion tracking
  * - src/electron/services/conversion/multimedia/AudioConverter.js: Uses logger for conversion tracking
  */
 
 const ConversionStatus = require('../../utils/conversion/ConversionStatus');
+const { sanitizeForLogging, createSanitizer, DEFAULT_CONFIG } = require('./LogSanitizer');
+
+// Configuration for conversion option sanitization
+const CONVERSION_SANITIZE_CONFIG = {
+  ...DEFAULT_CONFIG,
+  maxLength: 50, // Limit array lengths for conversion options
+  previewLength: 32, // Smaller preview for buffer contents
+  truncateBuffers: true // Always truncate buffer contents
+};
+
+// Create a sanitizer instance with conversion-specific config
+const sanitizeConversionOptions = createSanitizer(CONVERSION_SANITIZE_CONFIG);
 
 /**
  * Class representing a conversion process logger
@@ -178,7 +196,32 @@ class ConversionLogger {
     let message = `${icon} Starting conversion`;
     
     if (options && Object.keys(options).length > 0) {
-      message += ` with options: ${JSON.stringify(options)}`;
+      try {
+        // Log raw options structure for debugging
+        this.debug(`Raw options type: ${typeof options}, keys: ${Object.keys(options)}`);
+        
+        // Use conversion-specific sanitizer for better buffer handling
+        const sanitizedOptions = sanitizeConversionOptions(options);
+        
+        // Log sanitized structure before stringifying
+        this.debug(`Sanitized options structure: ${Object.keys(sanitizedOptions)}`);
+        
+        // Try to stringify with fallback for large objects
+        try {
+          message += ` with options: ${JSON.stringify(sanitizedOptions)}`;
+        } catch (jsonErr) {
+          // If stringification fails, provide basic option info
+          this.warn(`Could not stringify full options: ${jsonErr.message}`);
+          message += ` with options: {keys: [${Object.keys(sanitizedOptions).join(', ')}]}`;
+        }
+      } catch (err) {
+        // Log error but continue conversion process
+        this.error(`Failed to process options: ${err.message}`, { error: err });
+        this.debug(`Options processing error: ${err.stack}`);
+        
+        // Include basic options info in message
+        message += ` with options: {type: ${typeof options}}`;
+      }
     }
     
     this.info(message);
@@ -222,6 +265,7 @@ class ConversionLogger {
     // Reset start time after error
     this.startTime = null;
   }
+
 }
 
 // Singleton instance map to ensure consistent logger instances per component

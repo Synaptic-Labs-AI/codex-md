@@ -17,6 +17,7 @@ const path = require('path');
 const { PathUtils } = require('../utils/paths/index');
 const { ProgressTracker } = require('../utils/conversion/progress');
 const { getLogger } = require('../utils/logging/ConversionLogger');
+const { sanitizeForLogging } = require('../utils/logging/LogSanitizer');
 const ConversionStatus = require('../utils/conversion/ConversionStatus');
 
 /**
@@ -351,12 +352,13 @@ class UnifiedConverterFactory {
       
       const registry = await this._ensureInitialized();
 
-      this.logger.debug('Converter info:', {
+      this.logger.debug('Converter info:', sanitizeForLogging({
         hasRegistry: !!registry,
         converterType: converterInfo?.type || 'none',
         category: converterInfo?.category || 'unknown',
-        hasConverter: !!converterInfo?.converter
-      });
+        hasConverter: !!converterInfo?.converter,
+        converterDetails: converterInfo?.converter
+      }));
       
       // Handle the conversion based on file type
       const result = await this.handleConversion(filePath, {
@@ -452,10 +454,13 @@ class UnifiedConverterFactory {
       result = {};
     }
     
+    // Sanitize any buffer or complex objects in the result
+    const sanitizedResult = sanitizeForLogging(result);
+    
     // First spread the result, then override with explicit properties
     // This ensures explicit properties take precedence over any in the spread
     const standardized = {
-      ...result,
+      ...sanitizedResult,
       // Then override with explicit properties to ensure they take precedence
       success: result.success !== false,
       type: result.type || fileType,

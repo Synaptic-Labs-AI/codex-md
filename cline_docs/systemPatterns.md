@@ -1079,4 +1079,142 @@ flowchart TD
 4. **Update Registry Integration**:
    - Ensure registry status updates align with logging phases
    - Preserve context between components
-   - Maintain timing information
+   |    - Maintain timing information
+   
+   ### Large Binary Data Handling Pattern
+   The application implements a robust pattern for safely handling large binary data (like video files) in logging operations while preventing memory-related crashes and providing meaningful debug information.
+   
+   ```mermaid
+   flowchart TD
+       A[Binary Data Input] --> B[Sanitization Process]
+       B --> C{Data Type Check}
+       
+       C -->|Buffer| D[Format Buffer Info]
+       C -->|Stream| E[Format Stream Info]
+       C -->|Nested Object| F[Recursive Sanitization]
+       C -->|Primitive| G[Direct Value]
+       
+       D --> H[Final Output]
+       E --> H
+       F --> H
+       G --> H
+       
+       subgraph Sanitization Process
+           I[Detect Data Type] --> J[Handle Special Cases]
+           J --> K[Preserve Debug Info]
+       end
+       
+       subgraph Special Cases
+           L[Buffer Objects] --> M[Show Length Only]
+           N[Stream Objects] --> O[Mark as Stream/Handle]
+           P[Node.js Handles] --> Q[Safe Representation]
+       end
+   ```
+   
+   #### Implementation Details
+   The pattern addresses a critical bug that prevented conversion of large video files (40MB+) by implementing safe buffer sanitization in logging operations:
+   
+   - **Buffer Detection and Handling**:
+     ```javascript
+     if (Buffer.isBuffer(value)) {
+       sanitized[key] = `[Buffer length: ${value.length}]`;
+       continue;
+     }
+     ```
+   
+   - **Stream and Handle Detection**:
+     ```javascript
+     if (typeof value === 'object' && value !== null) {
+       if (value._handle || value._readableState || value._writableState) {
+         sanitized[key] = '[Stream/Handle]';
+         continue;
+       }
+     }
+     ```
+   
+   - **Recursive Object Processing**:
+     ```javascript
+     // Recursively sanitize nested objects
+     if (typeof value === 'object' && value !== null) {
+       sanitized[key] = sanitizeOptionsForLogging(value);
+       continue;
+     }
+     ```
+   
+   #### Usage Examples
+   
+   1. Logging video conversion options:
+   ```javascript
+   const videoOptions = {
+     data: Buffer.alloc(50 * 1024 * 1024), // 50MB video buffer
+     format: 'mp4',
+     quality: 'high'
+   };
+   
+   logger.logConversionStart('mp4', videoOptions);
+   // Logs: {"data": "[Buffer length: 52428800]", "format": "mp4", "quality": "high"}
+   ```
+   
+   2. Handling nested binary data:
+   ```javascript
+   const options = {
+     video: {
+       data: Buffer.alloc(1024 * 1024), // 1MB
+       thumbnail: Buffer.alloc(512 * 1024), // 512KB
+       metadata: {
+         format: 'mp4'
+       }
+     },
+     stream: new Readable()
+   };
+   
+   logger.logConversionStart('mp4', options);
+   // Logs: {
+   //   "video": {
+   //     "data": "[Buffer length: 1048576]",
+   //     "thumbnail": "[Buffer length: 524288]",
+   //     "metadata": {"format": "mp4"}
+   //   },
+   //   "stream": "[Stream/Handle]"
+   // }
+   ```
+   
+   #### Best Practices
+   
+   1. **Always Sanitize Buffer Data**:
+      - Use sanitization before stringifying objects containing buffers
+      - Apply the pattern in all logging operations that might include binary data
+      - Don't rely on JSON.stringify directly for objects with buffers
+   
+   2. **Preserve Debug Information**:
+      - Include buffer lengths in sanitized output
+      - Maintain type information for streams and handles
+      - Keep original property names for clear debugging
+   
+   3. **Implement Recursively**:
+      - Handle nested objects containing buffers
+      - Process all levels of object hierarchy
+      - Consider deep object structures in multimedia processing
+   
+   4. **Handle Special Types**:
+      - Detect and safely format Node.js streams
+      - Process file handles appropriately
+      - Maintain meaningful representations of binary data
+   
+   5. **Performance Considerations**:
+      - Only sanitize when necessary (before logging/stringifying)
+      - Use efficient type checking methods
+      - Consider memory usage in recursive operations
+   
+   #### Benefits
+   - **Stability**: Prevents memory-related crashes when handling large files
+   - **Debugging**: Maintains useful information for troubleshooting
+   - **Consistency**: Provides standardized approach to binary data handling
+   - **Safety**: Protects sensitive data in logs
+   - **Maintainability**: Makes logs more readable and manageable
+   
+   #### Integration Points
+   - Apply in logging utilities
+   - Use when debugging large file operations
+   - Implement in monitoring and metrics collection
+   - Include in error reporting systems

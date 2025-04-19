@@ -27,6 +27,7 @@ const BaseService = require('../../BaseService');
 const { v4: uuidv4 } = require('uuid'); // Import uuid for generating IDs
 const BinaryPathResolver = require('../../../utils/BinaryPathResolver');
 const { getLogger } = require('../../../utils/logging/ConversionLogger');
+const { sanitizeForLogging } = require('../../../utils/logging/LogSanitizer');
 const ConversionStatus = require('../../../utils/conversion/ConversionStatus');
 
 class VideoConverter extends BaseService {
@@ -165,10 +166,23 @@ class VideoConverter extends BaseService {
         const conversionId = `video_${uuidv4()}`; // Generate unique ID
         const fileType = path.extname(filePath).substring(1); // Get file extension without dot
         
+        // Validate output path if provided
+        if (options.outputPath) {
+            try {
+                const outputDir = path.dirname(options.outputPath);
+                await fs.ensureDir(outputDir);
+                this.logger.info(`Validated output directory: ${outputDir}`);
+            } catch (error) {
+                this.logger.error(`Invalid output path: ${error.message}`);
+                throw new Error(`Invalid output path: ${error.message}`);
+            }
+        }
+        
         // Initialize logger with context for this conversion
-        this.logger.setContext({ 
-            conversionId, 
-            fileType
+        this.logger.setContext({
+            conversionId,
+            fileType,
+            outputPath: options.outputPath
         });
         
         this.logger.logConversionStart(fileType, options);
@@ -176,6 +190,7 @@ class VideoConverter extends BaseService {
         // Get window reference safely, handling null event
         const window = event?.sender?.getOwnerBrowserWindow(); 
         let tempDir = options._tempDir; // Check if tempDir was passed by the wrapper
+        let outputPath = options.outputPath; // Get output path from options
 
         try {
             // Create temp directory only if not passed by the wrapper
@@ -185,9 +200,6 @@ class VideoConverter extends BaseService {
             } else {
                 this.logger.info(`Using temp directory provided by wrapper: ${tempDir}`);
             }
-            // Create temp directory for this conversion
-            tempDir = await this.fileStorage.createTempDir('video_conversion');
-            this.logger.info(`Created temp directory: ${tempDir}`);
 
             // Register the conversion with the central registry
             this.registry.registerConversion(conversionId, {
@@ -199,7 +211,8 @@ class VideoConverter extends BaseService {
                 filePath, // Store original path if needed, but process temp file
                 tempDir,
                 window,
-                startTime: Date.now()
+                startTime: Date.now(),
+                outputPath: options.outputPath // Store output path in registry
             }, async () => {
                 // Cleanup function for the registry
                 if (tempDir) {
@@ -331,7 +344,7 @@ class VideoConverter extends BaseService {
             this.logger.info(`Extracting metadata from: ${tempFilePath}`);
             const metadata = await this.getVideoMetadata(tempFilePath);
             this.logger.info(`Metadata extracted successfully`);
-            this.logger.debug(`Metadata details: ${JSON.stringify(metadata)}`);
+            this.logger.debug('Metadata details:', sanitizeForLogging(metadata));
 
             // Skip thumbnail generation
             this.logger.info(`Skipping thumbnail generation`, { phase: ConversionStatus.STATUS.PROCESSING });
@@ -353,7 +366,8 @@ class VideoConverter extends BaseService {
                 this.logger.logPhaseTransition(ConversionStatus.STATUS.EXTRACTING_AUDIO, ConversionStatus.STATUS.TRANSCRIBING);
                 this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.TRANSCRIBING, progress: 40 });
                 
-                this.logger.info(`Transcribing audio with language: ${options.language || 'en'}`);
+                const transcriptionOptions = sanitizeForLogging({ language: options.language || 'en' });
+                this.logger.info(`Transcribing audio with options:`, transcriptionOptions);
                 transcription = await this.transcribeAudio(audioPath, options.language || 'en');
                 
                 if (!transcription || !transcription.text || transcription.text.trim() === '') {
@@ -377,23 +391,50 @@ class VideoConverter extends BaseService {
             const markdown = this.generateMarkdown(metadata, thumbnails, transcription, options);
             this.logger.info(`Markdown generated successfully (${markdown.length} characters)`);
 
-            // Update registry with completed status and result
-            this.logger.logPhaseTransition(ConversionStatus.STATUS.PROCESSING, ConversionStatus.STATUS.COMPLETED);
-            this.registry.pingConversion(conversionId, {
-                status: ConversionStatus.STATUS.COMPLETED,
-                progress: 100,
-                result: markdown
-            });
+            // Write the markdown content to the output file
+            try {
+                // If outputPath not provided, create one in temp directory
+                if (!outputPath) {
+                    outputPath = path.join(tempDir, `${path.basename(filePath, path.extname(filePath))}.md`);
+                }
+                
+                this.logger.info(`Writing markdown content to: ${outputPath}`);
+                await fs.writeFile(outputPath, markdown, 'utf8');
+                this.logger.info(`Successfully wrote markdown content to file (${markdown.length} characters)`);
 
-            this.logger.logConversionComplete(fileType);
+                // Update registry with completed status, result, and output path
+                this.logger.logPhaseTransition(ConversionStatus.STATUS.PROCESSING, ConversionStatus.STATUS.COMPLETED);
+                this.registry.pingConversion(conversionId, {
+                    status: ConversionStatus.STATUS.COMPLETED,
+                    progress: 100,
+                    result: markdown,
+                    outputPath
+                });
+
+                this.logger.logConversionComplete(fileType);
+            } catch (writeError) {
+                this.logger.error(`Failed to write markdown content to file: ${writeError.message}`);
+                throw new Error(`Failed to save conversion output: ${writeError.message}`);
+            }
 
             // Cleanup is handled by the registry's removeConversion call eventually
 
             return markdown; // Return the result
         } catch (error) {
-            this.logger.logConversionError(fileType, error);
-            // Update registry with failed status
-            this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.ERROR, error: error.message });
+            // Sanitize error details before logging
+            const sanitizedError = sanitizeForLogging({
+                message: error.message,
+                stack: error.stack,
+                code: error.code
+            });
+            this.logger.logConversionError(fileType, sanitizedError);
+            
+            // Update registry with failed status (using only sanitized message)
+            this.registry.pingConversion(conversionId, {
+                status: ConversionStatus.STATUS.ERROR,
+                error: error.message
+            });
+            
             // Let the error propagate to be caught by the caller in handleConvert
             throw error;
         }

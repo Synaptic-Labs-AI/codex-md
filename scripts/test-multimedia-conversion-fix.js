@@ -1,116 +1,211 @@
+#!/usr/bin/env node
+
 /**
- * test-multimedia-conversion-fix.js
+ * Test script to verify video conversion buffer sanitization fix in production builds
  * 
- * This script tests the fix for the "Conversion produced empty content" error
- * by simulating a conversion with the UnifiedConverterFactory and ElectronConversionService.
- * 
- * It creates a mock result with a valid content property but also includes a property
- * that might shadow the content property, then verifies that the content is preserved
- * through the standardizeResult method.
- * 
- * Usage:
- * node scripts/test-multimedia-conversion-fix.js
+ * This script:
+ * 1. Builds the app in production mode
+ * 2. Creates test video files of various sizes
+ * 3. Runs conversion tests
+ * 4. Verifies logging output
+ * 5. Cleans up test files
  */
 
-const path = require('path');
 const fs = require('fs-extra');
-const { app } = require('electron');
+const path = require('path');
+const { execSync } = require('child_process');
+const electron = require('electron');
 
-// Import the modules we want to test
-const unifiedConverterFactory = require('../src/electron/converters/UnifiedConverterFactory');
-const ElectronConversionService = require('../src/electron/services/ElectronConversionService');
+// Configuration
+const TEST_SIZES = [1, 10, 40, 100]; // MB
+const TEST_DIR = path.join(__dirname, '../test-files/multimedia-fix');
+const LOG_FILE = path.join(TEST_DIR, 'test-results.log');
 
-// Create a temporary directory for testing
-const tempDir = path.join(__dirname, '..', 'temp-test-conversion');
-
-// Mock the convertFile method to return a result with potential content shadowing
-const originalConvertFile = unifiedConverterFactory.convertFile;
-unifiedConverterFactory.convertFile = async (filePath, options) => {
-  console.log('🔄 Mock convertFile called with:', {
-    filePath: typeof filePath === 'string' ? filePath : 'Buffer',
-    options: {
-      ...options,
-      buffer: options.buffer ? `Buffer(${options.buffer.length})` : undefined
-    }
-  });
-  
-  // Create a mock result with valid content but also with properties that might shadow it
-  return {
-    success: true,
-    content: '# Test Content\n\nThis is test content that should be preserved.',
-    // Properties that might shadow content in different ways
-    someProperty: {
-      content: null
-    },
-    nestedContent: {
-      value: 'This should not override the main content'
-    },
-    // In the spread, this would override the explicit content property if ordered incorrectly
-    content: null
-  };
-};
-
-// Run the test
-async function runTest() {
-  try {
-    console.log('🧪 Starting test for multimedia conversion fix...');
-    
-    // Ensure temp directory exists
-    await fs.ensureDir(tempDir);
-    console.log(`✅ Created temp directory: ${tempDir}`);
-    
-    // Create a mock file path and options
-    const mockFilePath = path.join(tempDir, 'test.mp4');
-    const mockOptions = {
-      fileType: 'mp4',
-      outputDir: tempDir
-    };
-    
-    // Write a small test file
-    await fs.writeFile(mockFilePath, Buffer.from('Test file content'));
-    console.log(`✅ Created test file: ${mockFilePath}`);
-    
-    // Call the convert method
-    console.log('🔄 Calling ElectronConversionService.convert...');
-    const result = await ElectronConversionService.convert(mockFilePath, mockOptions);
-    
-    // Verify the result
-    console.log('🔍 Conversion result:', {
-      success: result.success,
-      error: result.error,
-      hasContent: !!result.content,
-      contentLength: result.content ? result.content.length : 0
-    });
-    
-    if (result.success && result.content) {
-      console.log('✅ TEST PASSED: Content was preserved and not shadowed by spread properties');
-    } else {
-      console.error('❌ TEST FAILED: Content was not preserved');
-      console.error('Error:', result.error);
-    }
-  } catch (error) {
-    console.error('❌ Test failed with error:', error);
-    console.error('Stack trace:', error.stack);
-    
-    if (error.message === 'Conversion produced empty content') {
-      console.error('❌ The fix for "Conversion produced empty content" did not work!');
-    }
-  } finally {
-    // Restore the original method
-    unifiedConverterFactory.convertFile = originalConvertFile;
-    
-    // Clean up
+async function main() {
     try {
-      await fs.remove(tempDir);
-      console.log(`🧹 Cleaned up temp directory: ${tempDir}`);
-    } catch (cleanupError) {
-      console.warn(`⚠️ Failed to clean up temp directory: ${cleanupError.message}`);
+        console.log('Starting multimedia conversion fix verification...');
+
+        // Ensure test directory exists
+        await fs.ensureDir(TEST_DIR);
+        
+        // Create test video files
+        console.log('Creating test files...');
+        const testFiles = await createTestFiles();
+        
+        // Build app in production mode
+        console.log('Building app in production mode...');
+        execSync('npm run build', { stdio: 'inherit' });
+        
+        // Run conversion tests
+        console.log('Running conversion tests...');
+        const results = await runConversionTests(testFiles);
+        
+        // Verify results
+        console.log('Verifying results...');
+        const success = verifyResults(results);
+        
+        if (success) {
+            console.log('✅ All tests passed successfully');
+            process.exit(0);
+        } else {
+            console.error('❌ Some tests failed');
+            process.exit(1);
+        }
+    } catch (error) {
+        console.error('Error running tests:', error);
+        process.exit(1);
+    } finally {
+        // Cleanup
+        await cleanup();
     }
-  }
 }
 
-// Run the test
-runTest().catch(error => {
-  console.error('❌ Unhandled error in test:', error);
-  process.exit(1);
-});
+/**
+ * Create test video files of various sizes
+ * @returns {Promise<string[]>} Array of test file paths
+ */
+async function createTestFiles() {
+    const files = [];
+    
+    for (const size of TEST_SIZES) {
+        const filePath = path.join(TEST_DIR, `test-${size}MB.mp4`);
+        // Create buffer of specified size
+        const buffer = Buffer.alloc(size * 1024 * 1024);
+        // Write some recognizable pattern
+        buffer.write('TEST VIDEO CONTENT', 0, 'utf8');
+        await fs.writeFile(filePath, buffer);
+        files.push(filePath);
+        console.log(`Created ${size}MB test file: ${filePath}`);
+    }
+    
+    return files;
+}
+
+/**
+ * Run conversion tests on each test file
+ * @param {string[]} testFiles - Array of test file paths
+ * @returns {Promise<Object>} Test results
+ */
+async function runConversionTests(testFiles) {
+    const results = {
+        conversions: [],
+        logs: []
+    };
+    
+    for (const file of testFiles) {
+        console.log(`Testing conversion of ${path.basename(file)}...`);
+        
+        try {
+            // Run conversion through the app
+            const conversionResult = await new Promise((resolve) => {
+                const proc = require('child_process').spawn(electron, ['.'], {
+                    env: {
+                        ...process.env,
+                        NODE_ENV: 'production',
+                        TEST_FILE: file,
+                        TEST_MODE: 'true'
+                    }
+                });
+                
+                let output = '';
+                
+                proc.stdout.on('data', (data) => {
+                    output += data;
+                });
+                
+                proc.stderr.on('data', (data) => {
+                    output += data;
+                });
+                
+                proc.on('close', (code) => {
+                    resolve({
+                        file,
+                        success: code === 0,
+                        output
+                    });
+                });
+            });
+            
+            results.conversions.push(conversionResult);
+            
+            // Collect logs
+            const logContent = await fs.readFile(LOG_FILE, 'utf8');
+            results.logs.push({
+                file,
+                content: logContent
+            });
+        } catch (error) {
+            results.conversions.push({
+                file,
+                success: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Verify test results meet our criteria
+ * @param {Object} results - Test results to verify
+ * @returns {boolean} Whether all tests passed
+ */
+function verifyResults(results) {
+    let allPassed = true;
+    
+    // Verify each conversion
+    for (const conversion of results.conversions) {
+        const fileSize = parseInt(path.basename(conversion.file).match(/\d+/)[0]);
+        
+        if (!conversion.success) {
+            console.error(`❌ Conversion failed for ${fileSize}MB file:`, conversion.error || 'Unknown error');
+            allPassed = false;
+            continue;
+        }
+        
+        // Find corresponding logs
+        const logs = results.logs.find(l => l.file === conversion.file)?.content || '';
+        
+        // Verify no raw buffer content in logs
+        if (logs.includes('Buffer content:')) {
+            console.error(`❌ Raw buffer content found in logs for ${fileSize}MB file`);
+            allPassed = false;
+        }
+        
+        // Verify buffer length indicators are present
+        if (!logs.includes('[Buffer length:')) {
+            console.error(`❌ Missing buffer length indicators in logs for ${fileSize}MB file`);
+            allPassed = false;
+        }
+        
+        // Verify no memory errors
+        if (logs.includes('JavaScript heap out of memory') || 
+            logs.includes('Invalid string length') ||
+            logs.includes('Maximum call stack size exceeded')) {
+            console.error(`❌ Memory-related errors found in logs for ${fileSize}MB file`);
+            allPassed = false;
+        }
+        
+        if (allPassed) {
+            console.log(`✅ All checks passed for ${fileSize}MB file`);
+        }
+    }
+    
+    return allPassed;
+}
+
+/**
+ * Clean up test files and directories
+ */
+async function cleanup() {
+    try {
+        await fs.remove(TEST_DIR);
+        console.log('Cleaned up test files');
+    } catch (error) {
+        console.error('Error during cleanup:', error);
+    }
+}
+
+// Run the tests
+main().catch(console.error);

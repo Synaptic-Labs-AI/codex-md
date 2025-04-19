@@ -27,9 +27,10 @@
         "build:frontend": "cd frontend && npm run build",
         "build:electron": "npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder build",
         "test": "npm run test:all",
-        "test:all": "npm run test:e2e && npm run test:unit",
+        "test:all": "npm run test:e2e && npm run test:unit && npm run test:multimedia-fix",
         "test:e2e": "playwright test",
         "test:unit": "jest",
+        "test:multimedia-fix": "node scripts/test-multimedia-conversion-fix.js",
         "kill-process": "node scripts/kill-process.js",
         "clean-rebuild": "npm run kill-process && npm run build:frontend && npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && cd dist\\win-unpacked && .\\codex.md.exe --trace-warnings",
         "debug:rebuild": "npm run build:frontend && npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && cd dist\\win-unpacked && .\\codex.md.exe --trace-warnings",
@@ -118,43 +119,15 @@
                 ]
             }
         ],
-        "extraFiles": [
-            {
-                "from": "node_modules/ffmpeg-static/ffmpeg.exe",
-                "to": "ffmpeg.exe",
-                "platform": "win32"
-            },
-            {
-                "from": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
-                "to": "ffprobe.exe",
-                "platform": "win32"
-            },
-            {
-                "from": "node_modules/ffmpeg-static/ffmpeg",
-                "to": "ffmpeg",
-                "platform": "darwin"
-            },
-            {
-                "from": "node_modules/ffprobe-static/bin/darwin/x64/ffprobe",
-                "to": "ffprobe",
-                "platform": "darwin"
-            },
-            {
-                "from": "node_modules/ffmpeg-static/ffmpeg",
-                "to": "ffmpeg",
-                "platform": "linux"
-            },
-            {
-                "from": "node_modules/ffprobe-static/bin/linux/x64/ffprobe",
-                "to": "ffprobe",
-                "platform": "linux"
-            }
-        ],
+        "extraFiles": [],
         "mac": {
             "target": [
                 {
                     "target": "dmg",
-                    "arch": ["x64", "arm64"]
+                    "arch": [
+                        "x64",
+                        "arm64"
+                    ]
                 }
             ],
             "icon": "build/icons/icon.icns",
@@ -164,13 +137,14 @@
             "target": [
                 {
                     "target": "AppImage",
-                    "arch": ["x64"]
+                    "arch": [
+                        "x64"
+                    ]
                 }
             ],
             "icon": "build/icons/icon.png",
             "category": "Utility"
-        },
-        "extraFiles": []
+        }
     },
     "config": {
         "forge": {
@@ -228,9 +202,9 @@
         "got": "^14.4.6",
         "jszip": "^3.10.1",
         "mammoth": "^1.9.0",
+        "node-cache": "^5.1.2",
         "node-fetch": "^3.3.2",
         "node-machine-id": "^1.1.12",
-        "node-cache": "^5.1.2",
         "office-text-extractor": "^3.0.3",
         "officeparser": "^5.0.0",
         "openai": "^4.28.0",
@@ -244,8 +218,8 @@
         "quick-lru": "^7.0.0",
         "sanitize-filename": "^1.6.3",
         "svelte-spinner": "^2.0.2",
-        "turndown": "^7.2.0",
         "tmp-promise": "^3.0.3",
+        "turndown": "^7.2.0",
         "uuid": "^9.0.1",
         "xlsx": "^0.20.2",
         "xml2js": "^0.6.2",
@@ -253,11 +227,13 @@
     },
     "devDependencies": {
         "@babel/cli": "^7.14.8",
-        "@babel/core": "^7.15.0",
-        "@babel/preset-env": "^7.15.0",
+        "@babel/core": "^7.26.10",
+        "@babel/preset-env": "^7.26.9",
         "@electron-forge/cli": "^7.2.0",
         "@electron-forge/maker-squirrel": "^7.2.0",
         "@electron-forge/maker-zip": "^7.2.0",
+        "@types/jest": "^29.5.14",
+        "babel-jest": "^29.7.0",
         "concurrently": "^8.0.0",
         "cross-env": "^7.0.3",
         "dotenv": "^16.4.7",
@@ -268,6 +244,7 @@
         "eslint": "^7.32.0",
         "eslint-plugin-electron": "^7.0.0",
         "husky": "^8.0.0",
+        "jest": "^29.7.0",
         "jsdom": "^25.0.1",
         "lint-staged": "^13.1.0",
         "path-browserify": "^1.0.1",
