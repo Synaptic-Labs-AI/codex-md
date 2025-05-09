@@ -24,7 +24,7 @@ const { PathUtils } = require('../utils/paths');
 const { promisify } = require('util');
 const fs = require('fs');
 const readFileAsync = promisify(fs.readFile);
-const FileSystemService = require('./FileSystemService');
+const { instance: FileSystemService } = require('./FileSystemService'); // Import instance
 const ConversionResultManager = require('./ConversionResultManager');
 // Import local utilities
 const { 

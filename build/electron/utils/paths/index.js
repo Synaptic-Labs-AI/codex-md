@@ -1,0 +1,32 @@
+"use strict";
+
+/**
+ * Path utilities for electron
+ * Provides utilities for working with file paths
+ * 
+ * This module contains utilities for path manipulation and resolution,
+ * particularly important for handling paths consistently across platforms
+ * and within the Electron environment.
+ * 
+ * Used by:
+ * - src/electron/services/FileSystemService.js
+ * - src/electron/services/StreamingFileService.js
+ * - src/electron/ipc/handlers/filesystem/
+ */
+
+/**
+ * Path Utilities
+ * Re-exports the PathUtils class for consistent usage across the application
+ * 
+ * Used by:
+ * - src/electron/services/FileSystemService.js
+ * - src/electron/services/StreamingFileService.js
+ */
+
+const PathUtils = require('./paths');
+
+// Re-export the PathUtils class
+module.exports = {
+  PathUtils
+};
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJQYXRoVXRpbHMiLCJyZXF1aXJlIiwibW9kdWxlIiwiZXhwb3J0cyJdLCJzb3VyY2VzIjpbIi4uLy4uLy4uLy4uL3NyYy9lbGVjdHJvbi91dGlscy9wYXRocy9pbmRleC5qcyJdLCJzb3VyY2VzQ29udGVudCI6WyIvKipcclxuICogUGF0aCB1dGlsaXRpZXMgZm9yIGVsZWN0cm9uXHJcbiAqIFByb3ZpZGVzIHV0aWxpdGllcyBmb3Igd29ya2luZyB3aXRoIGZpbGUgcGF0aHNcclxuICogXHJcbiAqIFRoaXMgbW9kdWxlIGNvbnRhaW5zIHV0aWxpdGllcyBmb3IgcGF0aCBtYW5pcHVsYXRpb24gYW5kIHJlc29sdXRpb24sXHJcbiAqIHBhcnRpY3VsYXJseSBpbXBvcnRhbnQgZm9yIGhhbmRsaW5nIHBhdGhzIGNvbnNpc3RlbnRseSBhY3Jvc3MgcGxhdGZvcm1zXHJcbiAqIGFuZCB3aXRoaW4gdGhlIEVsZWN0cm9uIGVudmlyb25tZW50LlxyXG4gKiBcclxuICogVXNlZCBieTpcclxuICogLSBzcmMvZWxlY3Ryb24vc2VydmljZXMvRmlsZVN5c3RlbVNlcnZpY2UuanNcclxuICogLSBzcmMvZWxlY3Ryb24vc2VydmljZXMvU3RyZWFtaW5nRmlsZVNlcnZpY2UuanNcclxuICogLSBzcmMvZWxlY3Ryb24vaXBjL2hhbmRsZXJzL2ZpbGVzeXN0ZW0vXHJcbiAqL1xyXG5cclxuLyoqXHJcbiAqIFBhdGggVXRpbGl0aWVzXHJcbiAqIFJlLWV4cG9ydHMgdGhlIFBhdGhVdGlscyBjbGFzcyBmb3IgY29uc2lzdGVudCB1c2FnZSBhY3Jvc3MgdGhlIGFwcGxpY2F0aW9uXHJcbiAqIFxyXG4gKiBVc2VkIGJ5OlxyXG4gKiAtIHNyYy9lbGVjdHJvbi9zZXJ2aWNlcy9GaWxlU3lzdGVtU2VydmljZS5qc1xyXG4gKiAtIHNyYy9lbGVjdHJvbi9zZXJ2aWNlcy9TdHJlYW1pbmdGaWxlU2VydmljZS5qc1xyXG4gKi9cclxuXHJcbmNvbnN0IFBhdGhVdGlscyA9IHJlcXVpcmUoJy4vcGF0aHMnKTtcclxuXHJcbi8vIFJlLWV4cG9ydCB0aGUgUGF0aFV0aWxzIGNsYXNzXHJcbm1vZHVsZS5leHBvcnRzID0ge1xyXG4gICAgUGF0aFV0aWxzXHJcbn07XHJcbiJdLCJtYXBwaW5ncyI6Ijs7QUFBQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTs7QUFFQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBOztBQUVBLE1BQU1BLFNBQVMsR0FBR0MsT0FBTyxDQUFDLFNBQVMsQ0FBQzs7QUFFcEM7QUFDQUMsTUFBTSxDQUFDQyxPQUFPLEdBQUc7RUFDYkg7QUFDSixDQUFDIiwiaWdub3JlTGlzdCI6W119

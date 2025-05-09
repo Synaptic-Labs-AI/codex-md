@@ -172,40 +172,108 @@ async function testAudioConversion(services) {
  */
 async function testVideoConversion(services) {
   logger.section('Testing Video Conversion');
-  
+  let explicitPathSuccess = false;
+  let defaultPathSuccess = false;
+
+  // --- Test 1: Explicit Output Path ---
+  logger.info('--- Testing Explicit Output Path ---');
   try {
-    // Read the video file
     logger.info(`Reading video file: ${SAMPLE_VIDEO_PATH}`);
-    const videoBuffer = await fs.readFile(SAMPLE_VIDEO_PATH);
-    
-    // Set conversion options
-    const options = {
+    // No need to read buffer again if already read, but keeping for isolation
+    // const videoBuffer = await fs.readFile(SAMPLE_VIDEO_PATH);
+
+    const optionsExplicit = {
       transcribe: services.apiKeyExists,
       language: 'en',
-      title: 'Video Conversion Test',
-      thumbnailCount: 3
+      title: 'Video Conversion Test (Explicit Path)',
+      thumbnailCount: 3,
+      // Explicitly define where the final markdown should go
+      // Note: VideoConverter itself handles the final move/write based on this
+      outputPath: VIDEO_OUTPUT_PATH
     };
-    
-    // Convert the video file
-    logger.info('Converting video file to Markdown...');
-    const result = await services.videoConverter.processConversion(
-      `video_test_${Date.now()}`,
+
+    logger.info(`Converting video file to Markdown (Output: ${VIDEO_OUTPUT_PATH})...`);
+    const jobIdExplicit = `video_test_explicit_${Date.now()}`;
+    const resultExplicit = await services.videoConverter.processConversion(
+      jobIdExplicit,
       SAMPLE_VIDEO_PATH,
-      options
+      optionsExplicit
     );
-    
-    // Save the result to a file
-    await fs.writeFile(VIDEO_OUTPUT_PATH, result);
-    logger.info(`Conversion result saved to: ${VIDEO_OUTPUT_PATH}`);
-    
-    // Verify the result
-    verifyVideoConversionResult(result, options);
-    
-    return true;
+
+    // Verify file exists at the specified path
+    const explicitFileExists = await fs.pathExists(VIDEO_OUTPUT_PATH);
+    if (explicitFileExists) {
+      logger.success(`✅ Output file found at explicit path: ${VIDEO_OUTPUT_PATH}`);
+      // Verify content (assuming resultExplicit is the final markdown content)
+      verifyVideoConversionResult(resultExplicit, optionsExplicit);
+      explicitPathSuccess = true; // Mark success if verification passes
+    } else {
+      logger.error(`❌ Output file NOT found at explicit path: ${VIDEO_OUTPUT_PATH}`);
+      explicitPathSuccess = false;
+    }
+
   } catch (error) {
-    logger.error(`Video conversion failed: ${error.message}`);
-    return false;
+    logger.error(`Video conversion failed (Explicit Path): ${error.message}`);
+    explicitPathSuccess = false;
   }
+
+  // --- Test 2: Default Output Path (Temp Directory) ---
+   logger.info('\n--- Testing Default Output Path (Temp Directory) ---');
+  try {
+     logger.info(`Reading video file again: ${SAMPLE_VIDEO_PATH}`);
+     // const videoBufferDefault = await fs.readFile(SAMPLE_VIDEO_PATH); // If needed
+
+    const optionsDefault = {
+      transcribe: services.apiKeyExists,
+      language: 'en',
+      title: 'Video Conversion Test (Default Path)',
+      thumbnailCount: 3
+      // No outputPath specified - should default to temp
+    };
+
+    logger.info('Converting video file to Markdown (Output: Default Temp)...');
+    const jobIdDefault = `video_test_default_${Date.now()}`;
+    const resultDefault = await services.videoConverter.processConversion(
+      jobIdDefault,
+      SAMPLE_VIDEO_PATH,
+      optionsDefault
+    );
+
+    // --- Verification for Default Path ---
+    // The converter should have saved the file to a temp location.
+    // We need to find it. Let's assume it uses the FileStorageService's temp dir.
+    const tempDir = services.fileStorage.getTempDirectoryPath(jobIdDefault);
+    // The final markdown name might be based on the job ID or original filename.
+    // Let's look for *any* .md file in that temp directory.
+    let defaultOutputPath = null;
+    if (await fs.pathExists(tempDir)) {
+        const filesInTemp = await fs.readdir(tempDir);
+        const mdFile = filesInTemp.find(f => f.endsWith('.md'));
+        if (mdFile) {
+            defaultOutputPath = path.join(tempDir, mdFile);
+        }
+    }
+
+    if (defaultOutputPath && await fs.pathExists(defaultOutputPath)) {
+        logger.success(`✅ Output file found at default temp path: ${defaultOutputPath}`);
+        // Read the content to verify
+        const defaultFileContent = await fs.readFile(defaultOutputPath, 'utf-8');
+        verifyVideoConversionResult(defaultFileContent, optionsDefault);
+        defaultPathSuccess = true; // Mark success
+        // Optional: Clean up the temp file/dir for this specific job
+        // await fs.remove(tempDir);
+        // logger.info(`Cleaned up temp directory: ${tempDir}`);
+    } else {
+        logger.error(`❌ Output file NOT found in expected temp directory: ${tempDir}`);
+        defaultPathSuccess = false;
+    }
+    
+  } catch (error) {
+    logger.error(`Video conversion failed (Default Path): ${error.message}`);
+    defaultPathSuccess = false;
+  }
+
+  return explicitPathSuccess && defaultPathSuccess; // Return true only if BOTH tests pass
 }
 
 /**
@@ -356,13 +424,17 @@ async function runTests() {
     }
     
     if (videoExists) {
-      logger.info(`Video Conversion Test: ${videoSuccess ? 'PASSED' : 'FAILED'}`);
+      // Now reports combined success of both explicit and default path tests
+      logger.info(`Video Conversion Test (Explicit & Default Path): ${videoSuccess ? 'PASSED' : 'FAILED'}`);
     } else {
       logger.info('Video Conversion Test: SKIPPED');
     }
     
-    if (audioSuccess && videoSuccess) {
-      logger.success('All tests passed successfully!');
+    // Adjust success condition
+    const allRequiredTestsPassed = (!mp3Exists || audioSuccess) && (!videoExists || videoSuccess);
+
+    if (allRequiredTestsPassed) {
+      logger.success('All required tests passed successfully!');
     } else if (!mp3Exists && !videoExists) {
       logger.warning('No tests were run. Please provide sample files.');
     } else {

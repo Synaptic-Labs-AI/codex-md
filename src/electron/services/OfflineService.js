@@ -18,11 +18,11 @@ const path = require('path');
 const fs = require('fs-extra');
 const { app } = require('electron');
 const { createStore } = require('../utils/storeFactory');
-const FileSystemService = require('./FileSystemService');
+const { instance: FileSystemService } = require('./FileSystemService'); // Import instance
 
 class OfflineService {
   constructor() {
-    this.fileSystem = FileSystemService;
+    this.fileSystem = FileSystemService; // Use the imported instance
     this.cacheDir = path.join(app.getPath('userData'), 'cache');
     this.operationQueue = [];
     this.isOnline = true;

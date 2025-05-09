@@ -90,7 +90,7 @@ class ConverterInitializer {
 
     try {
       const paths = ModuleLoader.getModulePaths();
-      this.logger.info('Using converter paths:', paths);
+      this.logger.log('Using converter paths:', 'INFO', paths);
       
       const registry = await ModuleLoader.loadModule(paths.registry);
       this.logger.success('Successfully loaded converter registry');
@@ -164,7 +164,7 @@ class UnifiedConverterFactory {
     this._initializer = ConverterInitializer.getInstance();
     this._converterRegistry = null;
     this.logger = getLogger('UnifiedConverterFactory');
-    this.logger.info('UnifiedConverterFactory initialized');
+    this.logger.log('UnifiedConverterFactory initialized', 'INFO');
   }
 
   static getInstance() {
@@ -195,7 +195,7 @@ class UnifiedConverterFactory {
 
     // Get URL converter directly from registry if available
     if (normalizedType === 'url' || normalizedType === 'parenturl') {
-      this.logger.info(`Using direct URL converter for: ${normalizedType}`);
+      this.logger.log(`Using direct URL converter for: ${normalizedType}`, 'INFO');
       
       const converter = registry.converters?.[normalizedType];
       if (converter) {
@@ -218,7 +218,7 @@ class UnifiedConverterFactory {
       }
 
       // Try fallback to convertToMarkdown
-      this.logger.info(`Attempting convertToMarkdown fallback for ${normalizedType}`);
+      this.logger.log(`Attempting convertToMarkdown fallback for ${normalizedType}`, 'INFO');
       if (registry.convertToMarkdown) {
         return {
           converter: {
@@ -306,7 +306,7 @@ class UnifiedConverterFactory {
       
       // Special handling for URL types in production mode
       if (!converterInfo && (fileType === 'url' || fileType === 'parenturl')) {
-        this.logger.info(`Special handling for ${fileType} in production mode`);
+        this.logger.log(`Special handling for ${fileType} in production mode`, 'INFO');
         converterInfo = await this.createDirectUrlConverter(fileType);
         
         if (converterInfo) {
@@ -316,23 +316,23 @@ class UnifiedConverterFactory {
       
       // If converter not found, try again after a short delay
       if (!converterInfo) {
-        this.logger.info(`Retrying to get converter for ${fileType} after delay...`);
+        this.logger.log(`Retrying to get converter for ${fileType} after delay...`, 'INFO');
         await new Promise(resolve => setTimeout(resolve, 500));
         converterInfo = await this.getConverter(fileType);
         
         if (!converterInfo && (fileType === 'url' || fileType === 'parenturl')) {
-          this.logger.info(`Second attempt at special handling for ${fileType}`);
+          this.logger.log(`Second attempt at special handling for ${fileType}`, 'INFO');
           converterInfo = await this.createDirectUrlConverter(fileType);
         }
         
         // If still not found, try one more time with a longer delay
         if (!converterInfo) {
-          this.logger.info(`Final attempt to get converter for ${fileType} after longer delay...`);
+          this.logger.log(`Final attempt to get converter for ${fileType} after longer delay...`, 'INFO');
           await new Promise(resolve => setTimeout(resolve, 1000));
           converterInfo = await this.getConverter(fileType);
           
           if (!converterInfo && (fileType === 'url' || fileType === 'parenturl')) {
-            this.logger.info(`Final attempt at special handling for ${fileType}`);
+            this.logger.log(`Final attempt at special handling for ${fileType}`, 'INFO');
             converterInfo = await this.createDirectUrlConverter(fileType);
           }
           
@@ -398,7 +398,7 @@ class UnifiedConverterFactory {
    * @returns {Object|null} - Converter info or null if not possible
    */
   async createDirectUrlConverter(fileType) {
-    this.logger.info(`Creating direct URL converter for ${fileType}`);
+    this.logger.log(`Creating direct URL converter for ${fileType}`, 'INFO');
     
     const registry = await this._ensureInitialized();
     if (!registry.convertToMarkdown) {
@@ -409,7 +409,7 @@ class UnifiedConverterFactory {
     return {
       converter: {
         convert: async (content, name, apiKey, options) => {
-          this.logger.info(`Using direct URL converter for ${fileType}`);
+          this.logger.log(`Using direct URL converter for ${fileType}`, 'INFO');
           return registry.convertToMarkdown(fileType, content, {
             name,
             apiKey,
@@ -449,43 +449,66 @@ class UnifiedConverterFactory {
    * @returns {Object} - Standardized result
    */
   standardizeResult(result, fileType, fileName, category) {
-    // Handle null or undefined result
+    this.logger.debug(`Raw result received for ${fileType}:`, sanitizeForLogging(result)); // Add logging
+
+    // Handle null or undefined result explicitly
     if (!result) {
-      result = {};
+        this.logger.warn(`Received null or undefined result for ${fileType}. Assuming failure.`);
+        result = { success: false, error: 'Converter returned null or undefined result' };
+    }
+
+    // Determine success status more robustly
+    // Success is ONLY true if result.success is explicitly true.
+    // Otherwise, it's false, especially if an error property exists.
+    const isSuccess = result.success === true;
+
+    // Sanitize potentially complex objects within the result *after* determining success
+    const sanitizedResult = sanitizeForLogging(result);
+
+    const standardized = {
+        ...sanitizedResult, // Spread sanitized result first
+        success: isSuccess, // Override with determined success status
+        type: result.type || fileType,
+        fileType: fileType,
+        name: result.name || fileName,
+        category: result.category || category,
+        metadata: {
+            ...(result.metadata || {}),
+            converter: result.converter || 'unknown'
+        },
+        images: result.images || [],
+        // Ensure content exists, provide fallback if needed
+        content: result.content || (isSuccess ? '' : `# Conversion Result\n\nThe ${fileType} file was processed, but no content was generated. This might indicate an issue or be normal for this file type.`),
+        // Ensure error property is present if not successful
+        error: !isSuccess ? (result.error || 'Unknown conversion error') : undefined
+    };
+
+    // Remove error property if successful
+    if (standardized.success) {
+        delete standardized.error;
     }
     
-    // Sanitize any buffer or complex objects in the result
-    const sanitizedResult = sanitizeForLogging(result);
-    
-    // First spread the result, then override with explicit properties
-    // This ensures explicit properties take precedence over any in the spread
-    const standardized = {
-      ...sanitizedResult,
-      // Then override with explicit properties to ensure they take precedence
-      success: result.success !== false,
-      type: result.type || fileType,
-      fileType: fileType, // Explicitly include fileType
-      name: result.name || fileName,
-      category: result.category || category,
-      metadata: {
-        ...(result.metadata || {}),
-        converter: result.converter || 'unknown'
-      },
-      images: result.images || [],
-      // Set content last to ensure it's not overridden
-      content: result.content || ''
-    };
-    
-    // Ensure content is not null or undefined
-    if (!standardized.content) {
+    // Ensure content is not null or undefined, and provide appropriate fallback
+    if (!standardized.content && !isSuccess) {
       this.logger.logPhaseTransition(
         ConversionStatus.STATUS.PROCESSING,
         ConversionStatus.STATUS.CONTENT_EMPTY
       );
-
-      standardized.content = `# Conversion Result\n\nThe ${fileType} file was processed, but no content was generated. This is normal for certain types of files (e.g., multimedia files without transcription).`;
+      // Provide a more informative message if the conversion failed and content is empty
+      standardized.content = `# Conversion Error\n\nThe ${fileType} file conversion failed or produced no content. Error: ${standardized.error || 'Unknown error'}`;
+    } else if (!standardized.content && isSuccess) {
+       this.logger.logPhaseTransition(
+        ConversionStatus.STATUS.PROCESSING,
+        ConversionStatus.STATUS.CONTENT_EMPTY
+      );
+      // Fallback for successful conversion but empty content
+      standardized.content = `# Conversion Result\n\nThe ${fileType} file was processed successfully, but no textual content was generated. This is normal for certain file types (e.g., multimedia files without transcription).`;
     }
-    
+
+
+    // Log the final standardized result
+    this.logger.debug(`Standardized result for ${fileType}:`, sanitizeForLogging(standardized));
+
     return standardized;
   }
 
@@ -510,7 +533,7 @@ class UnifiedConverterFactory {
           progressTracker.update(20, { status: `processing_${fileType}` });
         }
         
-        this.logger.info(`Processing URL: ${filePath}`);
+        this.logger.log(`Processing URL: ${filePath}`, 'INFO');
         
         // For URLs, filePath is actually the URL string
         let result;
@@ -518,7 +541,7 @@ class UnifiedConverterFactory {
         try {
           // Try using the converter's convert method first
           if (typeof converter.convert === 'function') {
-            this.logger.info(`Using converter.convert for ${fileType}`);
+            this.logger.log(`Using converter.convert for ${fileType}`, 'INFO');
             result = await converter.convert(filePath, fileName, options.apiKey, {
               ...options,
               name: fileName,
@@ -533,7 +556,7 @@ class UnifiedConverterFactory {
           } else {
             // Fall back to using the registry's convertToMarkdown method
             const registry = await this._ensureInitialized();
-            this.logger.info(`Using registry.convertToMarkdown for ${fileType}`);
+            this.logger.log(`Using registry.convertToMarkdown for ${fileType}`, 'INFO');
             result = await registry.convertToMarkdown(fileType, filePath, {
               ...options,
               name: fileName,
@@ -552,7 +575,7 @@ class UnifiedConverterFactory {
           // Try the alternative method as a fallback
           const registry = await this._ensureInitialized();
           if (typeof converter.convert === 'function' && typeof registry.convertToMarkdown === 'function') {
-            this.logger.info(`Trying alternative conversion method as fallback`);
+            this.logger.log(`Trying alternative conversion method as fallback`, 'INFO');
             
             try {
               // If we tried converter.convert first, now try registry.convertToMarkdown
@@ -605,7 +628,7 @@ class UnifiedConverterFactory {
         
         // Add more detailed logging for OCR settings
         if (options.useOcr) {
-          this.logger.info('OCR is enabled for this conversion');
+          this.logger.log('OCR is enabled for this conversion', 'INFO');
           if (options.mistralApiKey) {
             this.logger.debug('Mistral API key is present');
           } else {
@@ -618,11 +641,11 @@ class UnifiedConverterFactory {
       if (fileType === 'mp3' || fileType === 'wav' || fileType === 'mp4' || fileType === 'mov' || 
           fileType === 'ogg' || fileType === 'webm' || fileType === 'avi' || 
           fileType === 'flac' || fileType === 'm4a') {
-        this.logger.info(`Converting multimedia file (${fileType})`);
+        this.logger.log(`Converting multimedia file (${fileType})`, 'INFO');
         
         // Remove mistralApiKey from options for multimedia files to prevent incorrect routing
         if (options.mistralApiKey) {
-          this.logger.info('Removing Mistral API key from multimedia conversion options');
+          this.logger.log('Removing Mistral API key from multimedia conversion options', 'INFO');
           const { mistralApiKey, ...cleanOptions } = options;
           options = cleanOptions;
         }

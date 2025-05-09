@@ -10,7 +10,7 @@
 
 const { ipcMain, dialog } = require('electron');
 const { IPCChannels } = require('../../types');
-const FileSystemService = require('../../../services/FileSystemService');
+const { instance: FileSystemService } = require('../../../services/FileSystemService'); // Import instance
 const { registerLargeFileTransferHandlers, cleanupLargeFileTransfers } = require('./largeFileTransfer');
 
 /**

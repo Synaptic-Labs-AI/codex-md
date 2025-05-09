@@ -1,0 +1,37 @@
+"use strict";
+
+/**
+ * config.js
+ * 
+ * Utility functions for handling configuration loading and caching.
+ * Provides hardcoded configurations that were previously loaded from separate configuration files.
+ * 
+ * Related files:
+ * - src/electron/services/ai/TranscriberService.js: Uses transcription config
+ */
+
+/**
+ * Get transcription configuration
+ * @returns {object} The transcription configuration
+ */
+function getTranscriptionConfig() {
+  // Hardcoded configuration that was previously in a separate config file
+  return {
+    MODELS: {
+      'whisper-1': {
+        name: 'Whisper',
+        description: 'OpenAI Whisper model',
+        features: ['timestamps'],
+        default: true
+      }
+    },
+    DEFAULT_MODEL: 'whisper-1',
+    RESPONSE_FORMATS: {
+      'whisper-1': ['json', 'text']
+    }
+  };
+}
+module.exports = {
+  getTranscriptionConfig
+};
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJnZXRUcmFuc2NyaXB0aW9uQ29uZmlnIiwiTU9ERUxTIiwibmFtZSIsImRlc2NyaXB0aW9uIiwiZmVhdHVyZXMiLCJkZWZhdWx0IiwiREVGQVVMVF9NT0RFTCIsIlJFU1BPTlNFX0ZPUk1BVFMiLCJtb2R1bGUiLCJleHBvcnRzIl0sInNvdXJjZXMiOlsiLi4vLi4vLi4vLi4vc3JjL2VsZWN0cm9uL3NlcnZpY2VzL3V0aWxzL2NvbmZpZy5qcyJdLCJzb3VyY2VzQ29udGVudCI6WyIvKipcclxuICogY29uZmlnLmpzXHJcbiAqIFxyXG4gKiBVdGlsaXR5IGZ1bmN0aW9ucyBmb3IgaGFuZGxpbmcgY29uZmlndXJhdGlvbiBsb2FkaW5nIGFuZCBjYWNoaW5nLlxyXG4gKiBQcm92aWRlcyBoYXJkY29kZWQgY29uZmlndXJhdGlvbnMgdGhhdCB3ZXJlIHByZXZpb3VzbHkgbG9hZGVkIGZyb20gc2VwYXJhdGUgY29uZmlndXJhdGlvbiBmaWxlcy5cclxuICogXHJcbiAqIFJlbGF0ZWQgZmlsZXM6XHJcbiAqIC0gc3JjL2VsZWN0cm9uL3NlcnZpY2VzL2FpL1RyYW5zY3JpYmVyU2VydmljZS5qczogVXNlcyB0cmFuc2NyaXB0aW9uIGNvbmZpZ1xyXG4gKi9cclxuXHJcbi8qKlxyXG4gKiBHZXQgdHJhbnNjcmlwdGlvbiBjb25maWd1cmF0aW9uXHJcbiAqIEByZXR1cm5zIHtvYmplY3R9IFRoZSB0cmFuc2NyaXB0aW9uIGNvbmZpZ3VyYXRpb25cclxuICovXHJcbmZ1bmN0aW9uIGdldFRyYW5zY3JpcHRpb25Db25maWcoKSB7XHJcbiAgLy8gSGFyZGNvZGVkIGNvbmZpZ3VyYXRpb24gdGhhdCB3YXMgcHJldmlvdXNseSBpbiBhIHNlcGFyYXRlIGNvbmZpZyBmaWxlXHJcbiAgcmV0dXJuIHtcclxuICAgIE1PREVMUzoge1xyXG4gICAgICAnd2hpc3Blci0xJzoge1xyXG4gICAgICAgIG5hbWU6ICdXaGlzcGVyJyxcclxuICAgICAgICBkZXNjcmlwdGlvbjogJ09wZW5BSSBXaGlzcGVyIG1vZGVsJyxcclxuICAgICAgICBmZWF0dXJlczogWyd0aW1lc3RhbXBzJ10sXHJcbiAgICAgICAgZGVmYXVsdDogdHJ1ZVxyXG4gICAgICB9XHJcbiAgICB9LFxyXG4gICAgREVGQVVMVF9NT0RFTDogJ3doaXNwZXItMScsXHJcbiAgICBSRVNQT05TRV9GT1JNQVRTOiB7XHJcbiAgICAgICd3aGlzcGVyLTEnOiBbJ2pzb24nLCAndGV4dCddXHJcbiAgICB9XHJcbiAgfTtcclxufVxyXG5cclxubW9kdWxlLmV4cG9ydHMgPSB7XHJcbiAgZ2V0VHJhbnNjcmlwdGlvbkNvbmZpZ1xyXG59O1xyXG4iXSwibWFwcGluZ3MiOiI7O0FBQUE7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBOztBQUVBO0FBQ0E7QUFDQTtBQUNBO0FBQ0EsU0FBU0Esc0JBQXNCQSxDQUFBLEVBQUc7RUFDaEM7RUFDQSxPQUFPO0lBQ0xDLE1BQU0sRUFBRTtNQUNOLFdBQVcsRUFBRTtRQUNYQyxJQUFJLEVBQUUsU0FBUztRQUNmQyxXQUFXLEVBQUUsc0JBQXNCO1FBQ25DQyxRQUFRLEVBQUUsQ0FBQyxZQUFZLENBQUM7UUFDeEJDLE9BQU8sRUFBRTtNQUNYO0lBQ0YsQ0FBQztJQUNEQyxhQUFhLEVBQUUsV0FBVztJQUMxQkMsZ0JBQWdCLEVBQUU7TUFDaEIsV0FBVyxFQUFFLENBQUMsTUFBTSxFQUFFLE1BQU07SUFDOUI7RUFDRixDQUFDO0FBQ0g7QUFFQUMsTUFBTSxDQUFDQyxPQUFPLEdBQUc7RUFDZlQ7QUFDRixDQUFDIiwiaWdub3JlTGlzdCI6W119

@@ -15,6 +15,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const { execSync } = require('child_process');
+const { glob } = require('glob');
 
 // Directories to clean up
 const CLEANUP_PATTERNS = [
@@ -89,7 +90,8 @@ async function optimizeDistDirectory() {
     }
     
     // Remove source maps if they exist (optional)
-    const mapFiles = await fs.glob('**/*.map', { cwd: distPath });
+    // Use the glob package to find map files
+    const mapFiles = await glob('**/*.map', { cwd: distPath });
     if (mapFiles.length > 0) {
       console.log(`Found ${mapFiles.length} source map files to remove`);
       for (const file of mapFiles) {

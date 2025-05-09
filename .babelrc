@@ -1,8 +1,14 @@
 {
-  "presets": ["@babel/preset-env"],
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "node": "18.18.2" // Target Electron 28's Node version
+      }
+    }]
+  ],
   "env": {
     "test": {
-      "presets": ["@babel/preset-env"]
+      "presets": [["@babel/preset-env", { "targets": { "node": "current" }}]]
     }
   }
 }

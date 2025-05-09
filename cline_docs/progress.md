@@ -109,6 +109,8 @@ flowchart TD
 - ~~False positive dependency warnings for built-in Node.js modules~~ (Fixed - enhanced verification script)
 | - ~~FFmpeg binary detection in packaged application~~ (Fixed - Implemented comprehensive solution with BinaryPathResolver module and VideoConverter.js refactoring to handle ASAR archive incompatibility)
 
+- ~~Video conversion failing due to incorrect output path handling~~ (Fixed [2025-04-24] - Modified VideoConverter.js to retrieve output path from registry within `processConversion` method, ensuring user-specified directory is used)
+- ~~Video conversion `Assignment to constant variable` error~~ (Fixed [2025-04-24] - Modified VideoConverter.js to declare `outputPath` with `let` instead of `const`, allowing reassignment when needed)
 ## Next Major Features
 1. Consolidated Architecture:
    - Clean IPC interface

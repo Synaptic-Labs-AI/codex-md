@@ -2,7 +2,7 @@
     "name": "codex-md",
     "version": "1.0.0",
     "description": "Desktop application for converting various file types to Markdown for codex.md",
-    "main": "src/electron/main.js",
+    "main": "build/electron/main.js",
     "type": "commonjs",
     "workspaces": [
         "frontend"
@@ -11,11 +11,13 @@
         "verify-deps": "node scripts/verify-dependencies.js",
         "dev:svelte": "cd frontend && npm run dev",
         "build:svelte": "cd frontend && npm run build",
-        "prebuild:electron": "node scripts/verify-dependencies.js && node scripts/cleanup-resources.js && node scripts/copy-static-assets.js",
+        "prebuild:electron": "node scripts/ensure-resources-bin.js && node scripts/verify-dependencies.js && node scripts/cleanup-resources.js && node scripts/copy-static-assets.js",
         "optimize-build": "node scripts/optimize-build.js",
         "convert-icons": "node scripts/convert-icons.js",
+        "clean:build": "npx rimraf build",
+        "transpile:electron": "npm run clean:build && babel src/electron --out-dir build/electron --copy-files --source-maps inline",
         "package": "electron-forge package",
-        "make": "npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder --win",
+        "make": "npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder --win",
         "lint": "eslint src/electron",
         "start": "electron-forge start",
         "dev": "npm run start:dev",
@@ -25,7 +27,7 @@
         "dev:electron": "electron-forge start",
         "dev:frontend": "cd frontend && npm run dev",
         "build:frontend": "cd frontend && npm run build",
-        "build:electron": "npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder build",
+        "build:electron": "npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder build",
         "test": "npm run test:all",
         "test:all": "npm run test:e2e && npm run test:unit && npm run test:multimedia-fix",
         "test:e2e": "playwright test",
@@ -90,7 +92,7 @@
             ]
         },
         "files": [
-            "src/electron/**/*",
+            "build/electron/**/*",
             "frontend/dist/**/*",
             "node_modules/**/*",
             "!node_modules/.bin/**/*",
@@ -117,6 +119,14 @@
                 "filter": [
                     "**/*"
                 ]
+            },
+            {
+                "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
+                "to": "bin/ffmpeg.exe"
+            },
+            {
+                "from": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
+                "to": "bin/ffprobe.exe"
             }
         ],
         "extraFiles": [],
@@ -243,10 +253,12 @@
         "electron-reloader": "^1.2.3",
         "eslint": "^7.32.0",
         "eslint-plugin-electron": "^7.0.0",
+        "glob": "^11.0.2",
         "husky": "^8.0.0",
         "jest": "^29.7.0",
         "jsdom": "^25.0.1",
         "lint-staged": "^13.1.0",
+        "node-fetch-commonjs": "^3.3.2",
         "path-browserify": "^1.0.1",
         "png-to-ico": "^2.1.8",
         "sass": "^1.79.4"

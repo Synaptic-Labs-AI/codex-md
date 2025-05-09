@@ -10,13 +10,27 @@
 
 const fs = require('fs/promises');
 const path = require('path');
+const os = require('os'); // Added for temporary directory
 const { app } = require('electron');
 const { PathUtils } = require('../utils/paths');
+const { getLogger } = require('../utils/logging/ConversionLogger'); // Use standardized logger
+
+// Get a logger instance for module-level operations if needed, or pass to constructor
+const serviceLogger = getLogger('FileSystemService');
 
 class FileSystemService {
-  constructor() {
+  constructor(loggerInstance) {
+    this.logger = loggerInstance || getLogger('FileSystemService'); // Use provided or get new
     this.appDataPath = PathUtils.normalizePath(app.getPath('userData'));
     this.documentsPath = PathUtils.normalizePath(app.getPath('documents'));
+    this.activeTemporaryDirs = new Set(); // Track active temporary directories
+    
+    // Safely log initialization - check if logger is properly initialized first
+    if (this.logger && typeof this.logger.info === 'function') {
+      this.logger.info('Initialized');
+    } else {
+      console.log('FileSystemService initialized (logger not available)');
+    }
   }
 
   /**
@@ -65,63 +79,60 @@ class FileSystemService {
 
       return absolutePath;
     } catch (error) {
-      throw new Error(`Path validation failed: ${error.message}`);
+        // No logger here, error is re-thrown
+        throw new Error(`Path validation failed: ${error.message}`);
     }
-  }
-
-  /**
-   * Reads a file safely
-   * @param {string} filePath - Path to the file
-   * @param {string} encoding - File encoding (default: 'utf8')
-   * @returns {Promise<{success: boolean, data?: any, error?: string}>}
-   */
-  async readFile(filePath, encoding = 'utf8') {
-    console.log(`📖 Reading file: ${filePath} with encoding: ${encoding}`);
-    try {
-      const validPath = await this.validatePath(filePath);
-      console.log(`✓ Path validated: ${validPath}`);
-      
-      // Check if file exists before reading
-      try {
-        const stats = await fs.stat(validPath);
-        console.log(`📊 File stats: size=${stats.size}, isFile=${stats.isFile()}`);
-        
-        if (!stats.isFile()) {
-          console.error(`❌ Not a file: ${validPath}`);
-          return { 
-            success: false, 
-            error: `Not a file: ${filePath}` 
-          };
-        }
-      } catch (statError) {
-        console.error(`❌ File stat error: ${statError.message}`);
-        return { 
-          success: false, 
-          error: `File not accessible: ${statError.message}` 
-        };
+    }
+  
+    /**
+     * Reads a file safely
+     * @param {string} filePath - Path to the file
+     * @param {string} encoding - File encoding (default: 'utf8')
+     * @returns {Promise<{success: boolean, data?: any, error?: string}>}
+     */
+    async readFile(filePath, encoding = 'utf8') {
+      if (this.logger && typeof this.logger.info === 'function') {
+        this.logger.info(`Reading file`, { filePath, encoding });
       }
-      
-      // Read the file
-      const data = await fs.readFile(validPath, { encoding });
-      
-      // Log success with data preview
-      const preview = typeof data === 'string' 
-        ? `${data.substring(0, 50)}${data.length > 50 ? '...' : ''}`
-        : `<Buffer: ${data.length} bytes>`;
-      
-      console.log(`✅ File read successfully: ${validPath} (${typeof data}, ${data.length} bytes)`);
-      console.log(`📄 Data preview: ${preview}`);
-      
-      return { success: true, data };
-    } catch (error) {
-      console.error(`❌ Failed to read file: ${filePath}`, error);
-      return { 
-        success: false, 
-        error: `Failed to read file: ${error.message}` 
-      };
+      try {
+        const validPath = await this.validatePath(filePath);
+        if (this.logger && typeof this.logger.debug === 'function') {
+          this.logger.debug(`Path validated`, { validPath });
+        }
+        
+        // Check if file exists before reading
+        let stats;
+        try {
+          stats = await fs.stat(validPath);
+          this.logger.debug(`File stats retrieved`, { filePath: validPath, size: stats.size, isFile: stats.isFile() });
+          
+          if (!stats.isFile()) {
+            const errorMsg = `Not a file`;
+            this.logger.error(errorMsg, { filePath: validPath });
+            return { success: false, error: `${errorMsg}: ${filePath}` };
+          }
+        } catch (statError) {
+          this.logger.error(`File stat error: ${statError.message}`, { filePath: validPath, error: statError });
+          return { success: false, error: `File not accessible: ${statError.message}` };
+        }
+        
+        // Read the file
+        const data = await fs.readFile(validPath, { encoding });
+        
+        // Log success with data preview (using debug level for potentially large previews)
+        const preview = typeof data === 'string'
+          ? `${data.substring(0, 50)}${data.length > 50 ? '...' : ''}`
+          : `<Buffer: ${data.length} bytes>`;
+        
+        this.logger.success(`File read successfully`, { filePath: validPath, type: typeof data, size: stats.size });
+        this.logger.debug(`Data preview: ${preview}`, { filePath: validPath });
+        
+        return { success: true, data };
+      } catch (error) {
+        this.logger.error(`Failed to read file: ${error.message}`, { filePath, error });
+        return { success: false, error: `Failed to read file: ${error.message}` };
+      }
     }
-  }
-
   /**
    * Writes data to a file safely
    * @param {string} filePath - Path to write the file
@@ -130,62 +141,88 @@ class FileSystemService {
    * @returns {Promise<{success: boolean, error?: string, stats?: Object}>}
    */
   async writeFile(filePath, data, encoding = 'utf8') {
-    console.log(`💾 [FileSystemService] Writing file: ${filePath}`);
-    console.log(`📊 [FileSystemService] Data type: ${typeof data}, ${Buffer.isBuffer(data) ? 'Buffer' : 'Not Buffer'}, Length: ${data ? data.length : 'null'}`);
+    const dataType = typeof data;
+    const dataLength = data ? data.length : 0;
+    const isBuffer = Buffer.isBuffer(data);
+    if (this.logger && typeof this.logger.info === 'function') {
+      this.logger.info(`Writing file`, { filePath, dataType, isBuffer, dataLength });
+    }
     
     try {
       const validPath = await this.validatePath(filePath, false);
-      console.log(`✓ [FileSystemService] Path validated: ${validPath}`);
+      if (this.logger && typeof this.logger.debug === 'function') {
+        this.logger.debug(`Path validated`, { validPath });
+      }
       
       // Ensure directory exists
       const dirPath = path.dirname(validPath);
       await fs.mkdir(dirPath, { recursive: true });
-      console.log(`📁 [FileSystemService] Ensured directory exists: ${dirPath}`);
+      if (this.logger && typeof this.logger.debug === 'function') {
+        this.logger.debug(`Ensured directory exists`, { dirPath });
+      }
       
       // Check if this is base64 data that needs to be decoded
       let dataToWrite = data;
       let dataEncoding = encoding;
-      let originalDataLength = data ? data.length : 0;
+      let originalDataLength = dataLength;
       let isBase64 = false;
       
-      if (typeof data === 'string' && data.startsWith('BASE64:')) {
-        console.log(`🔄 [FileSystemService] Detected BASE64 prefix, decoding binary data`);
+      if (dataType === 'string' && data.startsWith('BASE64:')) {
+        if (this.logger && typeof this.logger.info === 'function') {
+          this.logger.info(`Detected BASE64 prefix, decoding binary data`, { filePath });
+        }
         isBase64 = true;
         
         // Remove the prefix and decode base64 to binary
         const base64Data = data.substring(7); // Remove 'BASE64:' prefix
-        console.log(`📊 [FileSystemService] Base64 data length: ${base64Data.length} characters`);
+        if (this.logger && typeof this.logger.debug === 'function') {
+          this.logger.debug(`Base64 data length: ${base64Data.length} characters`, { filePath });
+        }
         
         // Check if base64 data is valid
         if (base64Data.length % 4 !== 0) {
-          console.warn(`⚠️ [FileSystemService] Base64 data length is not a multiple of 4: ${base64Data.length}`);
+          if (this.logger && typeof this.logger.warn === 'function') {
+            this.logger.warn(`Base64 data length is not a multiple of 4`, { filePath, length: base64Data.length });
+          }
         }
         
         // Calculate expected decoded size
         const expectedSize = Math.ceil(base64Data.length * 0.75);
-        console.log(`📊 [FileSystemService] Expected decoded size: ~${expectedSize} bytes`);
+        if (this.logger && typeof this.logger.debug === 'function') {
+          this.logger.debug(`Expected decoded size: ~${expectedSize} bytes`, { filePath });
+        }
         
         try {
           dataToWrite = Buffer.from(base64Data, 'base64');
           dataEncoding = null; // Use null encoding for binary data
-          console.log(`📊 [FileSystemService] Decoded base64 data to binary buffer: ${dataToWrite.length} bytes`);
+          if (this.logger && typeof this.logger.debug === 'function') {
+            this.logger.debug(`Decoded base64 data to binary buffer`, { filePath, decodedSize: dataToWrite.length });
+          }
           
           // Verify buffer integrity
           if (dataToWrite.length < expectedSize * 0.9) {
-            console.warn(`⚠️ [FileSystemService] Decoded size (${dataToWrite.length}) is significantly smaller than expected (${expectedSize})`);
+            if (this.logger && typeof this.logger.warn === 'function') {
+              this.logger.warn(`Decoded size is significantly smaller than expected`, { filePath, decodedSize: dataToWrite.length, expectedSize });
+            }
           }
           
           // Check for ZIP signature (PK header) for PPTX, DOCX, etc.
           if (dataToWrite.length >= 4) {
             const signature = dataToWrite.slice(0, 4);
             if (signature[0] === 0x50 && signature[1] === 0x4B) {
-              console.log(`✅ [FileSystemService] Valid ZIP signature detected (PK header)`);
+              if (this.logger && typeof this.logger.debug === 'function') {
+                this.logger.debug(`Valid ZIP signature detected (PK header)`, { filePath });
+              }
             } else {
-              console.warn(`⚠️ [FileSystemService] No ZIP signature found in binary data: ${signature.toString('hex')}`);
+              if (this.logger && typeof this.logger.warn === 'function') {
+                this.logger.warn(`No ZIP signature found in binary data`, { filePath, signature: signature.toString('hex') });
+              }
             }
           }
         } catch (decodeError) {
-          console.error(`❌ [FileSystemService] Base64 decoding failed: ${decodeError.message}`);
+          if (this.logger && typeof this.logger.error === 'function') {
+            this.logger.error(`Base64 decoding failed: ${decodeError.message}`, { filePath, error: decodeError });
+          }
           throw new Error(`Base64 decoding failed: ${decodeError.message}`);
         }
       }
@@ -194,28 +231,28 @@ class FileSystemService {
       const writeStartTime = Date.now();
       await fs.writeFile(validPath, dataToWrite, { encoding: dataEncoding });
       const writeTime = Date.now() - writeStartTime;
-      console.log(`⏱️ [FileSystemService] Write operation took ${writeTime}ms`);
+      this.logger.debug(`Write operation took ${writeTime}ms`, { filePath, writeTime });
       
       // Verify the file was written
       try {
         const stats = await fs.stat(validPath);
-        console.log(`✅ [FileSystemService] File written successfully: ${validPath} (${stats.size} bytes)`);
+        this.logger.success(`File written successfully`, { filePath: validPath, size: stats.size });
         
         // Verify file size
         if (isBase64) {
           // For base64 data, compare with the decoded buffer size
           if (Buffer.isBuffer(dataToWrite) && stats.size !== dataToWrite.length) {
-            console.warn(`⚠️ [FileSystemService] File size mismatch! Expected: ${dataToWrite.length}, Actual: ${stats.size}`);
+            this.logger.warn(`File size mismatch!`, { filePath, expected: dataToWrite.length, actual: stats.size });
           }
-        } else if (typeof data === 'string') {
-          // For text data, compare with original string length
+        } else if (dataType === 'string') {
+          // For text data, compare with original string length (approximate check)
           if (stats.size < originalDataLength * 0.9) {
-            console.warn(`⚠️ [FileSystemService] File size smaller than expected! Original data: ${originalDataLength}, File size: ${stats.size}`);
+            this.logger.warn(`File size smaller than expected!`, { filePath, originalDataLength, fileSize: stats.size });
           }
         }
         
         // Return success with file stats
-        return { 
+        return {
           success: true,
           stats: {
             size: stats.size,
@@ -224,15 +261,12 @@ class FileSystemService {
           }
         };
       } catch (verifyError) {
-        console.error(`⚠️ [FileSystemService] File written but verification failed: ${verifyError.message}`);
+        this.logger.warn(`File written but verification failed: ${verifyError.message}`, { filePath: validPath, error: verifyError });
         return { success: true }; // Still return success since write succeeded
       }
     } catch (error) {
-      console.error(`❌ [FileSystemService] Failed to write file: ${filePath}`, error);
-      return { 
-        success: false, 
-        error: `Failed to write file: ${error.message}` 
-      };
+      this.logger.error(`Failed to write file: ${error.message}`, { filePath, error });
+      return { success: false, error: `Failed to write file: ${error.message}` };
     }
   }
 
@@ -247,10 +281,8 @@ class FileSystemService {
       await fs.mkdir(validPath, { recursive: true });
       return { success: true };
     } catch (error) {
-      return {
-        success: false,
-        error: `Failed to create directory: ${error.message}`
-      };
+      this.logger.error(`Failed to create directory: ${error.message}`, { dirPath, error });
+      return { success: false, error: `Failed to create directory: ${error.message}` };
     }
   }
 
@@ -326,10 +358,8 @@ class FileSystemService {
       
       return { success: true, items };
     } catch (error) {
-      return {
-        success: false,
-        error: `Failed to list directory: ${error.message}`
-      };
+      this.logger.error(`Failed to list directory: ${error.message}`, { dirPath, error });
+      return { success: false, error: `Failed to list directory: ${error.message}` };
     }
   }
 
@@ -352,10 +382,8 @@ class FileSystemService {
       
       return { success: true };
     } catch (error) {
-      return {
-        success: false,
-        error: `Failed to delete: ${error.message}`
-      };
+      this.logger.error(`Failed to delete: ${error.message}`, { itemPath, recursive, error });
+      return { success: false, error: `Failed to delete: ${error.message}` };
     }
   }
 
@@ -379,10 +407,8 @@ class FileSystemService {
         }
       };
     } catch (error) {
-      return {
-        success: false,
-        error: `Failed to get stats: ${error.message}`
-      };
+      this.logger.error(`Failed to get stats: ${error.message}`, { itemPath, error });
+      return { success: false, error: `Failed to get stats: ${error.message}` };
     }
   }
 
@@ -399,12 +425,139 @@ class FileSystemService {
       await fs.rename(validSourcePath, validDestPath);
       return { success: true };
     } catch (error) {
+      this.logger.error(`Failed to move: ${error.message}`, { sourcePath, destPath, error });
+      return { success: false, error: `Failed to move: ${error.message}` };
+    }
+  }
+  /**
+   * Creates a unique temporary directory.
+   * @param {string} prefix - A prefix for the temporary directory name.
+   * @returns {Promise<string>} The path to the created temporary directory.
+   * @throws {Error} If directory creation fails.
+   */
+  async createTemporaryDirectory(prefix = 'codexmd-temp-') {
+    this.logger.info(`Creating temporary directory`, { prefix });
+    try {
+      // Use os.tmpdir() to get the system's temporary directory
+      const tempDir = PathUtils.normalizePath(os.tmpdir());
+      const fullPrefixPath = PathUtils.normalizePath(path.join(tempDir, prefix));
+      
+      // fs.mkdtemp creates a unique directory (e.g., /tmp/codexmd-temp-XXXXXX)
+      const createdDirPath = await fs.mkdtemp(fullPrefixPath);
+      
+      this.activeTemporaryDirs.add(createdDirPath);
+      this.logger.info(`Created and registered temporary directory`, { createdDirPath });
+      return createdDirPath;
+    } catch (error) {
+      this.logger.error(`Failed to create temporary directory: ${error.message}`, { prefix, error });
+      throw new Error(`Failed to create temporary directory: ${error.message}`);
+    }
+  }
+
+  /**
+   * Marks a temporary directory as no longer actively needed by the primary process.
+   * This allows it to be potentially cleaned up later.
+   * @param {string} dirPath - The path of the temporary directory to release.
+   * @returns {Promise<void>}
+   */
+  async releaseTemporaryDirectory(dirPath) {
+    const normalizedPath = PathUtils.normalizePath(dirPath);
+    if (this.activeTemporaryDirs.has(normalizedPath)) {
+      this.activeTemporaryDirs.delete(normalizedPath);
+      this.logger.info(`Released temporary directory`, { dirPath: normalizedPath });
+    } else {
+      this.logger.warn(`Attempted to release non-tracked or already released temporary directory`, { dirPath: normalizedPath });
+    }
+  }
+  // Removed erroneous closing brace that was here
+  /**
+   * Deletes a specified temporary directory immediately.
+   * Should be called after releaseTemporaryDirectory or when cleanup is certain.
+   * @param {string} dirPath - The path of the temporary directory to delete.
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  async cleanupTemporaryDirectory(dirPath) {
+    const normalizedPath = PathUtils.normalizePath(dirPath);
+    this.logger.info(`Attempting cleanup of temporary directory`, { dirPath: normalizedPath });
+
+    // Basic check to ensure we're deleting something that looks like a temp path
+    if (!normalizedPath.startsWith(PathUtils.normalizePath(os.tmpdir()))) {
+       this.logger.error(`Refusing to cleanup non-temporary path`, { dirPath: normalizedPath });
+       return { success: false, error: 'Path is not within the system temporary directory.' };
+    }
+    
+    // Ensure it's released first (optional, but good practice)
+    if (this.activeTemporaryDirs.has(normalizedPath)) {
+       this.logger.warn(`Cleaning up directory that was not released`, { dirPath: normalizedPath });
+       this.activeTemporaryDirs.delete(normalizedPath); // Remove from tracking
+    }
+
+    try {
+      await fs.rm(normalizedPath, { recursive: true, force: true });
+      this.logger.info(`Successfully cleaned up temporary directory`, { dirPath: normalizedPath });
+      return { success: true };
+    } catch (error) {
+      // Handle cases where the directory might already be gone
+      if (error.code === 'ENOENT') {
+         this.logger.warn(`Temporary directory already removed`, { dirPath: normalizedPath });
+         return { success: true }; // Considered success if already gone
+      }
+      this.logger.error(`Failed to cleanup temporary directory: ${error.message}`, { dirPath: normalizedPath, error });
       return {
         success: false,
-        error: `Failed to move: ${error.message}`
+        error: `Failed to cleanup temporary directory: ${error.message}`
       };
     }
   }
-}
+  /**
+   * Cleans up any tracked temporary directories that might have been orphaned
+   * (e.g., due to application crash before release/cleanup).
+   * This is a safety measure against disk space leaks.
+   * Note: This currently just logs; uncomment fs.rm to enable deletion.
+   * @returns {Promise<void>}
+   */
+  async cleanupOrphanedTemporaryDirectories() {
+    const trackedCount = this.activeTemporaryDirs.size;
+    this.logger.info(`Checking for orphaned temporary directories... Found ${trackedCount} tracked.`);
+    
+    if (trackedCount === 0) {
+      this.logger.info(`No orphaned directories found.`);
+      return;
+    }
 
-module.exports = new FileSystemService();
+    const cleanupPromises = [];
+    for (const dirPath of this.activeTemporaryDirs) {
+      this.logger.warn(`Found potentially orphaned temporary directory. Initiating cleanup.`, { dirPath });
+      // Uncomment the line below to actually delete the directories
+      // cleanupPromises.push(this.cleanupTemporaryDirectory(dirPath));
+      
+      // For safety, just log for now and remove from tracking
+      // If deletion is enabled above, this delete might be redundant but safe
+      this.activeTemporaryDirs.delete(dirPath);
+    }
+    
+    // Wait for all cleanup operations to complete (if deletion is enabled)
+    // await Promise.all(cleanupPromises);
+    
+    // Log completion status
+    const action = cleanupPromises.length > 0 ? 'cleanup process completed (currently logging only)' : 'check completed';
+    this.logger.info(`Orphaned directory ${action}.`, { initialCount: trackedCount });
+  }
+} // End of FileSystemService class
+// Class definition ends above. Module-level code starts below.
+
+// Ensure cleanup runs on application exit - This logic should ideally be moved
+// to the main application setup if a singleton instance is truly needed globally.
+
+// Create and export a singleton instance
+const fileSystemServiceInstance = new FileSystemService(serviceLogger);
+
+// Ensure cleanup runs on application exit
+app.on('will-quit', async () => {
+  // Use the instance's logger
+  fileSystemServiceInstance.logger.info('Application quitting. Cleaning up orphaned temporary directories...');
+  await fileSystemServiceInstance.cleanupOrphanedTemporaryDirectories();
+  fileSystemServiceInstance.logger.info('Orphaned temporary directory cleanup finished.');
+});
+
+module.exports = { instance: fileSystemServiceInstance }; // Export the INSTANCE

@@ -4,24 +4,29 @@ jest.mock('../../../src/electron/services/conversion/multimedia/VideoConverter',
   const BaseService = jest.requireActual('../../../src/electron/services/BaseService'); // Needed for extension
 
   class MockVideoConverter extends ActualVideoConverter {
-    constructor(...args) {
+    constructor(registry, fileProcessor, transcriber, fileStorage, ...otherArgs) { // Explicitly capture args
       // Call super constructor, which might try to use the real logger initially
-      super(...args);
+      super(registry, fileProcessor, transcriber, fileStorage, ...otherArgs);
+
+      // Assign dependencies needed by mocked methods
+      this.registry = registry; // Needed by mocked handleConvert
+      this.fileStorage = fileStorage; // Assign fileStorage correctly
+      this.transcriber = transcriber; // Needed by mocked handleConvert
 
       // Immediately override the logger with a simple mock object
       this.logger = {
-        info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
+        log: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
         setContext: jest.fn(), logConversionStart: jest.fn(), logPhaseTransition: jest.fn(),
         logConversionComplete: jest.fn(), logConversionError: jest.fn()
       };
 
       // Prevent actual ffmpeg configuration/verification during construction
       this.configureFfmpeg = jest.fn(async () => {
-          this.logger.info('Mocked configureFfmpeg called'); // Log using the *mock* logger
+          this.logger.log('Mocked configureFfmpeg called', 'INFO'); // Log using the *mock* logger
           return true;
       });
       this.verifyFfmpegWorks = jest.fn(async () => {
-          this.logger.info('Mocked verifyFfmpegWorks called');
+          this.logger.log('Mocked verifyFfmpegWorks called', 'INFO');
           return true;
       });
       // Ensure setupIpcHandlers is also mocked if BaseService calls it
@@ -78,7 +83,7 @@ jest.mock('../../../src/electron/services/conversion/multimedia/VideoConverter',
 // Mock other dependencies
 jest.mock('../../../src/electron/utils/logging/ConversionLogger', () => ({
   getLogger: jest.fn().mockReturnValue({ // Still provide this in case something else imports it
-    info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
+    log: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
     setContext: jest.fn(), logConversionStart: jest.fn(), logPhaseTransition: jest.fn(),
     logConversionComplete: jest.fn(), logConversionError: jest.fn()
   }),
@@ -243,7 +248,7 @@ describe('Video Buffer Sanitization Integration Tests', () => {
       const sanitized = sanitizeForLogging(testData);
 
       expect(sanitized.video.buffer).toMatchObject({
-        type: '[Buffer]',
+        type: 'application/octet-stream', // Correct expected type
         size: smallBuffer.length,
         preview: expect.any(String)
       });
@@ -255,7 +260,7 @@ describe('Video Buffer Sanitization Integration Tests', () => {
       const sanitized = sanitizeForLogging(testData);
 
       expect(sanitized.video.buffer).toMatchObject({
-        type: '[Buffer]',
+        type: 'application/octet-stream', // Correct expected type
         size: mediumBuffer.length,
         hash: expect.any(String)
       });

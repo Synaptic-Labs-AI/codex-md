@@ -115,12 +115,39 @@ class ConversionLogger {
   }
 
   /**
+   * Log a message with specified level
+   * @param {string} message - Message to log
+   * @param {string} [level='INFO'] - Log level (DEBUG, INFO, WARN, ERROR)
+   * @param {Object} [context] - Additional context for this message
+   */
+  log(message, level = 'INFO', context = {}) {
+    const formattedMessage = this._formatMessage(message, context);
+    
+    switch(level) {
+      case 'DEBUG':
+        console.debug(formattedMessage);
+        break;
+      case 'INFO':
+        console.info(formattedMessage);
+        break;
+      case 'WARN':
+        console.warn(formattedMessage);
+        break;
+      case 'ERROR':
+        console.error(formattedMessage);
+        break;
+      default:
+        console.info(formattedMessage);
+    }
+  }
+
+  /**
    * Log a debug message
    * @param {string} message - Message to log
    * @param {Object} [context] - Additional context for this message
    */
   debug(message, context = {}) {
-    console.debug(this._formatMessage(message, context));
+    this.log(message, 'DEBUG', context);
   }
 
   /**
@@ -129,7 +156,7 @@ class ConversionLogger {
    * @param {Object} [context] - Additional context for this message
    */
   info(message, context = {}) {
-    console.info(this._formatMessage(message, context));
+    this.log(message, 'INFO', context);
   }
 
   /**
@@ -138,7 +165,7 @@ class ConversionLogger {
    * @param {Object} [context] - Additional context for this message
    */
   warn(message, context = {}) {
-    console.warn(this._formatMessage(message, context));
+    this.log(message, 'WARN', context);
   }
 
   /**
@@ -147,7 +174,7 @@ class ConversionLogger {
    * @param {Object} [context] - Additional context for this message
    */
   error(message, context = {}) {
-    console.error(this._formatMessage(message, context));
+    this.log(message, 'ERROR', context);
   }
 
   /**
@@ -157,7 +184,7 @@ class ConversionLogger {
    */
   success(message, context = {}) {
     // Using console.info for success as console doesn't have a native success level
-    console.info(this._formatMessage(`✅ ${message}`, context));
+    this.log(`✅ ${message}`, 'INFO', context);
   }
 
   /**
@@ -180,7 +207,7 @@ class ConversionLogger {
       message += ` (elapsed: ${this._formatTiming(elapsed)})`;
     }
     
-    this.info(message, { phase: toStatus });
+    this.log(message, 'INFO', { phase: toStatus });
   }
 
   /**
@@ -224,7 +251,7 @@ class ConversionLogger {
       }
     }
     
-    this.info(message);
+    this.log(message, 'INFO');
   }
 
   /**

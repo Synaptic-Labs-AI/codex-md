@@ -15,7 +15,7 @@ const chokidar = require('chokidar');
 const path = require('path');
 const lockfile = require('proper-lockfile');
 const { app } = require('electron');
-const FileSystemService = require('./FileSystemService');
+const { instance: FileSystemService } = require('./FileSystemService'); // Import instance
 
 class FileWatcherService {
   constructor() {
@@ -56,6 +56,7 @@ class FileWatcherService {
 
       // Validate paths
       for (const watchPath of watchPaths) {
+        // Assuming FileSystemService instance has getStats method
         const stats = await FileSystemService.getStats(watchPath);
         if (!stats.success) {
           return { 
@@ -140,6 +141,7 @@ class FileWatcherService {
   async acquireLock(filePath, options = {}) {
     try {
       const timeout = options.timeout || this.lockTimeout;
+      // Assuming FileSystemService instance has validatePath method
       const validPath = await FileSystemService.validatePath(filePath);
       
       // Check if already locked by us
@@ -190,6 +192,7 @@ class FileWatcherService {
    */
   async releaseLock(filePath) {
     try {
+      // Assuming FileSystemService instance has validatePath method
       const validPath = await FileSystemService.validatePath(filePath);
       
       if (!this.locks.has(validPath)) {
@@ -220,6 +223,7 @@ class FileWatcherService {
    */
   async isLocked(filePath) {
     try {
+      // Assuming FileSystemService instance has validatePath method
       const validPath = await FileSystemService.validatePath(filePath);
       
       // Check if locked by us

@@ -14,7 +14,7 @@ const { ipcMain } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const FileSystemService = require('../../../services/FileSystemService');
+const { instance: FileSystemService } = require('../../../services/FileSystemService'); // Import instance
 
 // Store active transfers
 const activeTransfers = new Map();

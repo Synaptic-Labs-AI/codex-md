@@ -1,0 +1,59 @@
+"use strict";
+
+/**
+ * Progress Tracking Utilities for Conversion Operations
+ * 
+ * This module provides a ProgressTracker class that helps manage progress updates
+ * during file conversions, ensuring smooth progress reporting and throttling updates
+ * to avoid overwhelming the UI.
+ * 
+ * Used by:
+ * - src/electron/converters/UnifiedConverterFactory.js
+ */
+
+class ProgressTracker {
+  /**
+   * Create a new progress tracker
+   * @param {Function} callback - Progress update callback
+   * @param {number} throttleMs - Minimum time between updates (ms)
+   */
+  constructor(callback, throttleMs = 250) {
+    this.callback = callback;
+    this.throttleMs = throttleMs;
+    this.lastUpdate = 0;
+    this.lastProgress = 0;
+  }
+
+  /**
+   * Update progress
+   * @param {number} progress - Progress value (0-100)
+   * @param {Object} details - Additional progress details
+   */
+  update(progress, details = {}) {
+    const now = Date.now();
+    if (now - this.lastUpdate >= this.throttleMs || progress === 100 || progress === 0) {
+      this.lastUpdate = now;
+      this.lastProgress = progress;
+      this.callback({
+        progress,
+        ...details
+      });
+    }
+  }
+
+  /**
+   * Update progress scaled to a range
+   * @param {number} progress - Input progress (0-100)
+   * @param {number} start - Start of range
+   * @param {number} end - End of range
+   * @param {Object} details - Additional progress details
+   */
+  updateScaled(progress, start, end, details = {}) {
+    const scaled = start + progress / 100 * (end - start);
+    this.update(scaled, details);
+  }
+}
+module.exports = {
+  ProgressTracker
+};
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJQcm9ncmVzc1RyYWNrZXIiLCJjb25zdHJ1Y3RvciIsImNhbGxiYWNrIiwidGhyb3R0bGVNcyIsImxhc3RVcGRhdGUiLCJsYXN0UHJvZ3Jlc3MiLCJ1cGRhdGUiLCJwcm9ncmVzcyIsImRldGFpbHMiLCJub3ciLCJEYXRlIiwidXBkYXRlU2NhbGVkIiwic3RhcnQiLCJlbmQiLCJzY2FsZWQiLCJtb2R1bGUiLCJleHBvcnRzIl0sInNvdXJjZXMiOlsiLi4vLi4vLi4vLi4vc3JjL2VsZWN0cm9uL3V0aWxzL2NvbnZlcnNpb24vcHJvZ3Jlc3MuanMiXSwic291cmNlc0NvbnRlbnQiOlsiLyoqXHJcbiAqIFByb2dyZXNzIFRyYWNraW5nIFV0aWxpdGllcyBmb3IgQ29udmVyc2lvbiBPcGVyYXRpb25zXHJcbiAqIFxyXG4gKiBUaGlzIG1vZHVsZSBwcm92aWRlcyBhIFByb2dyZXNzVHJhY2tlciBjbGFzcyB0aGF0IGhlbHBzIG1hbmFnZSBwcm9ncmVzcyB1cGRhdGVzXHJcbiAqIGR1cmluZyBmaWxlIGNvbnZlcnNpb25zLCBlbnN1cmluZyBzbW9vdGggcHJvZ3Jlc3MgcmVwb3J0aW5nIGFuZCB0aHJvdHRsaW5nIHVwZGF0ZXNcclxuICogdG8gYXZvaWQgb3ZlcndoZWxtaW5nIHRoZSBVSS5cclxuICogXHJcbiAqIFVzZWQgYnk6XHJcbiAqIC0gc3JjL2VsZWN0cm9uL2NvbnZlcnRlcnMvVW5pZmllZENvbnZlcnRlckZhY3RvcnkuanNcclxuICovXHJcblxyXG5jbGFzcyBQcm9ncmVzc1RyYWNrZXIge1xyXG4gICAgLyoqXHJcbiAgICAgKiBDcmVhdGUgYSBuZXcgcHJvZ3Jlc3MgdHJhY2tlclxyXG4gICAgICogQHBhcmFtIHtGdW5jdGlvbn0gY2FsbGJhY2sgLSBQcm9ncmVzcyB1cGRhdGUgY2FsbGJhY2tcclxuICAgICAqIEBwYXJhbSB7bnVtYmVyfSB0aHJvdHRsZU1zIC0gTWluaW11bSB0aW1lIGJldHdlZW4gdXBkYXRlcyAobXMpXHJcbiAgICAgKi9cclxuICAgIGNvbnN0cnVjdG9yKGNhbGxiYWNrLCB0aHJvdHRsZU1zID0gMjUwKSB7XHJcbiAgICAgICAgdGhpcy5jYWxsYmFjayA9IGNhbGxiYWNrO1xyXG4gICAgICAgIHRoaXMudGhyb3R0bGVNcyA9IHRocm90dGxlTXM7XHJcbiAgICAgICAgdGhpcy5sYXN0VXBkYXRlID0gMDtcclxuICAgICAgICB0aGlzLmxhc3RQcm9ncmVzcyA9IDA7XHJcbiAgICB9XHJcblxyXG4gICAgLyoqXHJcbiAgICAgKiBVcGRhdGUgcHJvZ3Jlc3NcclxuICAgICAqIEBwYXJhbSB7bnVtYmVyfSBwcm9ncmVzcyAtIFByb2dyZXNzIHZhbHVlICgwLTEwMClcclxuICAgICAqIEBwYXJhbSB7T2JqZWN0fSBkZXRhaWxzIC0gQWRkaXRpb25hbCBwcm9ncmVzcyBkZXRhaWxzXHJcbiAgICAgKi9cclxuICAgIHVwZGF0ZShwcm9ncmVzcywgZGV0YWlscyA9IHt9KSB7XHJcbiAgICAgICAgY29uc3Qgbm93ID0gRGF0ZS5ub3coKTtcclxuICAgICAgICBpZiAobm93IC0gdGhpcy5sYXN0VXBkYXRlID49IHRoaXMudGhyb3R0bGVNcyB8fCBwcm9ncmVzcyA9PT0gMTAwIHx8IHByb2dyZXNzID09PSAwKSB7XHJcbiAgICAgICAgICAgIHRoaXMubGFzdFVwZGF0ZSA9IG5vdztcclxuICAgICAgICAgICAgdGhpcy5sYXN0UHJvZ3Jlc3MgPSBwcm9ncmVzcztcclxuICAgICAgICAgICAgdGhpcy5jYWxsYmFjayh7XHJcbiAgICAgICAgICAgICAgICBwcm9ncmVzcyxcclxuICAgICAgICAgICAgICAgIC4uLmRldGFpbHNcclxuICAgICAgICAgICAgfSk7XHJcbiAgICAgICAgfVxyXG4gICAgfVxyXG5cclxuICAgIC8qKlxyXG4gICAgICogVXBkYXRlIHByb2dyZXNzIHNjYWxlZCB0byBhIHJhbmdlXHJcbiAgICAgKiBAcGFyYW0ge251bWJlcn0gcHJvZ3Jlc3MgLSBJbnB1dCBwcm9ncmVzcyAoMC0xMDApXHJcbiAgICAgKiBAcGFyYW0ge251bWJlcn0gc3RhcnQgLSBTdGFydCBvZiByYW5nZVxyXG4gICAgICogQHBhcmFtIHtudW1iZXJ9IGVuZCAtIEVuZCBvZiByYW5nZVxyXG4gICAgICogQHBhcmFtIHtPYmplY3R9IGRldGFpbHMgLSBBZGRpdGlvbmFsIHByb2dyZXNzIGRldGFpbHNcclxuICAgICAqL1xyXG4gICAgdXBkYXRlU2NhbGVkKHByb2dyZXNzLCBzdGFydCwgZW5kLCBkZXRhaWxzID0ge30pIHtcclxuICAgICAgICBjb25zdCBzY2FsZWQgPSBzdGFydCArIChwcm9ncmVzcyAvIDEwMCkgKiAoZW5kIC0gc3RhcnQpO1xyXG4gICAgICAgIHRoaXMudXBkYXRlKHNjYWxlZCwgZGV0YWlscyk7XHJcbiAgICB9XHJcbn1cclxuXHJcbm1vZHVsZS5leHBvcnRzID0ge1xyXG4gICAgUHJvZ3Jlc3NUcmFja2VyXHJcbn07XHJcbiJdLCJtYXBwaW5ncyI6Ijs7QUFBQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTs7QUFFQSxNQUFNQSxlQUFlLENBQUM7RUFDbEI7QUFDSjtBQUNBO0FBQ0E7QUFDQTtFQUNJQyxXQUFXQSxDQUFDQyxRQUFRLEVBQUVDLFVBQVUsR0FBRyxHQUFHLEVBQUU7SUFDcEMsSUFBSSxDQUFDRCxRQUFRLEdBQUdBLFFBQVE7SUFDeEIsSUFBSSxDQUFDQyxVQUFVLEdBQUdBLFVBQVU7SUFDNUIsSUFBSSxDQUFDQyxVQUFVLEdBQUcsQ0FBQztJQUNuQixJQUFJLENBQUNDLFlBQVksR0FBRyxDQUFDO0VBQ3pCOztFQUVBO0FBQ0o7QUFDQTtBQUNBO0FBQ0E7RUFDSUMsTUFBTUEsQ0FBQ0MsUUFBUSxFQUFFQyxPQUFPLEdBQUcsQ0FBQyxDQUFDLEVBQUU7SUFDM0IsTUFBTUMsR0FBRyxHQUFHQyxJQUFJLENBQUNELEdBQUcsQ0FBQyxDQUFDO0lBQ3RCLElBQUlBLEdBQUcsR0FBRyxJQUFJLENBQUNMLFVBQVUsSUFBSSxJQUFJLENBQUNELFVBQVUsSUFBSUksUUFBUSxLQUFLLEdBQUcsSUFBSUEsUUFBUSxLQUFLLENBQUMsRUFBRTtNQUNoRixJQUFJLENBQUNILFVBQVUsR0FBR0ssR0FBRztNQUNyQixJQUFJLENBQUNKLFlBQVksR0FBR0UsUUFBUTtNQUM1QixJQUFJLENBQUNMLFFBQVEsQ0FBQztRQUNWSyxRQUFRO1FBQ1IsR0FBR0M7TUFDUCxDQUFDLENBQUM7SUFDTjtFQUNKOztFQUVBO0FBQ0o7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0VBQ0lHLFlBQVlBLENBQUNKLFFBQVEsRUFBRUssS0FBSyxFQUFFQyxHQUFHLEVBQUVMLE9BQU8sR0FBRyxDQUFDLENBQUMsRUFBRTtJQUM3QyxNQUFNTSxNQUFNLEdBQUdGLEtBQUssR0FBSUwsUUFBUSxHQUFHLEdBQUcsSUFBS00sR0FBRyxHQUFHRCxLQUFLLENBQUM7SUFDdkQsSUFBSSxDQUFDTixNQUFNLENBQUNRLE1BQU0sRUFBRU4sT0FBTyxDQUFDO0VBQ2hDO0FBQ0o7QUFFQU8sTUFBTSxDQUFDQyxPQUFPLEdBQUc7RUFDYmhCO0FBQ0osQ0FBQyIsImlnbm9yZUxpc3QiOltdfQ==

@@ -180,6 +180,8 @@ flowchart TD
 - **Fallback Mechanisms**: Implements fallbacks for conversion failures
 - **User-Controlled Cancellation**: Allows users to cancel long-running conversions via a dedicated cancel button in the UI
 
+- **Converter Path Handling**: To ensure consistency and avoid scope issues (as seen in `VideoConverter.js` output path fix [2025-04-24]), converters should retrieve necessary paths (e.g., output directory) from a central configuration source or registry *within* their core processing methods (like `processConversion`), rather than relying solely on parameters passed during initial invocation.
+- **Variable Declaration in Converters**: When declaring variables within converter methods (like `processConversion`), use `let` instead of `const` if the variable's value might need to be reassigned later in the logic (e.g., setting a default output path if one isn't provided). This prevents "Assignment to constant variable" errors, as encountered in `VideoConverter.js` [2025-04-24].
 #### Benefits
 - **Maintainability**: Easier to maintain with clear separation of concerns
 - **Consistency**: Consistent behavior across all conversion types

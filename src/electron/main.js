@@ -1,3 +1,4 @@
+console.log(`[DEBUG] Running Node.js version in main process: ${process.versions.node}`);
 /**
  * Electron Main Process
  * Entry point for the Electron application.

@@ -1,0 +1,46 @@
+"use strict";
+
+/**
+ * OpenAIProxyService Fix
+ * 
+ * This file provides a fix for the OpenAIProxyService that was failing with
+ * "TypeError: axiosRetry is not a function" error.
+ * 
+ * The issue is that axios-retry v4.x.x exports differently than v3.x.x,
+ * and the code was expecting the older version's export pattern.
+ */
+
+// Import the correct version of axios-retry
+let axiosRetry;
+try {
+  // Try to import the module
+  const axiosRetryModule = require('axios-retry');
+
+  // Check if it's a function (v3.x.x) or an object with default export (v4.x.x)
+  if (typeof axiosRetryModule === 'function') {
+    // v3.x.x
+    axiosRetry = axiosRetryModule;
+  } else if (axiosRetryModule && typeof axiosRetryModule.default === 'function') {
+    // v4.x.x
+    axiosRetry = axiosRetryModule.default;
+  } else {
+    // Fallback implementation
+    console.warn('⚠️ Could not load axios-retry properly, using fallback implementation');
+    axiosRetry = (axios, options) => {
+      console.log('Using fallback axios-retry implementation');
+      // Simple fallback that doesn't actually retry but prevents errors
+      return axios;
+    };
+  }
+} catch (error) {
+  console.error('❌ Failed to load axios-retry:', error);
+  // Fallback implementation
+  axiosRetry = (axios, options) => {
+    console.log('Using fallback axios-retry implementation due to error:', error.message);
+    return axios;
+  };
+}
+
+// Export the fixed axiosRetry function
+module.exports = axiosRetry;
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJheGlvc1JldHJ5IiwiYXhpb3NSZXRyeU1vZHVsZSIsInJlcXVpcmUiLCJkZWZhdWx0IiwiY29uc29sZSIsIndhcm4iLCJheGlvcyIsIm9wdGlvbnMiLCJsb2ciLCJlcnJvciIsIm1lc3NhZ2UiLCJtb2R1bGUiLCJleHBvcnRzIl0sInNvdXJjZXMiOlsiLi4vLi4vLi4vLi4vc3JjL2VsZWN0cm9uL3NlcnZpY2VzL2FpL09wZW5BSVByb3h5U2VydmljZUZpeC5qcyJdLCJzb3VyY2VzQ29udGVudCI6WyIvKipcclxuICogT3BlbkFJUHJveHlTZXJ2aWNlIEZpeFxyXG4gKiBcclxuICogVGhpcyBmaWxlIHByb3ZpZGVzIGEgZml4IGZvciB0aGUgT3BlbkFJUHJveHlTZXJ2aWNlIHRoYXQgd2FzIGZhaWxpbmcgd2l0aFxyXG4gKiBcIlR5cGVFcnJvcjogYXhpb3NSZXRyeSBpcyBub3QgYSBmdW5jdGlvblwiIGVycm9yLlxyXG4gKiBcclxuICogVGhlIGlzc3VlIGlzIHRoYXQgYXhpb3MtcmV0cnkgdjQueC54IGV4cG9ydHMgZGlmZmVyZW50bHkgdGhhbiB2My54LngsXHJcbiAqIGFuZCB0aGUgY29kZSB3YXMgZXhwZWN0aW5nIHRoZSBvbGRlciB2ZXJzaW9uJ3MgZXhwb3J0IHBhdHRlcm4uXHJcbiAqL1xyXG5cclxuLy8gSW1wb3J0IHRoZSBjb3JyZWN0IHZlcnNpb24gb2YgYXhpb3MtcmV0cnlcclxubGV0IGF4aW9zUmV0cnk7XHJcbnRyeSB7XHJcbiAgLy8gVHJ5IHRvIGltcG9ydCB0aGUgbW9kdWxlXHJcbiAgY29uc3QgYXhpb3NSZXRyeU1vZHVsZSA9IHJlcXVpcmUoJ2F4aW9zLXJldHJ5Jyk7XHJcbiAgXHJcbiAgLy8gQ2hlY2sgaWYgaXQncyBhIGZ1bmN0aW9uICh2My54LngpIG9yIGFuIG9iamVjdCB3aXRoIGRlZmF1bHQgZXhwb3J0ICh2NC54LngpXHJcbiAgaWYgKHR5cGVvZiBheGlvc1JldHJ5TW9kdWxlID09PSAnZnVuY3Rpb24nKSB7XHJcbiAgICAvLyB2My54LnhcclxuICAgIGF4aW9zUmV0cnkgPSBheGlvc1JldHJ5TW9kdWxlO1xyXG4gIH0gZWxzZSBpZiAoYXhpb3NSZXRyeU1vZHVsZSAmJiB0eXBlb2YgYXhpb3NSZXRyeU1vZHVsZS5kZWZhdWx0ID09PSAnZnVuY3Rpb24nKSB7XHJcbiAgICAvLyB2NC54LnhcclxuICAgIGF4aW9zUmV0cnkgPSBheGlvc1JldHJ5TW9kdWxlLmRlZmF1bHQ7XHJcbiAgfSBlbHNlIHtcclxuICAgIC8vIEZhbGxiYWNrIGltcGxlbWVudGF0aW9uXHJcbiAgICBjb25zb2xlLndhcm4oJ+KaoO+4jyBDb3VsZCBub3QgbG9hZCBheGlvcy1yZXRyeSBwcm9wZXJseSwgdXNpbmcgZmFsbGJhY2sgaW1wbGVtZW50YXRpb24nKTtcclxuICAgIGF4aW9zUmV0cnkgPSAoYXhpb3MsIG9wdGlvbnMpID0+IHtcclxuICAgICAgY29uc29sZS5sb2coJ1VzaW5nIGZhbGxiYWNrIGF4aW9zLXJldHJ5IGltcGxlbWVudGF0aW9uJyk7XHJcbiAgICAgIC8vIFNpbXBsZSBmYWxsYmFjayB0aGF0IGRvZXNuJ3QgYWN0dWFsbHkgcmV0cnkgYnV0IHByZXZlbnRzIGVycm9yc1xyXG4gICAgICByZXR1cm4gYXhpb3M7XHJcbiAgICB9O1xyXG4gIH1cclxufSBjYXRjaCAoZXJyb3IpIHtcclxuICBjb25zb2xlLmVycm9yKCfinYwgRmFpbGVkIHRvIGxvYWQgYXhpb3MtcmV0cnk6JywgZXJyb3IpO1xyXG4gIC8vIEZhbGxiYWNrIGltcGxlbWVudGF0aW9uXHJcbiAgYXhpb3NSZXRyeSA9IChheGlvcywgb3B0aW9ucykgPT4ge1xyXG4gICAgY29uc29sZS5sb2coJ1VzaW5nIGZhbGxiYWNrIGF4aW9zLXJldHJ5IGltcGxlbWVudGF0aW9uIGR1ZSB0byBlcnJvcjonLCBlcnJvci5tZXNzYWdlKTtcclxuICAgIHJldHVybiBheGlvcztcclxuICB9O1xyXG59XHJcblxyXG4vLyBFeHBvcnQgdGhlIGZpeGVkIGF4aW9zUmV0cnkgZnVuY3Rpb25cclxubW9kdWxlLmV4cG9ydHMgPSBheGlvc1JldHJ5O1xyXG4iXSwibWFwcGluZ3MiOiI7O0FBQUE7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBOztBQUVBO0FBQ0EsSUFBSUEsVUFBVTtBQUNkLElBQUk7RUFDRjtFQUNBLE1BQU1DLGdCQUFnQixHQUFHQyxPQUFPLENBQUMsYUFBYSxDQUFDOztFQUUvQztFQUNBLElBQUksT0FBT0QsZ0JBQWdCLEtBQUssVUFBVSxFQUFFO0lBQzFDO0lBQ0FELFVBQVUsR0FBR0MsZ0JBQWdCO0VBQy9CLENBQUMsTUFBTSxJQUFJQSxnQkFBZ0IsSUFBSSxPQUFPQSxnQkFBZ0IsQ0FBQ0UsT0FBTyxLQUFLLFVBQVUsRUFBRTtJQUM3RTtJQUNBSCxVQUFVLEdBQUdDLGdCQUFnQixDQUFDRSxPQUFPO0VBQ3ZDLENBQUMsTUFBTTtJQUNMO0lBQ0FDLE9BQU8sQ0FBQ0MsSUFBSSxDQUFDLHVFQUF1RSxDQUFDO0lBQ3JGTCxVQUFVLEdBQUdBLENBQUNNLEtBQUssRUFBRUMsT0FBTyxLQUFLO01BQy9CSCxPQUFPLENBQUNJLEdBQUcsQ0FBQywyQ0FBMkMsQ0FBQztNQUN4RDtNQUNBLE9BQU9GLEtBQUs7SUFDZCxDQUFDO0VBQ0g7QUFDRixDQUFDLENBQUMsT0FBT0csS0FBSyxFQUFFO0VBQ2RMLE9BQU8sQ0FBQ0ssS0FBSyxDQUFDLCtCQUErQixFQUFFQSxLQUFLLENBQUM7RUFDckQ7RUFDQVQsVUFBVSxHQUFHQSxDQUFDTSxLQUFLLEVBQUVDLE9BQU8sS0FBSztJQUMvQkgsT0FBTyxDQUFDSSxHQUFHLENBQUMseURBQXlELEVBQUVDLEtBQUssQ0FBQ0MsT0FBTyxDQUFDO0lBQ3JGLE9BQU9KLEtBQUs7RUFDZCxDQUFDO0FBQ0g7O0FBRUE7QUFDQUssTUFBTSxDQUFDQyxPQUFPLEdBQUdaLFVBQVUiLCJpZ25vcmVMaXN0IjpbXX0=

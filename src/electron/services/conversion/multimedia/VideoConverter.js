@@ -11,9 +11,9 @@
  * 
  * Related Files:
  * - BaseService.js: Parent class providing IPC handling
- * - FileProcessorService.js: Used for file operations
+ * - FileProcessorService.js: Used for file operations (Note: Consider consolidating file operations under FileSystemService)
  * - TranscriberService.js: Used for audio transcription
- * - FileStorageService.js: For temporary file management
+ * - FileSystemService.js: For file operations including temporary file management
  * - ConversionLogger.js: Provides standardized logging
  * - ConversionStatus.js: Defines pipeline stages and status constants
  */
@@ -31,20 +31,32 @@ const { sanitizeForLogging } = require('../../../utils/logging/LogSanitizer');
 const ConversionStatus = require('../../../utils/conversion/ConversionStatus');
 
 class VideoConverter extends BaseService {
-    constructor(registry, fileProcessor, transcriber, fileStorage) { // Add registry parameter
+    constructor(registry, fileProcessor, transcriber, fileSystem) { // Use fileSystem instead of fileStorage
         super();
         this.registry = registry; // Store registry instance
-        this.fileProcessor = fileProcessor;
+        this.fileProcessor = fileProcessor; // TODO: Consolidate file operations?
         this.transcriber = transcriber;
-        this.fileStorage = fileStorage;
+        this.fileSystem = fileSystem; // Use fileSystem instance
         this.supportedExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv'];
-        // Remove internal activeConversions map - will use registry's map
+        // Remove internal activeConversions map - uses registry's map
         
         // Initialize the logger
         this.logger = getLogger('VideoConverter');
-        
-        // Configure ffmpeg to use the correct ffprobe path
-        this.configureFfmpeg();
+        this.ffmpegConfigured = false; // Flag to track if ffmpeg paths are set
+
+        // Don't configure ffmpeg immediately, do it lazily
+        // this.configureFfmpeg();
+    }
+
+    /**
+     * Ensures ffmpeg/ffprobe paths are configured, calling configureFfmpeg only once.
+     * @private
+     */
+    _ensureFfmpegConfigured() {
+        if (!this.ffmpegConfigured) {
+            this.configureFfmpeg();
+            this.ffmpegConfigured = true; // Mark as configured (even if errors occurred, don't retry)
+        }
     }
     
     /**
@@ -56,21 +68,21 @@ class VideoConverter extends BaseService {
      */
     configureFfmpeg() {
         try {
-            this.logger.info('Configuring ffmpeg and ffprobe paths using BinaryPathResolver', { phase: ConversionStatus.STATUS.STARTING });
+            this.logger.log('Configuring ffmpeg and ffprobe paths using BinaryPathResolver', 'INFO', { phase: ConversionStatus.STATUS.STARTING });
             
             // Resolve ffmpeg binary path
             const ffmpegPath = BinaryPathResolver.resolveBinaryPath('ffmpeg');
             if (!ffmpegPath) {
                 throw new Error('Failed to resolve ffmpeg binary path. Video conversion will not work.');
             }
-            this.logger.info(`Successfully resolved ffmpeg binary at: ${ffmpegPath}`);
+            this.logger.log(`Successfully resolved ffmpeg binary at: ${ffmpegPath}`, 'INFO');
             
             // Resolve ffprobe binary path
             const ffprobePath = BinaryPathResolver.resolveBinaryPath('ffprobe');
             if (!ffprobePath) {
                 throw new Error('Failed to resolve ffprobe binary path. Video metadata extraction will not work.');
             }
-            this.logger.info(`Successfully resolved ffprobe binary at: ${ffprobePath}`);
+            this.logger.log(`Successfully resolved ffprobe binary at: ${ffprobePath}`, 'INFO');
             
             // Set the paths for fluent-ffmpeg using both methods (library function and environment variables)
             ffmpeg.setFfmpegPath(ffmpegPath);
@@ -95,9 +107,9 @@ class VideoConverter extends BaseService {
             // Verify that ffmpeg is working by checking formats
             this.verifyFfmpegWorks(ffmpegPath);
             
-            this.logger.info('Binary paths configured successfully:');
-            this.logger.info(`- ffmpeg: ${ffmpegPath}`);
-            this.logger.info(`- ffprobe: ${ffprobePath}`);
+            this.logger.log('Binary paths configured successfully:', 'INFO');
+            this.logger.log(`- ffmpeg: ${ffmpegPath}`, 'INFO');
+            this.logger.log(`- ffprobe: ${ffprobePath}`, 'INFO');
         } catch (error) {
             this.logger.error(`Error configuring ffmpeg: ${error.message}`);
             this.logger.debug(`Error stack: ${error.stack}`);
@@ -118,7 +130,7 @@ class VideoConverter extends BaseService {
      */
     verifyFfmpegWorks(ffmpegPath) {
         try {
-            this.logger.info(`Verifying ffmpeg works by checking formats: ${ffmpegPath}`);
+            this.logger.log(`Verifying ffmpeg works by checking formats: ${ffmpegPath}`, 'INFO');
             
             // Use spawn directly with the resolved path instead of relying on fluent-ffmpeg
             const process = spawn(ffmpegPath, ['-formats']);
@@ -141,7 +153,7 @@ class VideoConverter extends BaseService {
             });
             
             process.on('close', (code) => {
-                this.logger.info(`ffmpeg formats check exited with code ${code}`);
+                this.logger.log(`ffmpeg formats check exited with code ${code}`, 'INFO');
             });
         } catch (error) {
             this.logger.error(`Failed to verify ffmpeg: ${error.message}`);
@@ -171,10 +183,13 @@ class VideoConverter extends BaseService {
             try {
                 const outputDir = path.dirname(options.outputPath);
                 await fs.ensureDir(outputDir);
-                this.logger.info(`Validated output directory: ${outputDir}`);
+                this.logger.log(`Validated output directory: ${outputDir}`, 'INFO');
             } catch (error) {
-                this.logger.error(`Invalid output path: ${error.message}`);
-                throw new Error(`Invalid output path: ${error.message}`);
+                const setupError = new Error(`Invalid output path: ${error.message}`);
+                setupError.code = 'E_SETUP'; // Add error code
+                this.logger.error(`[${setupError.code}] ${setupError.message}`, { error }); // Log original error too
+                // Re-throw the error to reject the promise as expected by tests
+                throw setupError;
             }
         }
         
@@ -192,13 +207,18 @@ class VideoConverter extends BaseService {
         let tempDir = options._tempDir; // Check if tempDir was passed by the wrapper
         let outputPath = options.outputPath; // Get output path from options
 
+        let createdTempDir = false; // Flag to track if we created the temp dir here
+
         try {
             // Create temp directory only if not passed by the wrapper
             if (!tempDir) {
-                tempDir = await this.fileStorage.createTempDir('video_conversion');
-                this.logger.info(`Created temp directory: ${tempDir}`);
+                // Use the new FileSystemService method to create a managed temporary directory
+                tempDir = await this.fileSystem.createTemporaryDirectory('video_conversion');
+                this.logger.log(`Created managed temporary directory: ${tempDir}`, 'INFO', { phase: 'setup' });
+                createdTempDir = true; // Mark that we created it
             } else {
-                this.logger.info(`Using temp directory provided by wrapper: ${tempDir}`);
+                this.logger.log(`Using temporary directory provided by wrapper: ${tempDir}`, 'INFO', { phase: 'setup' });
+                // Note: If provided by wrapper, its lifecycle is managed externally
             }
 
             // Register the conversion with the central registry
@@ -213,11 +233,20 @@ class VideoConverter extends BaseService {
                 window,
                 startTime: Date.now(),
                 outputPath: options.outputPath // Store output path in registry
-            }, async () => {
-                // Cleanup function for the registry
-                if (tempDir) {
-                    this.logger.info(`Removing temp directory: ${tempDir}`, { phase: 'cleanup' });
-                    await fs.remove(tempDir);
+            }, async () => { // Ensure callback is async
+                // Cleanup function for the registry - Release the managed temporary directory
+                // Only release if this instance created it (createdTempDir flag)
+                // Check if createdTempDir is defined and true before releasing
+                if (tempDir && typeof createdTempDir !== 'undefined' && createdTempDir) {
+                    this.logger.log(`Releasing managed temporary directory via registry cleanup: ${tempDir}`, 'INFO', { phase: 'cleanup' });
+                    try {
+                        await this.fileSystem.releaseTemporaryDirectory(tempDir);
+                        this.logger.log(`Successfully released temporary directory: ${tempDir}`, 'INFO', { phase: 'cleanup' });
+                    } catch (cleanupError) {
+                        this.logger.error(`Error releasing temporary directory ${tempDir} during registry cleanup: ${cleanupError.message}`, { phase: 'cleanup' });
+                    }
+                } else if (tempDir) {
+                     this.logger.log(`Temporary directory ${tempDir} was provided externally or not created by this instance, skipping release via registry cleanup.`, 'INFO', { phase: 'cleanup' });
                 }
             });
 
@@ -228,24 +257,40 @@ class VideoConverter extends BaseService {
                 this.logger.warn(`Window not available for conversion ${conversionId}, skipping initial notification.`);
             }
 
-            // Start conversion process asynchronously
-            // Pass the file path (which should be the temp file path if created) and options
-            this.processConversion(conversionId, filePath, options).catch(error => {
-                this.logger.error(`Conversion failed for ${conversionId}: ${error.message}`);
-                this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.ERROR, error: error.message });
-                // Cleanup is handled by the registry's removal process
-            });
+            // Start conversion process asynchronously (fire and forget - result handled via registry/IPC)
+            this.processConversion(conversionId, filePath, options);
+            // No .catch() here; processConversion handles its own errors and registry updates.
 
-            return { conversionId };
+            // Return success *initiation* response
+            return { success: true, conversionId };
         } catch (error) {
-            this.logger.logConversionError(fileType, error);
-            // Ensure cleanup if tempDir was created before error
-            if (tempDir) {
-                await fs.remove(tempDir);
+            const setupErrorCode = error.code || 'E_SETUP_UNEXPECTED';
+            this.logger.logConversionError(fileType, error, { phase: 'error_setup', code: setupErrorCode });
+            
+            // Ensure cleanup if tempDir was created *by this instance* before the error occurred during setup
+            if (tempDir && typeof createdTempDir !== 'undefined' && createdTempDir) {
+                this.logger.warn(`Error during initial setup for ${conversionId}. Releasing temporary directory: ${tempDir}`, { phase: 'error_cleanup' });
+                try {
+                    await this.fileSystem.releaseTemporaryDirectory(tempDir);
+                    this.logger.log(`Successfully released temporary directory after setup error: ${tempDir}`, 'INFO', { phase: 'error_cleanup' });
+                } catch (cleanupError) {
+                    this.logger.error(`Error releasing temporary directory ${tempDir} during setup error handling: ${cleanupError.message}`, { phase: 'error_cleanup' });
+                }
             }
             // Remove from registry if it was added before error
+            // Note: removeConversion triggers the cleanup callback defined above,
+            // which now also checks the createdTempDir flag.
             this.registry.removeConversion(conversionId);
-            throw error;
+            
+            // Return a structured error object instead of throwing
+            return {
+                success: false,
+                error: {
+                    code: setupErrorCode,
+                    message: `Video conversion setup failed: ${error.message}`,
+                    details: error.stack
+                }
+            };
         }
     }
 
@@ -258,13 +303,22 @@ class VideoConverter extends BaseService {
         const fileType = path.extname(filePath).substring(1); // Get file extension without dot
         
         try {
-            this.logger.info(`Getting metadata for ${filePath}`, { fileType, phase: ConversionStatus.STATUS.VALIDATING });
+            this.logger.log(`Getting metadata for ${filePath}`, 'INFO', { fileType, phase: ConversionStatus.STATUS.VALIDATING });
             const metadata = await this.getVideoMetadata(filePath);
-            this.logger.info(`Successfully retrieved metadata`, { fileType, phase: ConversionStatus.STATUS.VALIDATING });
-            return metadata;
+            this.logger.log(`Successfully retrieved metadata`, 'INFO', { fileType, phase: ConversionStatus.STATUS.VALIDATING });
+            return { success: true, metadata };
         } catch (error) {
-            this.logger.error(`Failed to get metadata: ${error.message}`, { fileType });
-            throw error;
+            const metadataErrorCode = error.code || 'E_METADATA_FAILED';
+            this.logger.error(`[${metadataErrorCode}] Failed to get metadata: ${error.message}`, { fileType });
+            // Return structured error instead of throwing
+            return {
+                success: false,
+                error: {
+                    code: metadataErrorCode,
+                    message: `Failed to get video metadata: ${error.message}`,
+                    details: error.stack
+                }
+            };
         }
     }
 
@@ -275,10 +329,10 @@ class VideoConverter extends BaseService {
      * @param {Object} request - Cancellation request details
      */
     async handleCancel(event, { conversionId }) {
-        this.logger.info(`Received cancel request for conversion: ${conversionId}`);
+        this.logger.log(`Received cancel request for conversion: ${conversionId}`, 'INFO');
         const removed = this.registry.removeConversion(conversionId); // This also triggers cleanup
         if (removed) {
-            this.logger.info(`Conversion ${conversionId} cancelled and removed from registry.`);
+            this.logger.log(`Conversion ${conversionId} cancelled and removed from registry.`, 'INFO');
             // Optionally notify the window if needed, though registry might handle this
             const conversionData = this.registry.getConversion(conversionId); // Should be null now
             if (conversionData && conversionData.window) {
@@ -300,6 +354,9 @@ class VideoConverter extends BaseService {
         const fileType = path.extname(filePath).substring(1); // Get file extension without dot
         
         try {
+            // Ensure ffmpeg is configured before proceeding
+            this._ensureFfmpegConfigured(); // Ensure this call is present
+
             this.logger.setContext({ conversionId, fileType });
             this.logger.logPhaseTransition(ConversionStatus.STATUS.STARTING, ConversionStatus.STATUS.VALIDATING);
             
@@ -308,11 +365,14 @@ class VideoConverter extends BaseService {
             const ffprobePath = BinaryPathResolver.resolveBinaryPath('ffprobe', { forceRefresh: false });
             
             if (!ffmpegPath || !ffprobePath) {
-                throw new Error('FFmpeg or FFprobe binaries not available. Cannot proceed with conversion.');
+                // Throw specific error to be caught below
+                const binaryError = new Error('FFmpeg or FFprobe binaries not available. Cannot proceed with conversion.');
+                binaryError.code = 'E_MISSING_BINARY';
+                throw binaryError;
             }
             
-            this.logger.info(`Using ffmpeg at: ${ffmpegPath}`);
-            this.logger.info(`Using ffprobe at: ${ffprobePath}`);
+            this.logger.log(`Using ffmpeg at: ${ffmpegPath}`, 'INFO');
+            this.logger.log(`Using ffprobe at: ${ffprobePath}`, 'INFO');
 
             // Retrieve conversion data from the central registry
             const conversionData = this.registry.getConversion(conversionId);
@@ -323,6 +383,9 @@ class VideoConverter extends BaseService {
                 return; // Or handle as appropriate, maybe return a specific status
             }
 
+            // Extract outputPath from conversionData
+            let outputPath = conversionData.outputPath;
+
             const tempDir = conversionData.tempDir;
             const originalFilePath = conversionData.filePath; // Use original path for context if needed
             const tempFilePath = path.join(tempDir, `${path.basename(originalFilePath)}_${Date.now()}.mp4`); // Need to reconstruct or store temp path
@@ -331,23 +394,23 @@ class VideoConverter extends BaseService {
             // This assumes filePath passed to processConversion is the actual content buffer or path to read from
             // Let's assume filePath IS the path to the *original* file, and we need to copy it
             await fs.copy(originalFilePath, tempFilePath);
-            this.logger.info(`Copied original file to temp path: ${tempFilePath}`);
+            this.logger.log(`Copied original file to temp path: ${tempFilePath}`, 'INFO');
 
-            this.logger.info(`Using temp directory: ${tempDir}`);
-            this.logger.info(`Processing temp file: ${tempFilePath}`);
+            this.logger.log(`Using temp directory: ${tempDir}`, 'INFO');
+            this.logger.log(`Processing temp file: ${tempFilePath}`, 'INFO');
 
             // Try fast path first
             this.logger.logPhaseTransition(ConversionStatus.STATUS.VALIDATING, ConversionStatus.STATUS.FAST_ATTEMPT);
             this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.FAST_ATTEMPT, progress: 5 });
             
             // Extract metadata
-            this.logger.info(`Extracting metadata from: ${tempFilePath}`);
+            this.logger.log(`Extracting metadata from: ${tempFilePath}`, 'INFO');
             const metadata = await this.getVideoMetadata(tempFilePath);
-            this.logger.info(`Metadata extracted successfully`);
+            this.logger.log(`Metadata extracted successfully`, 'INFO');
             this.logger.debug('Metadata details:', sanitizeForLogging(metadata));
 
             // Skip thumbnail generation
-            this.logger.info(`Skipping thumbnail generation`, { phase: ConversionStatus.STATUS.PROCESSING });
+            this.logger.log(`Skipping thumbnail generation`, 'INFO', { phase: ConversionStatus.STATUS.PROCESSING });
             this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.PROCESSING, progress: 10 });
             const thumbnails = []; // Empty array instead of generating thumbnails
 
@@ -356,9 +419,9 @@ class VideoConverter extends BaseService {
             this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.EXTRACTING_AUDIO, progress: 30 });
             
             const audioPath = path.join(tempDir, 'audio.mp3');
-            this.logger.info(`Extracting audio to: ${audioPath}`);
+            this.logger.log(`Extracting audio to: ${audioPath}`, 'INFO');
             await this.extractAudio(tempFilePath, audioPath);
-            this.logger.info(`Audio extracted successfully`);
+            this.logger.log(`Audio extracted successfully`, 'INFO');
 
             // Transcribe audio if requested
             let transcription = null;
@@ -367,16 +430,16 @@ class VideoConverter extends BaseService {
                 this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.TRANSCRIBING, progress: 40 });
                 
                 const transcriptionOptions = sanitizeForLogging({ language: options.language || 'en' });
-                this.logger.info(`Transcribing audio with options:`, transcriptionOptions);
+                this.logger.log(`Transcribing audio with options:`, 'INFO', transcriptionOptions);
                 transcription = await this.transcribeAudio(audioPath, options.language || 'en');
                 
                 if (!transcription || !transcription.text || transcription.text.trim() === '') {
                     this.logger.logPhaseTransition(ConversionStatus.STATUS.TRANSCRIBING, ConversionStatus.STATUS.CONTENT_EMPTY);
                     this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.CONTENT_EMPTY, progress: 80 });
-                    this.logger.info(`Transcription produced empty content - this is normal for videos without speech`);
+                    this.logger.log(`Transcription produced empty content - this is normal for videos without speech`, 'INFO');
                 } else {
                     this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.TRANSCRIBING, progress: 80 });
-                    this.logger.info(`Transcription completed successfully (${transcription.text.length} characters)`);
+                    this.logger.log(`Transcription completed successfully (${transcription.text.length} characters)`, 'INFO');
                 }
             }
 
@@ -385,11 +448,11 @@ class VideoConverter extends BaseService {
                 ConversionStatus.STATUS.PROCESSING
             );
             this.registry.pingConversion(conversionId, { status: ConversionStatus.STATUS.PROCESSING, progress: 90 });
-            this.logger.info(`Generating markdown output`);
+            this.logger.log(`Generating markdown output`, 'INFO');
 
             // Generate markdown
             const markdown = this.generateMarkdown(metadata, thumbnails, transcription, options);
-            this.logger.info(`Markdown generated successfully (${markdown.length} characters)`);
+            this.logger.log(`Markdown generated successfully (${markdown.length} characters)`, 'INFO');
 
             // Write the markdown content to the output file
             try {
@@ -398,9 +461,9 @@ class VideoConverter extends BaseService {
                     outputPath = path.join(tempDir, `${path.basename(filePath, path.extname(filePath))}.md`);
                 }
                 
-                this.logger.info(`Writing markdown content to: ${outputPath}`);
+                this.logger.log(`Writing markdown content to: ${outputPath}`, 'INFO');
                 await fs.writeFile(outputPath, markdown, 'utf8');
-                this.logger.info(`Successfully wrote markdown content to file (${markdown.length} characters)`);
+                this.logger.log(`Successfully wrote markdown content to file (${markdown.length} characters)`, 'INFO');
 
                 // Update registry with completed status, result, and output path
                 this.logger.logPhaseTransition(ConversionStatus.STATUS.PROCESSING, ConversionStatus.STATUS.COMPLETED);
@@ -413,39 +476,55 @@ class VideoConverter extends BaseService {
 
                 this.logger.logConversionComplete(fileType);
             } catch (writeError) {
-                this.logger.error(`Failed to write markdown content to file: ${writeError.message}`);
+                // Add specific code for file writing errors
+                writeError.code = writeError.code || 'E_FILE_WRITE';
+                this.logger.error(`[${writeError.code}] Failed to write markdown content to file: ${writeError.message}`);
+                // Throw the error to be caught by the main catch block below
                 throw new Error(`Failed to save conversion output: ${writeError.message}`);
             }
-
-            // Cleanup is handled by the registry's removeConversion call eventually
-
-            return markdown; // Return the result
-        } catch (error) {
-            // Sanitize error details before logging
-            const sanitizedError = sanitizeForLogging({
-                message: error.message,
-                stack: error.stack,
-                code: error.code
-            });
-            this.logger.logConversionError(fileType, sanitizedError);
-            
-            // Update registry with failed status (using only sanitized message)
-            this.registry.pingConversion(conversionId, {
-                status: ConversionStatus.STATUS.ERROR,
-                error: error.message
-            });
-            
-            // Let the error propagate to be caught by the caller in handleConvert
-            throw error;
+    
+                // Cleanup is handled by the registry's removeConversion call eventually
+    
+                // On success, processConversion doesn't need to return anything here,
+                // the result is communicated via the registry update above.
+                return;
+            } catch (error) {
+                // Determine error code, default if not set
+                const errorCode = error.code || 'E_VIDEO_CONVERSION_FAILED';
+                
+                // Sanitize error details before logging
+                const sanitizedError = sanitizeForLogging({
+                    message: error.message,
+                    stack: error.stack, // Keep stack for detailed logging
+                    code: errorCode // Include the code
+                });
+                
+                // Use the enhanced logger method that includes code
+                // Log the error message directly, include sanitized details in metadata
+                this.logger.logConversionError(fileType, error.message, { code: errorCode, details: sanitizedError });
+                
+                // Update registry with failed status and structured error object
+                this.registry.pingConversion(conversionId, {
+                    status: ConversionStatus.STATUS.ERROR,
+                    error: { // Store structured error
+                        code: errorCode,
+                        message: error.message, // Keep original message for registry
+                        // Optionally add more details if needed, but keep it concise for IPC
+                    }
+                });
+                
+                // Do NOT re-throw. Error is handled by updating the registry.
+            }
         }
-    }
-
     /**
      * Get video file metadata
      * @param {string} filePath - Path to video file
      * @returns {Promise<Object>} Video metadata
      */
     async getVideoMetadata(filePath) {
+        // Ensure ffmpeg (specifically ffprobe path) is configured
+        this._ensureFfmpegConfigured(); // Add this call
+
         const fileType = path.extname(filePath).substring(1);
         this.logger.setContext({ fileType, phase: ConversionStatus.STATUS.VALIDATING });
         
@@ -454,20 +533,23 @@ class VideoConverter extends BaseService {
             const ffprobePath = BinaryPathResolver.resolveBinaryPath('ffprobe', { forceRefresh: false });
             if (!ffprobePath) {
                 const error = new Error('FFprobe binary not available. Cannot extract video metadata.');
-                this.logger.error(error.message);
-                return reject(error);
+                error.code = 'E_MISSING_BINARY'; // Add error code
+                this.logger.error(`[${error.code}] ${error.message}`);
+                return reject(error); // Reject with the coded error
             }
-            
-            this.logger.info(`Getting video metadata using ffprobe at: ${ffprobePath}`);
-            
+                
+                this.logger.log(`Getting video metadata using ffprobe at: ${ffprobePath}`, 'INFO');
             // Create a new ffmpeg command with the correct path to ensure we're not using cached paths
             const command = ffmpeg();
             command.setFfprobePath(ffprobePath);
             
             command.input(filePath).ffprobe((err, metadata) => {
                 if (err) {
-                    this.logger.error(`Error getting metadata: ${err.message}`);
-                    reject(err);
+                    const metadataError = new Error(`FFprobe failed: ${err.message}`);
+                    metadataError.code = 'E_FFPROBE_FAILED'; // Specific code for ffprobe errors
+                    metadataError.details = err; // Attach original error
+                    this.logger.error(`[${metadataError.code}] Error getting metadata: ${metadataError.message}`);
+                    reject(metadataError); // Reject with the structured error
                     return;
                 }
                 
@@ -475,9 +557,10 @@ class VideoConverter extends BaseService {
                 const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
                 
                 if (!videoStream) {
-                    const error = new Error('No video stream found');
-                    this.logger.error(error.message);
-                    reject(error);
+                    const noStreamError = new Error('No video stream found in the file.');
+                    noStreamError.code = 'E_NO_VIDEO_STREAM'; // Specific code
+                    this.logger.error(`[${noStreamError.code}] ${noStreamError.message}`);
+                    reject(noStreamError); // Reject with the structured error
                     return;
                 }
                 
@@ -501,7 +584,7 @@ class VideoConverter extends BaseService {
                     } : null
                 };
                 
-                this.logger.info(`Metadata extraction successful`);
+                this.logger.log(`Metadata extraction successful`, 'INFO');
                 resolve(result);
             });
         });
@@ -539,12 +622,12 @@ class VideoConverter extends BaseService {
             const ffmpegPath = BinaryPathResolver.resolveBinaryPath('ffmpeg', { forceRefresh: false });
             if (!ffmpegPath) {
                 const error = new Error('FFmpeg binary not available. Cannot extract audio.');
-                this.logger.error(error.message);
-                return reject(error);
+                error.code = 'E_MISSING_BINARY'; // Add error code
+                this.logger.error(`[${error.code}] ${error.message}`);
+                return reject(error); // Reject with the coded error
             }
-            
-            this.logger.info(`Extracting audio using ffmpeg at: ${ffmpegPath}`);
-            
+                
+                this.logger.log(`Extracting audio using ffmpeg at: ${ffmpegPath}`, 'INFO');
             // Create a new ffmpeg command with the correct path to ensure we're not using cached paths
             const command = ffmpeg();
             command.setFfmpegPath(ffmpegPath);
@@ -561,12 +644,19 @@ class VideoConverter extends BaseService {
                     this.logger.debug(`Audio extraction progress: ${JSON.stringify(progress)}`);
                 })
                 .on('end', () => {
-                    this.logger.info(`Audio extraction completed successfully`);
+                    this.logger.log(`Audio extraction completed successfully`, 'INFO');
                     resolve();
                 })
-                .on('error', (err) => {
-                    this.logger.error(`Audio extraction error: ${err.message}`);
-                    reject(err);
+                .on('error', (err, stdout, stderr) => { // Capture stdout/stderr for more context
+                    const extractionError = new Error(`FFmpeg audio extraction failed: ${err.message}`);
+                    extractionError.code = 'E_FFMPEG_AUDIO_EXTRACTION'; // Specific code
+                    // Include ffmpeg's stderr if available, as it often contains useful info
+                    extractionError.details = {
+                        originalError: err,
+                        stderr: stderr || 'N/A'
+                    };
+                    this.logger.error(`[${extractionError.code}] Audio extraction error: ${extractionError.message}. Stderr: ${stderr}`);
+                    reject(extractionError); // Reject with the structured error
                 })
                 .run();
         });
@@ -584,14 +674,14 @@ class VideoConverter extends BaseService {
         
         try {
             // Use the TranscriberService to transcribe the audio
-            this.logger.info(`Starting transcription of audio file: ${audioPath}`);
+            this.logger.log(`Starting transcription of audio file: ${audioPath}`, 'INFO');
             const result = await this.transcriber.handleTranscribeStart(null, {
                 filePath: audioPath,
                 options: { language }
             });
             
             // Wait for transcription to complete
-            this.logger.info(`Transcription job started with ID: ${result.jobId}`);
+            this.logger.log(`Transcription job started with ID: ${result.jobId}`, 'INFO');
             let status = await this.transcriber.handleTranscribeStatus(null, { jobId: result.jobId });
             
             while (status.status !== 'completed' && status.status !== 'failed' && status.status !== 'cancelled') {
@@ -602,28 +692,32 @@ class VideoConverter extends BaseService {
             }
             
             if (status.status === 'failed') {
-                const error = new Error(status.error || 'Transcription failed');
-                this.logger.error(`Transcription failed: ${error.message}`);
-                throw error;
+                const transcriptionError = new Error(status.error || 'Transcription failed');
+                transcriptionError.code = 'E_TRANSCRIPTION_FAILED'; // Specific code
+                this.logger.error(`[${transcriptionError.code}] Transcription failed: ${transcriptionError.message}`);
+                throw transcriptionError; // Throw coded error
             }
             
             if (status.status === 'cancelled') {
-                const error = new Error('Transcription cancelled');
-                this.logger.warn(`Transcription cancelled`);
-                throw error;
+                const cancelledError = new Error('Transcription cancelled');
+                cancelledError.code = 'E_TRANSCRIPTION_CANCELLED'; // Specific code
+                this.logger.warn(`[${cancelledError.code}] Transcription cancelled`);
+                throw cancelledError; // Throw coded error
             }
             
             if (!status.result || !status.result.text || status.result.text.trim() === '') {
-                this.logger.info(`Transcription completed but content is empty - this is normal for videos without speech`, 
-                    { phase: ConversionStatus.STATUS.CONTENT_EMPTY });
+                this.logger.log(`Transcription completed but content is empty - this is normal for videos without speech`,
+                    'INFO', { phase: ConversionStatus.STATUS.CONTENT_EMPTY });
             } else {
-                this.logger.info(`Transcription completed successfully with ${status.result.text.length} characters`);
+                this.logger.log(`Transcription completed successfully with ${status.result.text.length} characters`, 'INFO');
             }
             
             return status.result;
         } catch (error) {
-            this.logger.error(`Transcription failed: ${error.message}`);
-            throw error;
+            // Ensure error has a code before re-throwing
+            error.code = error.code || 'E_TRANSCRIPTION_UNEXPECTED';
+            this.logger.error(`[${error.code}] Transcription failed: ${error.message}`);
+            throw error; // Re-throw (will be caught by processConversion)
         }
     }
 
@@ -636,7 +730,7 @@ class VideoConverter extends BaseService {
      * @returns {string} Markdown content
      */
     generateMarkdown(metadata, thumbnails, transcription, options) {
-        this.logger.info(`Generating markdown content`, { phase: ConversionStatus.STATUS.PROCESSING });
+        this.logger.log(`Generating markdown content`, 'INFO', { phase: ConversionStatus.STATUS.PROCESSING });
         
         const markdown = [];
         
@@ -684,7 +778,7 @@ class VideoConverter extends BaseService {
             markdown.push('*No speech detected in this video.*');
         }
         
-        this.logger.info(`Markdown generation complete with ${markdown.length} lines`);
+        this.logger.log(`Markdown generation complete with ${markdown.length} lines`, 'INFO');
         return markdown.join('\n');
     }
 

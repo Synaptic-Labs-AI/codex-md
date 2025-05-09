@@ -12,7 +12,7 @@
 
 const path = require('path');
 const { app } = require('electron');
-const FileSystemService = require('./FileSystemService');
+const { instance: FileSystemService } = require('./FileSystemService'); // Import instance
 const { formatMetadata, cleanMetadata, extractFrontmatter, mergeMetadata } = require('../utils/markdown');
 const { cleanTemporaryFilename, getBasename, generateUrlFilename } = require('../utils/files');
 

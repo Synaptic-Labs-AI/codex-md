@@ -14,12 +14,12 @@ const { createReadStream } = require('fs');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const path = require('path');
-const FileSystemService = require('./FileSystemService');
+const { instance: FileSystemService } = require('./FileSystemService'); // Import instance
 
 class StreamingFileService {
   constructor() {
     this.chunkSize = 1024 * 1024; // 1MB chunks for reading
-    this.fileSystem = FileSystemService;
+    this.fileSystem = FileSystemService; // Use the imported instance
   }
 
   /**
