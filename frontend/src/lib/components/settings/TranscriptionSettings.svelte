@@ -11,26 +11,35 @@
   import { settings } from '../../stores/settings.js';
   import { setTranscriptionModel } from '../../stores/settings.js';
   import Accordion from '../common/Accordion.svelte';
-  
-  let selectedModel = 'whisper';
-  
-  // Available transcription models
+  import ToggleGroup from '../common/ToggleGroup.svelte';
+
+  let selectedModel = 'nova-2';
+
+  // Available Deepgram transcription models
   const models = [
-    { id: 'whisper', name: 'Whisper', description: 'Standard transcription model with good accuracy for most audio files.' },
-    { id: 'gpt-4o-mini-transcribe', name: 'GPT-4o Mini', description: 'Enhanced transcription with improved formatting and understanding of context.' },
-    { id: 'gpt-4o-transcribe', name: 'GPT-4o', description: 'Highest quality transcription with advanced formatting and understanding of technical content.' }
+    { id: 'nova-3', name: 'Nova 3', description: 'Deepgram\'s latest and most accurate model with enhanced formatting and understanding.' },
+    { id: 'nova-2', name: 'Nova 2', description: 'Previous generation model with good accuracy and competitive performance.' },
+    { id: 'nova-1', name: 'Nova 1', description: 'Stable model with fast processing time and reliable results.' }
   ];
-  
+
+  // Convert models to options for ToggleGroup
+  const modelOptions = models.map(model => ({
+    value: model.id,
+    label: model.name,
+    icon: model.id === 'nova-3' ? '🌟' : model.id === 'nova-2' ? '⚡' : '🚀'
+  }));
+
   // Get model description based on selected model
   $: modelDescription = models.find(m => m.id === selectedModel)?.description || '';
-  
+
   // Subscribe to settings store
   const unsubscribe = settings.subscribe(value => {
-    selectedModel = value.transcription?.model || 'whisper';
+    selectedModel = value.transcription?.model || 'nova-2';
   });
-  
+
   // Update model when selection changes
-  function updateModel() {
+  function updateModel(event) {
+    selectedModel = event.detail.value;
     setTranscriptionModel(selectedModel);
   }
   
@@ -53,84 +62,73 @@
 </script>
 
 <div class="transcription-settings">
-  <div class="setting-group">
-    <label for="model-select">Transcription Model</label>
-    <select
-      id="model-select"
-      bind:value={selectedModel}
+  <!-- Heading is provided by the SettingsSection component -->
+
+  <!-- Model Selection -->
+  <div class="settings-section">
+    <ToggleGroup
+      options={modelOptions}
+      value={selectedModel}
+      name="transcription-model"
       on:change={updateModel}
-      class="model-select"
-    >
-      {#each models as model}
-        <option value={model.id}>{model.name}</option>
-      {/each}
-    </select>
-    
-    <p class="description">
+    />
+
+    <p class="model-description">
       {modelDescription}
     </p>
-  </div>
 
-  <Accordion title="About Transcription Models" icon="ℹ️">
-    <div class="info-content">
-      <p>
-        Choose the transcription model that best fits your needs:
-      </p>
-      <ul>
-        <li><strong>Whisper:</strong> Efficient transcription for most audio files</li>
-        <li><strong>GPT-4o Mini:</strong> Better formatting and understanding of context</li>
-        <li><strong>GPT-4o:</strong> Best for complex audio with technical content</li>
-      </ul>
-      <h4>Processing Times & Performance:</h4>
-      <ul>
-        <li>Whisper: Fastest processing, good accuracy</li>
-        <li>GPT-4o Mini: Medium processing time, better formatting</li>
-        <li>GPT-4o: Longest processing time, highest quality results</li>
-      </ul>
-    </div>
-  </Accordion>
+    <Accordion title="About Deepgram Transcription Models" icon="🎙️">
+      <div class="info-content">
+        <p>
+          Deepgram provides high-quality transcription for both audio and video files:
+        </p>
+        <ul>
+          <li><strong>Nova 3:</strong> Best accuracy and formatting, great for complex content</li>
+          <li><strong>Nova 2:</strong> Good balance of speed and accuracy</li>
+          <li><strong>Nova 1:</strong> Fastest processing, reliable for clear audio</li>
+        </ul>
+        <h4>Supported Files:</h4>
+        <ul>
+          <li><strong>Audio:</strong> MP3, MP4, M4A, WAV, FLAC, OGG, AAC, and more</li>
+          <li><strong>Video:</strong> MP4, MOV, AVI, MKV, WEBM, and other video formats</li>
+        </ul>
+        <p class="deepgram-info">
+          Learn more about <a href="https://developers.deepgram.com/" target="_blank" rel="noopener noreferrer">Deepgram's transcription technology</a>.
+        </p>
+      </div>
+    </Accordion>
+  </div>
 </div>
 
 <style>
   .transcription-settings {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-lg);
   }
 
-  .setting-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-  }
-  
-  label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
+  /* h2 removed as it's provided by the parent SettingsSection component */
+
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
     color: var(--color-text);
-    margin-bottom: var(--spacing-xs);
   }
 
-  .model-select {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--rounded-sm);
-    background-color: var(--color-surface);
-    color: var(--color-text);
-    font-size: var(--font-size-sm);
-    width: 100%;
-    max-width: 300px;
+  .settings-section {
+    padding-bottom: var(--spacing-lg);
   }
 
-  .model-select:focus {
-    outline: 2px solid var(--color-prime);
-    outline-offset: -2px;
+  .settings-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
   }
 
-  .description {
+  .model-description {
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
-    margin-top: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
     max-width: 500px;
   }
 
@@ -158,6 +156,20 @@
 
   .info-content li {
     margin-bottom: var(--spacing-xs);
+  }
+
+  .info-content a {
+    color: var(--color-prime);
+    text-decoration: none;
+  }
+
+  .info-content a:hover {
+    text-decoration: underline;
+  }
+
+  .deepgram-info {
+    font-style: italic;
+    margin-top: var(--spacing-md);
   }
 
   /* High Contrast Mode */

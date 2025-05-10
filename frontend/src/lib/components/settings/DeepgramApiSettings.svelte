@@ -1,0 +1,313 @@
+<!--
+  DeepgramApiSettings.svelte - Deepgram API key settings component
+  Handles storage and management of Deepgram API keys for transcription.
+
+  Features:
+  - Secure API key storage
+  - Link to Deepgram API documentation
+  - Validation of API keys
+-->
+<script>
+  import { onMount } from 'svelte';
+  import { writable } from 'svelte/store';
+  import { fade } from 'svelte/transition';
+  import Accordion from '../common/Accordion.svelte';
+  import Button from '../common/Button.svelte';
+  
+  // Local state
+  let apiKey = '';
+  let saving = false;
+  let validating = false;
+  let error = '';
+  let keyStatus = writable({ exists: false, valid: false });
+  let showApiKey = false;
+  let isInitialized = true;
+  
+  onMount(async () => {
+    try {
+      // Check if we have a stored Deepgram API key
+      if (window?.electron?.getSetting) {
+        window.electron.getSetting('transcription.deepgramApiKey')
+          .then(value => {
+            if (value) {
+              keyStatus.set({ exists: true, valid: true });
+            }
+          })
+          .catch(err => console.error('Error checking Deepgram API key:', err));
+      }
+    } catch (err) {
+      console.error('Error checking Deepgram API key:', err);
+    }
+  });
+  
+  async function saveApiKey() {
+    if (!apiKey) return;
+    
+    saving = true;
+    error = '';
+    
+    try {
+      // Save key to settings via electron API
+      if (window?.electron?.setSetting) {
+        await window.electron.setSetting('transcription.deepgramApiKey', apiKey);
+      }
+      
+      // Configure Deepgram with the new key if available
+      if (window?.electron?.configureDeepgram) {
+        const result = await window.electron.configureDeepgram({ apiKey });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to configure Deepgram');
+        }
+      }
+      
+      // Update status
+      keyStatus.set({ exists: true, valid: true });
+      apiKey = ''; // Clear input
+    } catch (e) {
+      error = e.message;
+    } finally {
+      saving = false;
+      validating = false;
+    }
+  }
+  
+  async function deleteApiKey() {
+    try {
+      // Clear key from settings
+      if (window?.electron?.setSetting) {
+        await window.electron.setSetting('transcription.deepgramApiKey', '');
+      }
+      
+      keyStatus.set({ exists: false, valid: false });
+    } catch (e) {
+      error = e.message;
+    }
+  }
+  
+  function toggleShowApiKey() {
+    showApiKey = !showApiKey;
+  }
+</script>
+
+<div class="api-key-wrapper api-key-input-section" class:loading={!isInitialized}>
+  <div class="api-key-header">
+    <h3>Deepgram API Key</h3>
+    {#if $keyStatus.exists}
+      <div class="key-status success">
+        <span>✓ API key is configured</span>
+        <button on:click={deleteApiKey} class="delete-btn">Remove</button>
+      </div>
+    {/if}
+  </div>
+
+  {#if !$keyStatus.exists}
+    <div class="input-container">
+      <!-- Use separate input elements for text and password -->
+      {#if showApiKey}
+        <input
+          type="text"
+          class="api-key-input"
+          placeholder="Enter your Deepgram API Key"
+          bind:value={apiKey}
+          class:error={!!error}
+        />
+      {:else}
+        <input
+          type="password"
+          class="api-key-input"
+          placeholder="Enter your Deepgram API Key"
+          bind:value={apiKey}
+          class:error={!!error}
+        />
+      {/if}
+
+      <!-- Show / Hide API Key -->
+      <button
+        type="button"
+        class="toggle-button"
+        on:click={toggleShowApiKey}
+        aria-label={showApiKey ? 'Hide API Key' : 'Show API Key'}
+      >
+        {showApiKey ? '👁️' : '🙈'}
+      </button>
+      
+      <Button
+        on:click={saveApiKey}
+        disabled={saving || !apiKey}
+        variant="primary"
+        size="small"
+      >
+        {#if saving}
+          Saving...
+        {:else}
+          Save
+        {/if}
+      </Button>
+    </div>
+  {/if}
+
+  {#if error}
+    <div class="error-message" transition:fade={{ duration: 200 }}>{error}</div>
+  {/if}
+
+  <div class="api-key-info">
+    <p>
+      Required for audio and video transcription. Your key is stored securely on your device.
+    </p>
+    <a href="https://console.deepgram.com/signup" target="_blank" rel="noopener noreferrer" class="help-link">Get a Deepgram API key</a>
+  </div>
+</div>
+
+<style>
+  .api-key-wrapper {
+    width: 100%;
+    max-width: 1000px; /* Matches FileUploader container width */
+    margin: 0 auto;
+    padding: var(--spacing-md);
+    background: rgba(var(--color-prime-rgb), 0.05);
+    border-radius: var(--rounded-md);
+  }
+
+  .api-key-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+  }
+
+  h3 {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  .api-key-input-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .input-container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: var(--spacing-xs);
+    gap: var(--spacing-xs);
+  }
+
+  .input-container:focus-within {
+    border-color: var(--color-prime);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .api-key-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: var(--spacing-sm);
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+  }
+
+  .api-key-input:focus {
+    outline: none;
+  }
+  
+  .api-key-input.error {
+    color: var(--color-error);
+  }
+
+  .toggle-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    font-size: var(--font-size-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-light);
+  }
+  
+  .toggle-button:hover {
+    color: var(--color-text);
+  }
+
+  .api-key-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+  
+  .api-key-info p {
+    margin: 0;
+  }
+  
+  .help-link {
+    color: var(--color-prime);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+  }
+  
+  .help-link:hover {
+    text-decoration: underline;
+  }
+  
+  .key-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+  
+  .success {
+    color: var(--color-success, #4caf50);
+  }
+  
+  .delete-btn {
+    background: var(--color-error);
+    color: white;
+    border: none;
+    border-radius: var(--rounded-sm);
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+  }
+  
+  .error-message {
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+    margin-top: 0;
+  }
+  
+  @media (max-width: 640px) {
+    .api-key-wrapper {
+      padding: var(--spacing-sm);
+    }
+    
+    .api-key-info {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+
+  .loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .error-message {
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+    margin-top: var(--spacing-xs);
+  }
+</style>

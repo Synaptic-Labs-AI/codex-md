@@ -19,7 +19,15 @@ const DEFAULT_SETTINGS = {
     enabled: false
   },
   transcription: {
-    model: 'whisper'
+    model: 'whisper',
+    provider: 'openai',
+    deepgramApiKey: ''
+  },
+  theme: {
+    mode: 'light'
+  },
+  websiteScraping: {
+    saveMode: 'combined'
   }
 };
 
@@ -234,4 +242,75 @@ export const getTranscriptionModel = () => {
     result = value.transcription?.model || 'whisper';
   })();
   return result;
+};
+
+/**
+ * Set theme mode
+ * @param {string} mode - Theme mode ('light', 'dark', or 'system')
+ */
+export const setThemeMode = (mode) => {
+  if (!['light', 'dark', 'system'].includes(mode)) {
+    console.error(`Invalid theme mode: ${mode}`);
+    return;
+  }
+
+  console.log(`[Settings Store] Setting theme mode to: ${mode}`);
+
+  updateSetting('theme.mode', mode);
+
+  // Apply theme to document
+  applyTheme(mode);
+};
+
+/**
+ * Get current theme mode
+ * @returns {string} Theme mode
+ */
+export const getThemeMode = () => {
+  let result = 'light';
+  settings.subscribe(value => {
+    result = value.theme?.mode || 'light';
+  })();
+  return result;
+};
+
+/**
+ * Apply theme to document
+ * @param {string} mode - Theme mode
+ */
+export const applyTheme = (mode) => {
+  if (typeof document === 'undefined') return;
+
+  // First remove any existing theme classes
+  document.documentElement.classList.remove('theme-light', 'theme-dark');
+
+  if (mode === 'system') {
+    // Use system preference
+    // We don't add any class, as the CSS media query handles this
+    console.log('[Settings Store] Using system theme preference');
+  } else {
+    // Apply specific theme
+    document.documentElement.classList.add(`theme-${mode}`);
+    console.log(`[Settings Store] Applied ${mode} theme`);
+  }
+};
+
+/**
+ * Get Deepgram API key
+ * @returns {string} Deepgram API key
+ */
+export const getDeepgramApiKey = () => {
+  let result = '';
+  settings.subscribe(value => {
+    result = value.transcription?.deepgramApiKey || '';
+  })();
+  return result;
+};
+
+/**
+ * Set Deepgram API key
+ * @param {string} apiKey - Deepgram API key
+ */
+export const setDeepgramApiKey = (apiKey) => {
+  updateSetting('transcription.deepgramApiKey', apiKey);
 };
