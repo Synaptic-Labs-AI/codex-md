@@ -29,16 +29,18 @@
         "build:frontend": "cd frontend && npm run build",
         "build:electron": "npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder build",
         "test": "npm run test:all",
-        "test:all": "npm run test:e2e && npm run test:unit && npm run test:multimedia-fix",
+        "test:all": "npm run test:e2e && npm run test:unit && npm run test:multimedia-fix && npm run test:module-resolution",
         "test:e2e": "playwright test",
         "test:unit": "jest",
         "test:multimedia-fix": "node scripts/test-multimedia-conversion-fix.js",
+        "test:module-resolution": "node scripts/test-module-resolution.js",
         "kill-process": "node scripts/kill-process.js",
-        "clean-rebuild": "npm run kill-process && npm run build:frontend && npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && cd dist\\win-unpacked && .\\codex.md.exe --trace-warnings",
-        "debug:rebuild": "npm run build:frontend && npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && cd dist\\win-unpacked && .\\codex.md.exe --trace-warnings",
-        "debug:verbose": "npm run build:frontend && npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && cd dist\\win-unpacked && .\\codex.md.exe --trace-warnings --verbose",
-        "debug:log": "npm run build:frontend && npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && node scripts/run-with-log.js",
-        "clean-log": "npm run kill-process && npm run build:frontend && npm run prebuild:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && node scripts/run-with-log.js"
+        "clean-rebuild": "npm run kill-process && npm run build:frontend && npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && cd dist\\win-unpacked && .\\codex.md.exe --trace-warnings",
+        "debug:rebuild": "npm run build:frontend && npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && cd dist\\win-unpacked && .\\codex.md.exe --trace-warnings",
+        "debug:verbose": "npm run build:frontend && npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && cd dist\\win-unpacked && .\\codex.md.exe --trace-warnings --verbose",
+        "debug:log": "npm run build:frontend && npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && node scripts/run-with-log.js",
+        "clean-log": "npm run kill-process && npm run build:frontend && npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder --win && node scripts/run-with-log.js",
+        "build:safe": "npm run build:frontend && npm run prebuild:electron && npm run transpile:electron && npm run optimize-build && npm run convert-icons && electron-builder build && node scripts/test-module-resolution.js"
     },
     "build": {
         "appId": "com.codexmd.app",
@@ -53,13 +55,10 @@
                 "repo": "codex-md"
             }
         ],
-        "afterPack": "./scripts/afterPack.js",
+        "afterPack": "./scripts/after-pack.js",
         "asar": true,
         "asarUnpack": [
-            "node_modules/puppeteer/**/*",
-            "**/node_modules/ffmpeg-static/**",
-            "**/node_modules/@ffmpeg-installer/**",
-            "**/node_modules/ffprobe-static/**"
+            "node_modules/puppeteer/**/*"
         ],
         "win": {
             "target": [
@@ -119,14 +118,6 @@
                 "filter": [
                     "**/*"
                 ]
-            },
-            {
-                "from": "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
-                "to": "bin/ffmpeg.exe"
-            },
-            {
-                "from": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
-                "to": "bin/ffprobe.exe"
             }
         ],
         "extraFiles": [],
@@ -179,8 +170,8 @@
     "dependencies": {
         "@bundled-es-modules/pdfjs-dist": "^3.6.172-alpha.1",
         "@cliqz/adblocker-puppeteer": "^1.34.0",
+        "@deepgram/sdk": "^4.1.0",
         "@duckduckgo/autoconsent": "^1.0.8",
-        "@ffmpeg-installer/ffmpeg": "^1.1.0",
         "@iarna/rtf-to-html": "^1.1.0",
         "@mistralai/mistralai": "^1.2.0",
         "@sec-ant/readable-stream": "^0.6.0",
@@ -200,11 +191,7 @@
         "electron-squirrel-startup": "^1.0.0",
         "electron-store": "^8.1.0",
         "electron-updater": "^6.1.7",
-        "ffmpeg-static": "^5.2.0",
-        "ffprobe": "^1.1.2",
-        "ffprobe-static": "^3.1.0",
         "file-type": "^19.6.0",
-        "fluent-ffmpeg": "^2.1.3",
         "form-data": "^4.0.0",
         "formdata-node": "^6.0.3",
         "formdata-polyfill": "^4.0.10",
@@ -214,10 +201,11 @@
         "mammoth": "^1.9.0",
         "node-cache": "^5.1.2",
         "node-fetch": "^3.3.2",
+        "node-fetch-commonjs": "^3.3.2",
         "node-machine-id": "^1.1.12",
         "office-text-extractor": "^3.0.3",
         "officeparser": "^5.0.0",
-        "openai": "^4.28.0",
+        "openai": "^4.98.0",
         "p-limit": "^3.1.0",
         "pdf-lib": "^1.17.1",
         "pdf-parse": "^1.1.1",
@@ -258,7 +246,6 @@
         "jest": "^29.7.0",
         "jsdom": "^25.0.1",
         "lint-staged": "^13.1.0",
-        "node-fetch-commonjs": "^3.3.2",
         "path-browserify": "^1.0.1",
         "png-to-ico": "^2.1.8",
         "sass": "^1.79.4"

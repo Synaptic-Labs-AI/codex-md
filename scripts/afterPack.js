@@ -4,10 +4,9 @@
  * This script runs after electron-builder packages the app but before creating installers
  *
  * Responsibilities:
- * - Verify FFmpeg and FFprobe binaries are correctly unpacked and accessible
- * - Check binary permissions and executability across platforms
- * - Implement corrective actions for common FFmpeg issues
- * - Verify critical files exist in the packaged app
+ * - Ensure critical module files are available in both src and build paths
+ * - Create additional fallbacks for ESM modules (node-fetch)
+ * - Verify static assets and frontend files are correctly copied
  * - Validate extraResources were properly copied
  * - Log detailed information about the packaged application
  */
@@ -161,282 +160,13 @@ exports.default = async function(context) {
     } else {
       resourcesDir = path.join(appOutDir, 'resources');
     }
-    
+
     console.log(`📁 Resources directory: ${resourcesDir}`);
-    
+
     // Ensure resources directory exists
     await fs.ensureDir(resourcesDir);
     console.log(`✅ Resources directory created/verified`);
 
-    // Verify FFmpeg binaries based on platform
-    console.log('🔍 Performing verification of FFmpeg binaries...');
-    
-    // Log installed FFmpeg packages for reference
-    const ffmpegPackages = [
-      '@ffmpeg-installer/win32-x64',
-      '@ffmpeg-installer/darwin-x64',
-      '@ffmpeg-installer/linux-x64',
-      'ffmpeg-static',
-      '@ffmpeg-installer/ffmpeg'
-    ];
-    
-    for (const pkg of ffmpegPackages) {
-      try {
-        const pkgPath = require.resolve(`${pkg}/package.json`);
-        const pkgInfo = require(pkgPath);
-        console.log(`  Found ${pkg} v${pkgInfo.version} at ${path.dirname(pkgPath)}`);
-      } catch (e) {
-        console.log(`  Package ${pkg} not found or not accessible`);
-      }
-    }
-    
-    // Define binary paths based on platform
-    let ffmpegPath, ffprobePath;
-    let ffmpegTestArgs = '-version';
-    let ffprobeTestArgs = '-version';
-    
-    if (isWindows) {
-      ffmpegPath = path.join(resourcesDir, 'ffmpeg.exe');
-      ffprobePath = path.join(resourcesDir, 'ffprobe.exe');
-    } else if (isMacOS) {
-      ffmpegPath = path.join(resourcesDir, 'ffmpeg');
-      ffprobePath = path.join(resourcesDir, 'ffprobe');
-    } else if (isLinux) {
-      ffmpegPath = path.join(resourcesDir, 'ffmpeg');
-      ffprobePath = path.join(resourcesDir, 'ffprobe');
-    }
-    
-    // Check for alternative locations if primary location doesn't exist
-    const alternativeLocations = [
-      path.join(resourcesDir, 'node_modules', 'ffmpeg-static'),
-      path.join(resourcesDir, 'node_modules', '@ffmpeg-installer', 'ffmpeg', 'bin'),
-      path.join(resourcesDir, 'bin')
-    ];
-    
-    // Verify FFmpeg binary
-    console.log(`🔍 Checking FFmpeg binary at ${ffmpegPath}...`);
-    let ffmpegDetails = await getFileDetails(ffmpegPath);
-    
-    if (!ffmpegDetails) {
-      console.warn(`⚠️ FFmpeg not found at primary location: ${ffmpegPath}`);
-      
-      // Check alternative locations
-      for (const altLocation of alternativeLocations) {
-        const altPath = isWindows
-          ? path.join(altLocation, 'ffmpeg.exe')
-          : path.join(altLocation, 'ffmpeg');
-          
-        console.log(`  Checking alternative location: ${altPath}`);
-        ffmpegDetails = await getFileDetails(altPath);
-        
-        if (ffmpegDetails) {
-          console.log(`✅ Found FFmpeg at alternative location: ${altPath}`);
-          ffmpegPath = altPath;
-          break;
-        }
-      }
-      
-      if (!ffmpegDetails) {
-        console.error('❌ FFmpeg binary not found in any expected location!');
-        
-        // List all files in resources directory to help diagnose
-        try {
-          const files = await fs.readdir(resourcesDir);
-          console.log(`  Resources directory contents: ${files.join(', ')}`);
-        } catch (readError) {
-          console.warn(`⚠️ Error reading resources directory: ${readError.message}`);
-        }
-      }
-    }
-    
-    // If FFmpeg was found, verify it's properly executable
-    if (ffmpegDetails) {
-      console.log(`✅ FFmpeg binary found:`);
-      console.log(`  Path: ${ffmpegDetails.path}`);
-      console.log(`  Size: ${ffmpegDetails.size} bytes`);
-      console.log(`  Permissions: ${ffmpegDetails.permissions}`);
-      console.log(`  Last modified: ${ffmpegDetails.lastModified}`);
-      console.log(`  Is executable: ${ffmpegDetails.isExecutable}`);
-      
-      // For macOS and Linux, ensure executable permissions
-      if ((isMacOS || isLinux) && !ffmpegDetails.isExecutable) {
-        console.log('⚠️ FFmpeg binary is not executable, attempting to set permissions...');
-        await setExecutablePermissions(ffmpegPath);
-        
-        // Re-check after setting permissions
-        ffmpegDetails = await getFileDetails(ffmpegPath);
-        console.log(`  Updated executable status: ${ffmpegDetails?.isExecutable}`);
-      }
-      
-      // Test if FFmpeg can actually run
-      console.log('🔍 Testing FFmpeg execution...');
-      const ffmpegExecutable = await testBinaryExecution(ffmpegPath, ffmpegTestArgs);
-      
-      if (!ffmpegExecutable) {
-        console.error('❌ FFmpeg binary exists but failed execution test!');
-        console.log('  This may indicate a corrupted binary or missing dependencies.');
-        
-        // Attempt corrective action - try to copy from node_modules if available
-        console.log('🔧 Attempting corrective action...');
-        try {
-          const nodeModulesPath = path.join(process.cwd(), 'node_modules');
-          let sourcePath = null;
-          
-          // Try to find a working copy in node_modules
-          for (const pkg of ['ffmpeg-static', '@ffmpeg-installer/ffmpeg']) {
-            try {
-              const pkgPath = require.resolve(`${pkg}/package.json`);
-              const pkgDir = path.dirname(pkgPath);
-              
-              if (isWindows) {
-                sourcePath = path.join(pkgDir, 'bin', 'ffmpeg.exe');
-              } else {
-                sourcePath = path.join(pkgDir, 'bin', 'ffmpeg');
-              }
-              
-              if (await safePathExists(sourcePath)) {
-                console.log(`  Found potential source at: ${sourcePath}`);
-                break;
-              }
-            } catch (e) {
-              // Continue to next package
-            }
-          }
-          
-          if (sourcePath && await safePathExists(sourcePath)) {
-            await safeCopyFile(sourcePath, ffmpegPath);
-            
-            // Set executable permissions if needed
-            if (isMacOS || isLinux) {
-              await setExecutablePermissions(ffmpegPath);
-            }
-            
-            // Test again after copy
-            console.log('🔍 Re-testing FFmpeg after corrective action...');
-            const retestResult = await testBinaryExecution(ffmpegPath, ffmpegTestArgs);
-            
-            if (retestResult) {
-              console.log('✅ Corrective action successful! FFmpeg is now working.');
-            } else {
-              console.error('❌ Corrective action failed. FFmpeg still not working.');
-            }
-          } else {
-            console.warn('⚠️ No viable source found for corrective action.');
-          }
-        } catch (correctionError) {
-          console.error(`❌ Error during corrective action: ${correctionError.message}`);
-        }
-      }
-    }
-    
-    // Verify FFprobe binary
-    console.log(`🔍 Checking FFprobe binary at ${ffprobePath}...`);
-    let ffprobeDetails = await getFileDetails(ffprobePath);
-    
-    if (!ffprobeDetails) {
-      console.warn(`⚠️ FFprobe not found at primary location: ${ffprobePath}`);
-      
-      // Check alternative locations
-      for (const altLocation of alternativeLocations) {
-        const altPath = isWindows
-          ? path.join(altLocation, 'ffprobe.exe')
-          : path.join(altLocation, 'ffprobe');
-          
-        console.log(`  Checking alternative location: ${altPath}`);
-        ffprobeDetails = await getFileDetails(altPath);
-        
-        if (ffprobeDetails) {
-          console.log(`✅ Found FFprobe at alternative location: ${altPath}`);
-          ffprobePath = altPath;
-          break;
-        }
-      }
-      
-      if (!ffprobeDetails) {
-        console.error('❌ FFprobe binary not found in any expected location!');
-      }
-    }
-    
-    // If FFprobe was found, verify it's properly executable
-    if (ffprobeDetails) {
-      console.log(`✅ FFprobe binary found:`);
-      console.log(`  Path: ${ffprobeDetails.path}`);
-      console.log(`  Size: ${ffprobeDetails.size} bytes`);
-      console.log(`  Permissions: ${ffprobeDetails.permissions}`);
-      console.log(`  Last modified: ${ffprobeDetails.lastModified}`);
-      console.log(`  Is executable: ${ffprobeDetails.isExecutable}`);
-      
-      // For macOS and Linux, ensure executable permissions
-      if ((isMacOS || isLinux) && !ffprobeDetails.isExecutable) {
-        console.log('⚠️ FFprobe binary is not executable, attempting to set permissions...');
-        await setExecutablePermissions(ffprobePath);
-        
-        // Re-check after setting permissions
-        ffprobeDetails = await getFileDetails(ffprobePath);
-        console.log(`  Updated executable status: ${ffprobeDetails?.isExecutable}`);
-      }
-      
-      // Test if FFprobe can actually run
-      console.log('🔍 Testing FFprobe execution...');
-      const ffprobeExecutable = await testBinaryExecution(ffprobePath, ffprobeTestArgs);
-      
-      if (!ffprobeExecutable) {
-        console.error('❌ FFprobe binary exists but failed execution test!');
-        console.log('  This may indicate a corrupted binary or missing dependencies.');
-        
-        // Attempt corrective action - try to copy from node_modules if available
-        console.log('🔧 Attempting corrective action...');
-        try {
-          const nodeModulesPath = path.join(process.cwd(), 'node_modules');
-          let sourcePath = null;
-          
-          // Try to find a working copy in node_modules
-          for (const pkg of ['ffmpeg-static', '@ffmpeg-installer/ffmpeg']) {
-            try {
-              const pkgPath = require.resolve(`${pkg}/package.json`);
-              const pkgDir = path.dirname(pkgPath);
-              
-              if (isWindows) {
-                sourcePath = path.join(pkgDir, 'bin', 'ffprobe.exe');
-              } else {
-                sourcePath = path.join(pkgDir, 'bin', 'ffprobe');
-              }
-              
-              if (await safePathExists(sourcePath)) {
-                console.log(`  Found potential source at: ${sourcePath}`);
-                break;
-              }
-            } catch (e) {
-              // Continue to next package
-            }
-          }
-          
-          if (sourcePath && await safePathExists(sourcePath)) {
-            await safeCopyFile(sourcePath, ffprobePath);
-            
-            // Set executable permissions if needed
-            if (isMacOS || isLinux) {
-              await setExecutablePermissions(ffprobePath);
-            }
-            
-            // Test again after copy
-            console.log('🔍 Re-testing FFprobe after corrective action...');
-            const retestResult = await testBinaryExecution(ffprobePath, ffprobeTestArgs);
-            
-            if (retestResult) {
-              console.log('✅ Corrective action successful! FFprobe is now working.');
-            } else {
-              console.error('❌ Corrective action failed. FFprobe still not working.');
-            }
-          } else {
-            console.warn('⚠️ No viable source found for corrective action.');
-          }
-        } catch (correctionError) {
-          console.error(`❌ Error during corrective action: ${correctionError.message}`);
-        }
-      }
-    }
-    
     // Check if resources directory is writable
     try {
       const testFile = path.join(resourcesDir, 'write-test.tmp');
@@ -445,6 +175,441 @@ exports.default = async function(context) {
       console.log('✅ Resources directory is writable');
     } catch (writeError) {
       console.warn('⚠️ Resources directory may not be writable:', writeError.message);
+    }
+
+    // Define critical modules that need to be available in both src and build paths
+    console.log('🔄 Ensuring critical modules are available in both src and build paths');
+
+    // Determine app directory structure
+    let appDir;
+    if (isWindows) {
+      // For Windows, check in resources/app.asar or resources/app
+      appDir = path.join(appOutDir, 'resources', 'app.asar');
+      if (!await safePathExists(appDir)) {
+        appDir = path.join(appOutDir, 'resources', 'app');
+      }
+    } else if (isMacOS) {
+      // For macOS
+      appDir = path.join(appOutDir, packager.appInfo.productName + '.app', 'Contents', 'Resources', 'app.asar');
+      if (!await safePathExists(appDir)) {
+        appDir = path.join(appOutDir, packager.appInfo.productName + '.app', 'Contents', 'Resources', 'app');
+      }
+    } else {
+      // For Linux
+      appDir = path.join(appOutDir, 'resources', 'app.asar');
+      if (!await safePathExists(appDir)) {
+        appDir = path.join(appOutDir, 'resources', 'app');
+      }
+    }
+
+    console.log(`📁 Application directory: ${appDir}`);
+
+    // Define source and build directories
+    const srcDir = path.join(appDir, 'src', 'electron');
+    const buildDir = path.join(appDir, 'build', 'electron');
+
+    // Create these directories if they don't exist
+    await fs.ensureDir(srcDir);
+    await fs.ensureDir(buildDir);
+
+    console.log(`📁 Source directory: ${srcDir}`);
+    console.log(`📁 Build directory: ${buildDir}`);
+
+    // List of critical modules to ensure presence in both src and build directories
+    const criticalModules = [
+      {
+        name: 'ConverterRegistry.js',
+        category: 'services/conversion',
+        fallbackContent: `/**
+ * ConverterRegistry.js - Emergency Fallback Version
+ * This file was generated by the afterPack.js script as a fallback
+ */
+function ConverterRegistry() {
+  this.converters = {
+    pdf: {
+      convert: async (content, name, apiKey, options = {}) => {
+        console.log('[EmergencyRegistry] Using emergency PDF converter');
+        return {
+          success: true,
+          content: \`# Extracted from \${name || 'PDF document'}\n\nThis content was extracted using the emergency converter.\n\nThe application encountered an issue finding the correct converter module. Please report this issue.\`,
+          type: 'pdf',
+          metadata: { pages: 1, converter: 'emergency-fallback' }
+        };
+      },
+      validate: (input) => Buffer.isBuffer(input) || typeof input === 'string',
+      config: {
+        name: 'PDF Document (Emergency)',
+        extensions: ['.pdf'],
+        mimeTypes: ['application/pdf'],
+        maxSize: 25 * 1024 * 1024
+      }
+    }
+  };
+}
+
+ConverterRegistry.prototype.convertToMarkdown = async function(type, content, options = {}) {
+  console.log(\`[EmergencyRegistry] Converting \${type} document\`);
+  return {
+    success: true,
+    content: \`# Emergency Converter\n\nThis content was generated by an emergency fallback converter because the normal converter could not be loaded.\n\nPlease report this issue.\`,
+    metadata: { source: 'emergency-fallback' }
+  };
+};
+
+ConverterRegistry.prototype.getConverterByExtension = function(extension) {
+  console.log(\`[EmergencyRegistry] Looking up converter for: \${extension}\`);
+  if (extension === 'pdf') {
+    return this.converters.pdf;
+  }
+  return null;
+};
+
+module.exports = new ConverterRegistry();`
+      },
+      {
+        name: 'moduleResolver.js',
+        category: 'utils',
+        fallbackContent: `/**
+ * moduleResolver.js - Emergency Fallback Version
+ * This file was generated by the afterPack.js script as a fallback
+ */
+const path = require('path');
+const fs = require('fs-extra');
+const electron = require('electron');
+
+// Handle app access in both main and renderer process
+const app = electron.app || (electron.remote && electron.remote.app);
+
+class ModuleResolver {
+  static resolveModulePath(moduleName, category) {
+    console.log(\`🔍 [ModuleResolver] Resolving path for \${moduleName} in \${category}\`);
+
+    let appPath;
+    try {
+      appPath = app ? app.getAppPath() : process.cwd();
+    } catch (e) {
+      console.warn(\`⚠️ [ModuleResolver] Error getting app path: \${e.message}\`);
+      appPath = process.cwd();
+    }
+
+    // Build comprehensive search paths
+    const searchPaths = [
+      // Build paths (preferred)
+      path.join(appPath, 'build/electron', category, moduleName),
+
+      // Source paths
+      path.join(appPath, 'src/electron', category, moduleName),
+
+      // Resource paths for packaged app
+      path.join(process.resourcesPath || '', 'app/build/electron', category, moduleName),
+      path.join(process.resourcesPath || '', 'app/src/electron', category, moduleName),
+
+      // Relative paths from current module
+      path.join(__dirname, '..', category, moduleName),
+      path.join(__dirname, '../..', category, moduleName),
+
+      // Direct paths for known problematic modules
+      category === 'services/conversion' && moduleName === 'ConverterRegistry.js'
+        ? path.join(appPath, 'build/electron/services/conversion/ConverterRegistry.js')
+        : null,
+      category === 'services/conversion' && moduleName === 'ConverterRegistry.js'
+        ? path.join(appPath, 'src/electron/services/conversion/ConverterRegistry.js')
+        : null,
+
+      // Asar-specific paths
+      path.join(appPath.replace('app.asar', 'app'), 'build/electron', category, moduleName),
+      path.join(appPath.replace('app.asar', 'app'), 'src/electron', category, moduleName)
+    ].filter(Boolean); // Remove null entries
+
+    // Find first existing path
+    for (const searchPath of searchPaths) {
+      try {
+        const exists = fs.existsSync(searchPath);
+        if (exists) {
+          console.log(\`✅ [ModuleResolver] Found module at: \${searchPath}\`);
+          return searchPath;
+        }
+      } catch (error) {
+        console.warn(\`⚠️ [ModuleResolver] Error checking path \${searchPath}: \${error.message}\`);
+      }
+    }
+
+    // If no path found, return the most likely path
+    console.warn(\`⚠️ [ModuleResolver] No existing module found, returning default path\`);
+    return path.join(appPath, 'build/electron', category, moduleName);
+  }
+
+  static safeRequire(moduleName, category) {
+    const modulePath = this.resolveModulePath(moduleName, category);
+    console.log(\`🔄 [ModuleResolver] Requiring module from: \${modulePath}\`);
+
+    try {
+      const module = require(modulePath);
+      console.log(\`✅ [ModuleResolver] Successfully loaded module: \${moduleName}\`);
+      return module.default || module;
+    } catch (error) {
+      console.error(\`❌ [ModuleResolver] Failed to load module: \${moduleName} from \${modulePath}\`);
+      console.error(\`❌ [ModuleResolver] Error details: \${error.message}\`);
+
+      // Try one more approach - direct require
+      try {
+        if (category === 'services/conversion' && moduleName === 'ConverterRegistry.js') {
+          console.log(\`🔄 [ModuleResolver] Trying direct require for ConverterRegistry.js\`);
+          return require('../services/conversion/ConverterRegistry.js');
+        }
+      } catch (directError) {
+        console.warn(\`⚠️ [ModuleResolver] Direct require also failed: \${directError.message}\`);
+      }
+
+      // Rethrow the original error with more context
+      throw new Error(\`Failed to load module: \${moduleName} from \${modulePath}. Error: \${error.message}\`);
+    }
+  }
+
+  static getAllPaths(moduleName, category) {
+    let appPath;
+    try {
+      appPath = app ? app.getAppPath() : process.cwd();
+    } catch (e) {
+      appPath = process.cwd();
+    }
+
+    return [
+      // Build paths (preferred)
+      path.join(appPath, 'build/electron', category, moduleName),
+
+      // Source paths
+      path.join(appPath, 'src/electron', category, moduleName),
+
+      // Resource paths for packaged app
+      path.join(process.resourcesPath || '', 'app/build/electron', category, moduleName),
+      path.join(process.resourcesPath || '', 'app/src/electron', category, moduleName),
+
+      // Relative paths from current module
+      path.join(__dirname, '..', category, moduleName),
+      path.join(__dirname, '../..', category, moduleName),
+
+      // Asar-specific paths
+      path.join(appPath.replace('app.asar', 'app'), 'build/electron', category, moduleName),
+      path.join(appPath.replace('app.asar', 'app'), 'src/electron', category, moduleName)
+    ].filter(Boolean);
+  }
+}
+
+module.exports = { ModuleResolver };`
+      },
+      {
+        name: 'MistralApiClient.js',
+        category: 'services/conversion/document/mistral',
+        fallbackContent: `/**
+ * MistralApiClient.js - Emergency Fallback Version
+ * This file was generated by the afterPack.js script as a fallback
+ * with special handling for fetch compatibility
+ */
+
+const FormData = require('form-data');
+
+// Create compatibility layer for node-fetch
+let fetchModule = null;
+
+// Initialize fetch with CommonJS compatibility
+const initializeFetch = () => {
+  try {
+    // First try the CommonJS version
+    try {
+      fetchModule = require('node-fetch-commonjs');
+      console.log('[MistralApiClient] node-fetch-commonjs loaded successfully');
+      return Promise.resolve();
+    } catch (commonjsError) {
+      console.log('[MistralApiClient] node-fetch-commonjs not available, trying cross-fetch');
+
+      // Try cross-fetch as fallback (which is also CommonJS compatible)
+      try {
+        fetchModule = require('cross-fetch');
+        console.log('[MistralApiClient] cross-fetch loaded successfully');
+        return Promise.resolve();
+      } catch (crossFetchError) {
+        console.log('[MistralApiClient] cross-fetch not available, creating stub implementation');
+
+        // Create minimal fetch implementation as last resort
+        fetchModule = async (url, options = {}) => {
+          console.error('[MistralApiClient] Using stub fetch implementation - OCR WILL NOT WORK');
+          return {
+            ok: false,
+            status: 500,
+            statusText: 'Fetch Not Available',
+            text: async () => 'Fetch module not available',
+            json: async () => ({ error: { message: 'Fetch module not available' } })
+          };
+        };
+        return Promise.resolve();
+      }
+    }
+  } catch (error) {
+    console.error('[MistralApiClient] All fetch loading methods failed:', error);
+    return Promise.reject(error);
+  }
+};
+
+// Start loading immediately
+const fetchPromise = initializeFetch();
+
+class MistralApiClient {
+  constructor(config = {}) {
+    this.apiEndpoint = config.apiEndpoint || 'https://api.mistral.ai/v1/ocr';
+    this.apiKey = config.apiKey || '';
+    this.baseUrl = 'https://api.mistral.ai/v1';
+  }
+
+  setApiKey(apiKey) {
+    this.apiKey = apiKey;
+  }
+
+  isConfigured() {
+    return !!this.apiKey;
+  }
+
+  async fetch(url, options) {
+    if (!fetchModule) {
+      await fetchPromise;
+    }
+
+    if (fetchModule.default) {
+      return fetchModule.default(url, options);
+    } else {
+      return fetchModule(url, options);
+    }
+  }
+
+  async validateApiKey() {
+    try {
+      if (!this.apiKey) {
+        return { valid: false, error: 'API key not configured' };
+      }
+
+      const response = await this.fetch(\`\${this.baseUrl}/models\`, {
+        method: 'GET',
+        headers: {
+          'Authorization': \`Bearer \${this.apiKey}\`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        return { valid: true };
+      } else {
+        const responseText = await response.text();
+        let errorMessage = 'Invalid API key';
+        return { valid: false, error: errorMessage };
+      }
+    } catch (error) {
+      return { valid: false, error: error.message };
+    }
+  }
+
+  async processDocument(fileBuffer, fileName, options = {}) {
+    return {
+      success: false,
+      error: 'OCR functionality is not available due to missing fetch module',
+      content: '# OCR Not Available\\n\\nThe OCR module could not be initialized due to missing fetch module.',
+      textBlocks: []
+    };
+  }
+}
+
+module.exports = MistralApiClient;`
+      }
+    ];
+
+    // Process each critical module
+    for (const module of criticalModules) {
+      // Create full paths for both src and build
+      const srcPath = path.join(srcDir, module.category, module.name);
+      const buildPath = path.join(buildDir, module.category, module.name);
+
+      // Create directories if they don't exist
+      await fs.ensureDir(path.dirname(srcPath));
+      await fs.ensureDir(path.dirname(buildPath));
+
+      console.log(`🔍 Processing module: ${module.name} in ${module.category}`);
+
+      // Try to find existing module content in either location
+      let moduleContent = null;
+
+      // Search for existing module in src path
+      if (await safePathExists(srcPath)) {
+        try {
+          moduleContent = await fs.readFile(srcPath, 'utf8');
+          console.log(`✅ Found module in src path: ${srcPath}`);
+        } catch (readError) {
+          console.warn(`⚠️ Error reading module from src path: ${readError.message}`);
+        }
+      }
+
+      // If not found in src, try build path
+      if (!moduleContent && await safePathExists(buildPath)) {
+        try {
+          moduleContent = await fs.readFile(buildPath, 'utf8');
+          console.log(`✅ Found module in build path: ${buildPath}`);
+        } catch (readError) {
+          console.warn(`⚠️ Error reading module from build path: ${readError.message}`);
+        }
+      }
+
+      // If still not found, use fallback content
+      if (!moduleContent) {
+        console.log(`⚠️ Module not found in either location, using fallback content`);
+        moduleContent = module.fallbackContent;
+      }
+
+      // Make sure the module content exists
+      if (!moduleContent) {
+        console.error(`❌ No content available for module: ${module.name}`);
+        continue;
+      }
+
+      // Ensure module exists in both src and build locations
+      try {
+        await fs.writeFile(srcPath, moduleContent);
+        console.log(`✅ Ensured module exists in src location: ${srcPath}`);
+      } catch (writeError) {
+        console.error(`❌ Failed to write module to src location: ${writeError.message}`);
+      }
+
+      try {
+        await fs.writeFile(buildPath, moduleContent);
+        console.log(`✅ Ensured module exists in build location: ${buildPath}`);
+      } catch (writeError) {
+        console.error(`❌ Failed to write module to build location: ${writeError.message}`);
+      }
+    }
+
+    // Process node-fetch ESM compatibility issues
+    console.log('⚙️ Addressing ESM compatibility issues for node-fetch');
+
+    // Look for node_modules with special handling for node-fetch
+    const nodeModulesDir = path.join(appDir, 'node_modules');
+
+    if (await safePathExists(nodeModulesDir)) {
+      console.log('✅ Found node_modules directory');
+
+      // Check if the node-fetch-commonjs module exists
+      const nodeFetchCommonJsDir = path.join(nodeModulesDir, 'node-fetch-commonjs');
+      const crossFetchDir = path.join(nodeModulesDir, 'cross-fetch');
+
+      if (await safePathExists(nodeFetchCommonJsDir)) {
+        console.log('✅ node-fetch-commonjs module is present');
+      } else {
+        console.warn('⚠️ node-fetch-commonjs module is missing, will need fallback');
+      }
+
+      if (await safePathExists(crossFetchDir)) {
+        console.log('✅ cross-fetch module is present');
+      } else {
+        console.warn('⚠️ cross-fetch module is missing, will need fallback');
+      }
+    } else {
+      console.warn('⚠️ node_modules directory not found');
     }
 
     // Setup resource directories

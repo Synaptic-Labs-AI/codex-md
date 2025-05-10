@@ -14,7 +14,7 @@
   
   onMount(async () => {
     try {
-      const result = await window.electron.checkApiKeyExists('openai');
+      const result = await window.electron.checkApiKeyExists('deepgram');
       keyStatus.set({ exists: result.exists, valid: true });
     } catch (err) {
       console.error('Error checking API key:', err);
@@ -29,7 +29,7 @@
     
     try {
       // Save key without validation
-      const result = await window.electron.saveApiKey(apiKey);
+      const result = await window.electron.saveApiKey(apiKey, 'deepgram');
       if (!result.success) {
         throw new Error(result.error || 'Failed to save API key');
       }
@@ -47,7 +47,7 @@
   
   async function deleteApiKey() {
     try {
-      await window.electron.deleteApiKey('openai');
+      await window.electron.deleteApiKey('deepgram');
       keyStatus.set({ exists: false, valid: false });
     } catch (e) {
       error = e.message;
@@ -75,7 +75,7 @@
         <input
           type="text"
           class="api-key-input"
-          placeholder="Enter your OpenAI API Key (sk-...)"
+          placeholder="Enter your Deepgram API Key"
           bind:value={apiKey}
           class:error={!!error}
         />
@@ -83,7 +83,7 @@
         <input
           type="password"
           class="api-key-input"
-          placeholder="Enter your OpenAI API Key (sk-...)"
+          placeholder="Enter your Deepgram API Key"
           bind:value={apiKey}
           class:error={!!error}
         />
@@ -115,12 +115,12 @@
       <p class="error-message" transition:slide={{ duration: 200 }}>{error}</p>
     {/if}
     
-    <Accordion title="How to get an OpenAI API key" icon="ℹ️">
+    <Accordion title="How to get a Deepgram API key" icon="ℹ️">
       <div class="api-key-info">
         <ol>
-          <li>Go to <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API Keys</a></li>
+          <li>Go to <a href="https://console.deepgram.com/signup" target="_blank" rel="noopener noreferrer">Deepgram Console</a></li>
           <li>Sign in or create an account</li>
-          <li>Create a new secret key</li>
+          <li>Create a new API key</li>
           <li>Copy and paste it here</li>
         </ol>
         <p class="note">Your API key is stored securely on your device and is only used for transcription services.</p>

@@ -297,9 +297,9 @@ p { margin: 0 0 var(--spacing-md); }
   }
 }
 
-/* Dark Mode */
+/* Dark Mode - System Preference */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.theme-light):not(.theme-dark) {
     --color-surface: #1a1a1a;
     --color-background: #2c2c2c;
     --color-text: #f0f0f0;
@@ -309,6 +309,31 @@ p { margin: 0 0 var(--spacing-md); }
     --color-prime: #00c4b4;
     --color-second: #b42eac;
   }
+}
+
+/* Dark Theme - Explicit User Choice */
+:root.theme-dark,
+.theme-dark-body {
+  --color-surface: #1a1a1a;
+  --color-background: #2c2c2c;
+  --color-text: #f0f0f0;
+  --color-text-light: rgba(240, 240, 240, 0.7);
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-prime: #00c4b4;
+  --color-second: #b42eac;
+}
+
+/* Light Theme - Explicit User Choice */
+:root.theme-light,
+.theme-light-body {
+  --color-surface: #fbf7f1;
+  --color-background: #fbf7f1;
+  --color-text: #333333;
+  --color-text-light: rgba(51, 51, 51, 0.7);
+  --color-text-on-dark: #ffffff;
+  --color-prime: #00A99D;
+  --color-second: #93278F;
+  --color-border: rgba(0, 0, 0, 0.1);
 }
 
 /* Utility Classes */

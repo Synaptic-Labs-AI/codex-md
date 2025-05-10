@@ -22,7 +22,7 @@ const isBrowser = typeof window !== 'undefined';
 // Initial state
 const initialState = {
   keys: {
-    openai: '',
+    deepgram: '',
     mistral: ''
   },
   isInitialized: false,
@@ -49,14 +49,14 @@ async function initializeStore() {
     window.electron.onReady(async () => {
       try {
         // Check existing keys
-        const [openaiExists, mistralExists] = await Promise.all([
-          window.electron.checkApiKeyExists('openai'),
+        const [deepgramExists, mistralExists] = await Promise.all([
+          window.electron.checkApiKeyExists('deepgram'),
           window.electron.checkApiKeyExists('mistral')
         ]);
 
         // Get keys if they exist
         const keys = {
-          openai: openaiExists.exists ? (await window.electron.getApiKey('openai')).key || '' : '',
+          deepgram: deepgramExists.exists ? (await window.electron.getApiKey('deepgram')).key || '' : '',
           mistral: mistralExists.exists ? (await window.electron.getApiKey('mistral')).key || '' : ''
         };
 
@@ -91,12 +91,12 @@ if (isBrowser) {
 }
 
 // Helper functions with electron integration
-export async function getApiKey(provider = 'openai') {
+export async function getApiKey(provider = 'deepgram') {
   const state = get(apiKeyStore);
   return state.keys[provider] || '';
 }
 
-export async function setApiKey(key, provider = 'openai') {
+export async function setApiKey(key, provider = 'deepgram') {
   if (!isBrowser || !window?.electron) return;
 
   try {
@@ -131,12 +131,12 @@ export const apiKeyError = derived(
   $store => $store.error
 );
 
-// For backward compatibility
+// For backward compatibility with older components that expect 'apiKey'
 export const apiKey = {
   subscribe: callback => {
-    return apiKeyStore.subscribe(state => callback(state.keys.openai || ''));
+    return apiKeyStore.subscribe(state => callback(state.keys.deepgram || ''));
   },
-  set: value => setApiKey(value, 'openai')
+  set: value => setApiKey(value, 'deepgram')
 };
 
 // Export store for direct subscription

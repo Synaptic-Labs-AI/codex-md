@@ -2,13 +2,77 @@ console.log(`[DEBUG] Running Node.js version in main process: ${process.versions
 /**
  * Electron Main Process
  * Entry point for the Electron application.
- * 
+ *
  * Handles:
  * - Window management
  * - IPC communication setup
  * - Protocol registration
  * - App lifecycle
  */
+
+/**
+ * MODULE RESOLUTION FIX:
+ * This patch intercepts Node.js module loading to fix path resolution issues in packaged apps.
+ * It ensures "src" paths correctly resolve to "build" paths for compiled code.
+ * Specifically fixes the ConverterRegistry.js module loading in the PDF converter.
+ */
+try {
+  // Access the Node.js module system
+  const Module = require('module');
+  const originalResolveFilename = Module._resolveFilename;
+
+  // Create path mappings for the resolver
+  const pathMappings = {
+    // Map specific src paths to build paths
+    '\\resources\\app.asar\\src\\electron\\': '\\resources\\app.asar\\build\\electron\\',
+    '/resources/app.asar/src/electron/': '/resources/app.asar/build/electron/',
+  };
+
+  // Only install the override once
+  if (!Module._originalResolveFilename) {
+    // Store the original for restoration if needed
+    Module._originalResolveFilename = originalResolveFilename;
+
+    // Replace with our patched version
+    Module._resolveFilename = function(request, parent, isMain, options) {
+      try {
+        // Check if the request matches any of our problematic patterns
+        let modifiedRequest = request;
+
+        // Apply pattern replacements
+        for (const [pattern, replacement] of Object.entries(pathMappings)) {
+          if (typeof request === 'string' && request.includes(pattern)) {
+            const newPath = request.replace(pattern, replacement);
+            console.log(`🔄 [ModuleRedirect] ${request} -> ${newPath}`);
+            modifiedRequest = newPath;
+            break;
+          }
+        }
+
+        // Special handling for ConverterRegistry.js
+        if (typeof request === 'string' &&
+            request.includes('src') &&
+            request.includes('ConverterRegistry.js')) {
+          const buildPath = request.replace(/src[\\\/]electron/, 'build/electron')
+                                 .replace(/src\\electron/, 'build\\electron');
+          console.log(`⚠️ [ModuleRedirect] ConverterRegistry.js special handling: ${buildPath}`);
+          modifiedRequest = buildPath;
+        }
+
+        // Call the original resolver with our possibly modified path
+        return originalResolveFilename.call(this, modifiedRequest, parent, isMain, options);
+      } catch (error) {
+        console.warn(`⚠️ [ModuleRedirect] Error in resolver override: ${error.message}`);
+        // Fall back to original behavior
+        return originalResolveFilename.call(this, request, parent, isMain, options);
+      }
+    };
+
+    console.log('🔧 [ModuleRedirect] Node.js module resolution override installed');
+  }
+} catch (error) {
+  console.warn('⚠️ [ModuleRedirect] Failed to install module resolution override:', error.message);
+}
 
 const { app, BrowserWindow, protocol } = require('electron');
 const path = require('path');
@@ -24,8 +88,8 @@ const NotificationManager = require('./features/notifications');
 const UpdateManager = require('./features/updater');
 const { createStore } = require('./utils/storeFactory');
 const ApiKeyService = require('./services/ApiKeyService'); // Import ApiKeyService
-// Import the singleton instance by destructuring the exported object
-const { instance: openAIProxyServiceInstance } = require('./services/ai/OpenAIProxyService'); 
+// Create settings store for retrieving Deepgram API key
+const settingsStore = createStore('settings');
 
 // Keep a global reference of objects
 let mainWindow;
@@ -134,24 +198,25 @@ async function initializeApp() {
   try {
     // Initialize API Key Service early
     const apiKeyServiceInstance = ApiKeyService; // Assuming singleton export
-    // OpenAIProxyService instance is already created via singleton pattern
-
-    // Attempt to configure the shared OpenAI Proxy instance on startup if key exists
-    const storedOpenAIKey = apiKeyServiceInstance.getApiKey('openai');
-    if (storedOpenAIKey) {
-      console.log('[Startup] Found stored OpenAI key, attempting to configure OpenAIProxyService...');
+    // Try to configure Deepgram on startup if key exists
+    const deepgramApiKey = settingsStore.get('transcription.deepgramApiKey');
+    if (deepgramApiKey) {
+      console.log('[Startup] Found stored Deepgram API key, attempting to configure DeepgramService...');
       try {
-        const configureResult = await openAIProxyServiceInstance.handleConfigure(null, { apiKey: storedOpenAIKey });
-        if (configureResult.success) {
-          console.log('[Startup] OpenAIProxyService configured successfully on startup.');
+        // Import the DeepgramService
+        const deepgramService = require('./services/ai/DeepgramService');
+        // Configure with the API key
+        const configResult = await deepgramService.handleConfigure(null, { apiKey: deepgramApiKey });
+        if (configResult.success) {
+          console.log('[Startup] DeepgramService configured successfully on startup.');
         } else {
-          console.warn('[Startup] OpenAIProxyService configuration failed on startup.');
+          console.warn('[Startup] DeepgramService configuration failed on startup.');
         }
       } catch (configError) {
-        console.error('[Startup] Error configuring OpenAIProxyService on startup:', configError);
+        console.error('[Startup] Error configuring DeepgramService on startup:', configError);
       }
     } else {
-      console.log('[Startup] No stored OpenAI key found.');
+      console.log('[Startup] No stored Deepgram API key found.');
     }
 
     // Initialize update manager

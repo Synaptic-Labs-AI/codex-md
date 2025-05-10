@@ -107,75 +107,24 @@ function getPathsToCheck(binaryName, isProduction, customPaths = []) {
         paths.push(...customPaths);
     }
     
-    // Production paths
+    // Production paths - FFmpeg and FFprobe are no longer required
     if (isProduction) {
-        // 1. Check resources directory (extraResources destination)
-        if (process.resourcesPath) {
-            paths.push(path.join(process.resourcesPath, binaryName));
-        }
-        
-        // 2. Check app.asar.unpacked paths
-        const appPath = app ? app.getAppPath() : null;
-        if (appPath) {
-            // For asar-packaged apps
-            const unpacked = appPath.replace('app.asar', 'app.asar.unpacked');
-            paths.push(path.join(unpacked, 'node_modules', '@ffmpeg-installer', 'win32-x64', binaryName));
-            paths.push(path.join(unpacked, 'node_modules', 'ffprobe-static', 'bin', platform, 'x64', binaryName));
-            
-            // Also check the regular app path
-            paths.push(path.join(appPath, 'node_modules', '@ffmpeg-installer', 'win32-x64', binaryName));
-            paths.push(path.join(appPath, 'node_modules', 'ffprobe-static', 'bin', platform, 'x64', binaryName));
-        }
+        console.log('[BinaryPathResolver] FFmpeg and FFprobe binaries are no longer required in production');
     }
     
     // Development paths
     if (!isProduction) {
         try {
-            // For ffmpeg
-            if (binaryName.includes('ffmpeg')) {
-                try {
-                    const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-                    paths.push(ffmpegInstaller.path);
-                } catch (e) {
-                    console.error('[BinaryPathResolver] Failed to require @ffmpeg-installer/ffmpeg', e);
-                }
-            }
+            // FFmpeg and FFprobe are no longer required for the application
+            console.log('[BinaryPathResolver] FFmpeg and FFprobe are no longer required');
             
-            // For ffprobe
-            if (binaryName.includes('ffprobe')) {
-                try {
-                    const ffprobeStatic = require('ffprobe-static');
-                    paths.push(ffprobeStatic.path);
-                } catch (e) {
-                    console.error('[BinaryPathResolver] Failed to require ffprobe-static', e);
-                }
-            }
-            
-            // Check node_modules directly
-            const projectRoot = path.resolve(__dirname, '..', '..', '..');
-            paths.push(path.join(projectRoot, 'node_modules', '@ffmpeg-installer', 'win32-x64', binaryName));
-            paths.push(path.join(projectRoot, 'node_modules', 'ffprobe-static', 'bin', platform, 'x64', binaryName));
+            // FFmpeg and FFprobe paths are no longer needed
         } catch (error) {
             console.error('[BinaryPathResolver] Error resolving development paths:', error);
         }
     }
     
-    // Platform-specific system paths
-    if (platform === 'win32') {
-        // Windows system paths
-        paths.push(path.join(process.env.ProgramFiles || 'C:\\Program Files', 'ffmpeg', 'bin', binaryName));
-        paths.push(path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'ffmpeg', 'bin', binaryName));
-    } else if (platform === 'darwin') {
-        // macOS system paths
-        paths.push(`/usr/local/bin/${binaryName}`);
-        paths.push(`/opt/homebrew/bin/${binaryName}`);
-        paths.push(`/opt/local/bin/${binaryName}`);
-    } else {
-        // Linux system paths
-        paths.push(`/usr/bin/${binaryName}`);
-        paths.push(`/usr/local/bin/${binaryName}`);
-        paths.push(`/opt/bin/${binaryName}`);
-    }
+    // No system paths needed as FFmpeg and FFprobe are no longer required
     
     // Log all paths we're going to check
     console.log(`[BinaryPathResolver] Paths to check for ${binaryName}:`, paths);

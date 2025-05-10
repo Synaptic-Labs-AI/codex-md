@@ -46,7 +46,8 @@ console.log('📄 Initialized with file handling:', {
   fileConfig: CONVERTER_CONFIG
 });
 
-// Import UnifiedConverterFactory
+// Import ModuleResolver and UnifiedConverterFactory
+const { ModuleResolver } = require('../utils/moduleResolver');
 const unifiedConverterFactory = require('../converters/UnifiedConverterFactory');
 
 // Initialize the converter factory
@@ -54,24 +55,23 @@ unifiedConverterFactory.initialize().catch(error => {
   console.error('❌ Failed to initialize converter factory:', error);
 });
 
-// Function to get correct converter registry path for CommonJS
+// Function to get correct converter registry path using ModuleResolver
 const getConverterRegistryPath = () => {
-  // In development
-  if (process.env.NODE_ENV === 'development') {
-    return path.join(__dirname, 'conversion/ConverterRegistry.js');
-  }
-  // In production
-  return path.join(app.getAppPath(), 'src/electron/services/conversion/ConverterRegistry.js');
+  console.log('📂 Getting converter registry path using ModuleResolver');
+  return ModuleResolver.resolveModulePath('ConverterRegistry.js', 'services/conversion');
 };
 
-// Initialize converters using CommonJS require
+// Initialize converters using ModuleResolver
 (function() {
   try {
     console.log('🔄 [VERBOSE] Starting converters initialization');
     console.time('🕒 [VERBOSE] Converters initialization time');
     
+    console.log('🔄 [VERBOSE] Using ModuleResolver to find ConverterRegistry.js');
     const converterRegistryPath = getConverterRegistryPath();
     console.log('🔍 [VERBOSE] Loading converter registry from path:', converterRegistryPath);
+    
+    // Log environment details
     console.log('🔍 [VERBOSE] Environment details:', {
       environment: process.env.NODE_ENV || 'unknown',
       appPath: app.getAppPath(),
@@ -97,14 +97,14 @@ const getConverterRegistryPath = () => {
       });
     }
     
-    // Use CommonJS require instead of dynamic import
-    console.log('🔄 [VERBOSE] Using CommonJS require for converter registry');
+    // Use ModuleResolver to safely require the converter registry
+    console.log('🔄 [VERBOSE] Using ModuleResolver.safeRequire for ConverterRegistry');
     
     let converterRegistryModule;
     try {
-      // Try the primary path first
-      converterRegistryModule = require(converterRegistryPath);
-      console.log('📦 [VERBOSE] Require successful. Module structure:', {
+      // Use our ModuleResolver to load the module
+      converterRegistryModule = ModuleResolver.safeRequire('ConverterRegistry.js', 'services/conversion');
+      console.log('📦 [VERBOSE] ModuleResolver successful. Module structure:', {
         keys: Object.keys(converterRegistryModule),
         hasConverterRegistry: 'ConverterRegistry' in converterRegistryModule,
         hasDefaultExport: 'default' in converterRegistryModule,
@@ -112,24 +112,24 @@ const getConverterRegistryPath = () => {
           `${key}: ${typeof value}${value && typeof value === 'object' ? ` with keys [${Object.keys(value).join(', ')}]` : ''}`
         )
       });
-    } catch (requireError) {
-      console.error('❌ [VERBOSE] Require failed with error:', requireError);
-      console.log('🔍 [VERBOSE] Require error details:', {
-        name: requireError.name,
-        message: requireError.message,
-        stack: requireError.stack,
-        code: requireError.code,
+    } catch (error) {
+      console.error('❌ [VERBOSE] Module loading failed with error:', error);
+      console.log('🔍 [VERBOSE] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
         path: converterRegistryPath
       });
       
-      // Try the direct path as a fallback
-      console.log('🔄 [VERBOSE] Trying direct path as fallback');
+      // Try fallback to direct require as a last resort
       try {
-        converterRegistryModule = require(path.join(__dirname, 'conversion', 'ConverterRegistry.js'));
-        console.log('✅ [VERBOSE] Direct path require successful');
+        console.log('🔄 [VERBOSE] Trying direct require as fallback');
+        converterRegistryModule = require(converterRegistryPath);
+        console.log('✅ [VERBOSE] Direct require successful');
       } catch (directError) {
-        console.error('❌ [VERBOSE] Direct path require also failed:', directError.message);
-        throw new Error(`Could not load ConverterRegistry: ${requireError.message}`);
+        console.error('❌ [VERBOSE] All module loading attempts failed:', directError.message);
+        throw new Error(`Could not load ConverterRegistry: ${error.message}`);
       }
     }
     

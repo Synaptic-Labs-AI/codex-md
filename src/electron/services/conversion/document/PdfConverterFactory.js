@@ -21,16 +21,15 @@ const StandardPdfConverter = require('./StandardPdfConverter');
 const MistralPdfConverter = require('./MistralPdfConverter');
 
 class PdfConverterFactory {
-    constructor(fileProcessor, fileStorage, openAIProxy) {
+    constructor(fileProcessor, fileStorage) {
         this.fileProcessor = fileProcessor;
         this.fileStorage = fileStorage;
-        this.openAIProxy = openAIProxy;
         this.supportedExtensions = ['.pdf'];
         
         // Create converter instances - pass true for skipHandlerSetup
         // This prevents duplicate IPC handler registration when used through the factory
         this.standardConverter = new StandardPdfConverter(fileProcessor, fileStorage, true);
-        this.mistralConverter = new MistralPdfConverter(fileProcessor, fileStorage, openAIProxy, true);
+        this.mistralConverter = new MistralPdfConverter(fileProcessor, fileStorage, null, true);
     }
 
     /**
@@ -214,7 +213,7 @@ class PdfConverterFactory {
             // If Mistral API key is provided in options, set it on the converter
             if (options.mistralApiKey && this.mistralConverter) {
                 console.log('[PdfConverterFactory] Setting Mistral API key from options');
-                this.mistralConverter.apiKey = options.mistralApiKey;
+                this.mistralConverter.setApiKey(options.mistralApiKey);
             }
             
             const converter = await this.getConverter(filePath, options);

@@ -257,8 +257,7 @@ ConverterRegistry.prototype.setupConverters = function() {
         // Import converters from the new location
         const CsvConverter = require('./data/CsvConverter');
         const XlsxConverter = require('./data/XlsxConverter');
-        const AudioConverter = require('./multimedia/AudioConverter');
-        const VideoConverter = require('./multimedia/VideoConverter');
+        const MediaConverter = require('./multimedia/MediaConverter');
         const PdfFactory = require('./document/PdfConverterFactory');
         const DocxConverter = require('./document/DocxConverter');
         const PptxConverter = require('./document/PptxConverter');
@@ -268,16 +267,13 @@ ConverterRegistry.prototype.setupConverters = function() {
         // Import singleton service instances
         const fileProcessorServiceInstance = require('../storage/FileProcessorService');
         const fileStorageServiceInstance = require('../storage/FileStorageService');
-        const transcriberServiceInstance = require('../ai/TranscriberService');
-        // OpenAIProxyService singleton is already imported by TranscriberService
+        const deepgramServiceInstance = require('../ai/DeepgramService');
 
         // Create instances of converter classes, passing singleton dependencies
         const csvConverterInstance = new CsvConverter();
         const xlsxConverterInstance = new XlsxConverter();
         // Pass the singleton instances to the constructors
-        const audioConverterInstance = new AudioConverter(fileProcessorServiceInstance, transcriberServiceInstance, fileStorageServiceInstance);
-        // Pass the registry instance (this) to the VideoConverter constructor
-        const videoConverterInstance = new VideoConverter(this, fileProcessorServiceInstance, transcriberServiceInstance, fileStorageServiceInstance);
+        const mediaConverterInstance = new MediaConverter(this, fileProcessorServiceInstance, fileStorageServiceInstance);
         const pdfConverterFactory = new PdfFactory();
         const docxConverterInstance = new DocxConverter();
         const pptxConverterInstance = new PptxConverter();
@@ -485,166 +481,81 @@ ConverterRegistry.prototype.setupConverters = function() {
             }
         });
 
-        // Create standardized adapter for audio converters
-        // Create standardized adapter for audio converters
-        const audioAdapter = {
+        // Create standardized adapter for media converters (audio and video)
+        const mediaAdapter = {
             convert: async (content, name, apiKey, options) => {
                 try {
-                    console.log(`[AudioAdapter] Converting audio file: ${name}`);
-                    
+                    console.log(`[MediaAdapter] Converting media file: ${name}`);
+
                     // Ensure content is a Buffer
                     if (!Buffer.isBuffer(content)) {
-                        throw new Error('Audio content must be a Buffer');
+                        throw new Error('Media content must be a Buffer');
                     }
-                    
-                    // Create a temporary file to process the audio using the singleton service
-                    const tempDir = await fileStorageServiceInstance.createTempDir('audio_conversion'); 
-                    const tempFile = path.join(tempDir, `${name}_${Date.now()}.mp3`);
+
+                    // Create a temporary file to process the media
+                    const tempDir = await fileStorageServiceInstance.createTempDir('media_conversion');
+                    const tempFile = path.join(tempDir, `${name}_${Date.now()}${path.extname(name) || '.mp4'}`);
                     await fs.writeFile(tempFile, content);
-                    
-                    // Process the audio file using the AudioConverter
-                    const result = await audioConverterInstance.processConversion(
-                        `audio_${Date.now()}`,
-                        tempFile,
-                        {
+
+                    // Get deepgram API key from options or settings
+                    const deepgramApiKey = options.deepgramApiKey || '';
+
+                    // Process the media file using MediaConverter
+                    // Simulate an event object for the handler
+                    const mockEvent = { sender: { getOwnerBrowserWindow: () => null } };
+
+                    const result = await mediaConverterInstance.handleConvert(mockEvent, {
+                        filePath: tempFile,
+                        options: {
                             ...options,
                             transcribe: options.transcribe !== false,
+                            deepgramApiKey: deepgramApiKey,
                             language: options.language || 'en',
-                            title: options.title || name
+                            title: options.title || name,
+                            _tempDir: tempDir // Pass tempDir for cleanup
                         }
-                    );
-                    
-                    // Clean up temp file
-                    await fs.remove(tempDir);
-                    
-                    // Return the conversion result
+                    });
+
+                    // Media conversion is handled asynchronously, so we return a placeholder
+                    // The actual content will be available via the conversion progress events
                     return {
                         success: true,
-                        content: result,
+                        conversionId: result.conversionId,
+                        async: true,
                         name: name,
-                        type: 'audio'
+                        type: 'media'
                     };
                 } catch (error) {
-                    console.error(`[AudioAdapter] Error converting audio: ${error.message}`);
-                    throw new Error(`Audio conversion failed: ${error.message}`);
+                    console.error(`[MediaAdapter] Error converting media: ${error.message}`);
+                    throw new Error(`Media conversion failed: ${error.message}`);
                 }
             },
             validate: (content) => Buffer.isBuffer(content) && content.length > 0,
             config: {
-                name: 'Audio Converter',
-                extensions: ['.mp3', '.wav', '.ogg', '.m4a', '.mpga'],
-                mimeTypes: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a'],
-                maxSize: 100 * 1024 * 1024 // 100MB
+                name: 'Media Converter',
+                extensions: ['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.mp4', '.mov', '.avi', '.mkv', '.webm'],
+                mimeTypes: [
+                    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/flac',
+                    'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'
+                ],
+                maxSize: 500 * 1024 * 1024 // 500MB
             }
         };
-        this.register('mp3', audioAdapter);
-        this.register('wav', audioAdapter);
-        
+
+        // Register all media formats to use the same converter
+        this.register('mp3', mediaAdapter);
+        this.register('wav', mediaAdapter);
+        this.register('ogg', mediaAdapter);
+        this.register('m4a', mediaAdapter);
+        this.register('flac', mediaAdapter);
+        this.register('mp4', mediaAdapter);
+        this.register('mov', mediaAdapter);
+        this.register('avi', mediaAdapter);
+        this.register('mkv', mediaAdapter);
+        this.register('webm', mediaAdapter);
+
         // Register ppt extension to use the same converter as pptx
         this.register('ppt', this.converters['pptx']);
-
-        // --- Removed Video Adapter ---
-        // The VideoConverter instance itself will handle IPC calls via its BaseService methods
-        // Register the VideoConverter instance directly for relevant extensions
-        const videoConverterConfig = {
-            name: 'Video Converter',
-            extensions: ['.mp4', '.webm', '.mov', '.avi'],
-            mimeTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'],
-            maxSize: 500 * 1024 * 1024 // 500MB
-        };
-        
-        // We need a wrapper here if the IPC handler expects a specific 'convert' function signature
-        // Or, ideally, the IPC handler should call the appropriate method on the service instance
-        // For now, let's assume the IPC handler can call `videoConverterInstance.handleConvert`
-        // If not, we'd need an adapter similar to the others, but calling handleConvert
-        // Let's register the instance directly for now, assuming IPC routing handles it.
-         // If errors occur, we might need to re-introduce a simple adapter.
-         const videoConverterWrapper = {
-             // This 'convert' method acts as an adapter if the calling code
-             // (like UnifiedConverterFactory) expects a simple convert function.
-             // It simulates the necessary parts of an IPC call to trigger the
-             // VideoConverter's internal handling logic via handleConvert.
-             convert: async (content, name, apiKey, options) => {
-                 console.log("[ConverterRegistry] VideoConverterWrapper 'convert' called. Simulating IPC call to handleConvert.");
-                 
-                 try {
-                     // Create a temporary file for the video content
-                     // The original videoAdapter did this, and handleConvert expects a file path
-                     let tempDir;
-                     let tempFile;
-                     
-                     // Check if content is a Buffer (which is what we expect from UnifiedConverterFactory)
-                     if (Buffer.isBuffer(content)) {
-                         console.log(`[VideoConverterWrapper] Content is a Buffer of size: ${content.length} bytes`);
-                         
-                         // Create a temporary directory for this conversion
-                         tempDir = await fileStorageServiceInstance.createTempDir('video_conversion');
-                         console.log(`[VideoConverterWrapper] Created temp directory: ${tempDir}`);
-                         
-                         // Write the buffer to a temporary file
-                         tempFile = path.join(tempDir, `${name}_${Date.now()}.mp4`);
-                         console.log(`[VideoConverterWrapper] Writing video content to temp file: ${tempFile}`);
-                         await fs.writeFile(tempFile, content);
-                         
-                         // Verify the temp file was created successfully
-                         const tempFileExists = await fs.pathExists(tempFile);
-                         const tempFileStats = tempFileExists ? await fs.stat(tempFile) : null;
-                         console.log(`[VideoConverterWrapper] Temp file created: ${tempFileExists}, size: ${tempFileStats ? tempFileStats.size : 'N/A'} bytes`);
-                         
-                         if (!tempFileExists || (tempFileStats && tempFileStats.size === 0)) {
-                             throw new Error('Failed to write video content to temporary file');
-                         }
-                     } else if (typeof content === 'string') {
-                         // If content is already a string (file path), use it directly
-                         console.log(`[VideoConverterWrapper] Content is a file path: ${content}`);
-                         tempFile = content;
-                     } else {
-                         // If content is neither a Buffer nor a string, throw an error
-                         console.error("[VideoConverterWrapper] Unexpected content type:", typeof content);
-                         throw new Error(`VideoConverterWrapper requires buffer or file path, received: ${typeof content}`);
-                     }
-                     
-                     // Simulate the event object minimally or pass null
-                     const mockEvent = null; // Or { sender: { getOwnerBrowserWindow: () => null } } if needed
-                     
-                     // Call the instance's handleConvert method with the temp file path
-                     console.log(`[VideoConverterWrapper] Calling handleConvert with file path: ${tempFile}`);
-                     const result = await videoConverterInstance.handleConvert(mockEvent, { 
-                         filePath: tempFile, 
-                         options: { 
-                             ...options, 
-                             apiKey,
-                             // Pass the tempDir so it can be cleaned up properly
-                             _tempDir: tempDir
-                         } 
-                     });
-                     
-                     // Note: The VideoConverter will handle cleanup of the temp directory
-                     // through the registry's conversion tracking and cleanup mechanism
-                     
-                     // Return an object indicating the process started
-                     return { 
-                         success: true, 
-                         conversionId: result.conversionId, 
-                         async: true,
-                         name: name,
-                         type: 'video'
-                     };
-                 } catch (error) {
-                     console.error(`[VideoConverterWrapper] Error in convert:`, error);
-                     throw new Error(`Video conversion failed: ${error.message}`);
-                 }
-             },
-             validate: (content) => Buffer.isBuffer(content) && content.length > 0, // Validation might need adjustment if content is path
-             config: videoConverterConfig,
-             // Store the actual instance so it can be accessed if needed by the caller
-             instance: videoConverterInstance
-         };
-
-        this.register('mp4', videoConverterWrapper);
-        this.register('webm', videoConverterWrapper);
-        this.register('mov', videoConverterWrapper);
-        this.register('avi', videoConverterWrapper);
 
         // Register the PDF factory adapter with proper implementation
         this.register('pdf', {

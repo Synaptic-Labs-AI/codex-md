@@ -7,7 +7,7 @@ Convert various file types to Markdown format using an Electron-based desktop ap
 - Convert multiple file formats to Markdown:
   - Documents (PDF, DOCX, PPTX)
   - Data files (CSV, XLSX)
-  - Multimedia (MP3, WAV, MP4)
+  - Multimedia (MP3, WAV, FLAC, MP4, MOV, AVI, MKV) with Deepgram transcription
   - Web content (URLs, websites)
 - Offline support
 - Customizable output
@@ -68,6 +68,17 @@ The application uses a consolidated architecture where all conversion services r
 - Reduced memory usage
 
 Communication between the renderer process (UI) and main process happens through IPC channels, with a well-defined API for all operations.
+
+### Media Transcription
+
+The application uses Deepgram's API for audio and video transcription, which provides:
+
+- Fast and accurate speech-to-text
+- Support for multiple languages
+- Direct transcription of both audio and video files without extraction
+- Multiple transcription models (Nova 1, Nova 2, Nova 3)
+
+To use media transcription features, you'll need to provide a [Deepgram API key](https://console.deepgram.com/signup) in the application settings.
 
 ## Contributing
 1. Fork the repository

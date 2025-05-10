@@ -6,11 +6,20 @@
 
 const { ipcMain } = require('electron');
 
+// Global error handlers container to avoid duplicates
+const errorHandlers = {
+    uncaughtException: new Map(),
+    unhandledRejection: new Map()
+};
+
+// Set higher max listeners to avoid warnings
+process.setMaxListeners(20);
+
 class BaseService {
     constructor() {
         this.serviceName = this.constructor.name;
         this.setupErrorHandling();
-        
+
         // Delay IPC handler setup to allow subclasses to set skipHandlerSetup flag
         // We use setTimeout to ensure this runs after the constructor chain completes
         setTimeout(() => {
@@ -36,13 +45,22 @@ class BaseService {
      * Ensures errors are properly logged and propagated.
      */
     setupErrorHandling() {
-        process.on('uncaughtException', (error) => {
-            console.error(`[${this.serviceName}] Uncaught Exception:`, error);
-        });
+        // Only register handlers once per service name to avoid duplicates
+        if (!errorHandlers.uncaughtException.has(this.serviceName)) {
+            const uncaughtHandler = (error) => {
+                console.error(`[${this.serviceName}] Uncaught Exception:`, error);
+            };
+            errorHandlers.uncaughtException.set(this.serviceName, uncaughtHandler);
+            process.on('uncaughtException', uncaughtHandler);
+        }
 
-        process.on('unhandledRejection', (reason, promise) => {
-            console.error(`[${this.serviceName}] Unhandled Rejection:`, reason);
-        });
+        if (!errorHandlers.unhandledRejection.has(this.serviceName)) {
+            const rejectionHandler = (reason) => {
+                console.error(`[${this.serviceName}] Unhandled Rejection:`, reason);
+            };
+            errorHandlers.unhandledRejection.set(this.serviceName, rejectionHandler);
+            process.on('unhandledRejection', rejectionHandler);
+        }
     }
 
     /**

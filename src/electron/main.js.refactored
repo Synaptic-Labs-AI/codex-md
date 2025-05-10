@@ -1,0 +1,83 @@
+console.log(`[DEBUG] Running Node.js version in main process: ${process.versions.node}`);
+/**
+ * Electron Main Process
+ * Entry point for the Electron application.
+ * 
+ * Uses modular architecture to handle:
+ * - Window management
+ * - IPC communication setup
+ * - Protocol registration
+ * - App lifecycle
+ * - Service management
+ */
+
+const { app } = require('electron');
+const path = require('path');
+const url = require('url');
+const logger = require('./utils/logger');
+
+// Import managers
+const WindowManager = require('./managers/WindowManager');
+const ServiceRegistry = require('./managers/ServiceRegistry');
+const ProtocolHandler = require('./managers/ProtocolHandler');
+const AppLifecycleManager = require('./managers/AppLifecycleManager');
+
+// Check for a single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    console.log('Another instance is already running. Quitting...');
+    app.quit();
+} else {
+    // Initialize managers and start the app
+    startApp();
+}
+
+/**
+ * Initialize the application
+ */
+async function startApp() {
+    try {
+        // Initialize logger first
+        await logger.initialize();
+        console.log('✅ Logger initialized');
+        
+        // Initialize window manager
+        await WindowManager.initialize();
+        console.log('✅ Window manager initialized');
+        
+        // Initialize protocol handler
+        const protocolHandler = new ProtocolHandler(WindowManager);
+        await protocolHandler.initialize();
+        console.log('✅ Protocol handler initialized');
+        
+        // Initialize service registry
+        ServiceRegistry.registerStandardServices();
+        await ServiceRegistry.initialize();
+        console.log('✅ Service registry initialized');
+        
+        // Initialize app lifecycle manager
+        const appLifecycleManager = new AppLifecycleManager(WindowManager);
+        
+        // Let the app handle standard events now
+        console.log('✅ App initialization complete - ready for events');
+    } catch (error) {
+        console.error('❌ Error during app initialization:', error);
+        app.quit();
+    }
+}
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception in main process:', error);
+    if (logger.isInitialized) {
+        logger.error('Uncaught exception in main process', error)
+            .catch(logError => console.error('Failed to log error:', logError));
+    }
+});
+
+// Export key managers for testing or external access
+module.exports = {
+    WindowManager,
+    ServiceRegistry
+};

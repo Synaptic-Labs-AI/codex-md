@@ -14,7 +14,12 @@
   - Global CSS variables for theming
 -->
 <script>
-  // No imports needed
+  // Import the asset utility function
+  import { getAssetPath, getImageFallbackHandler } from '../lib/utils/assetUtils.js';
+
+  // Calculate paths for the logo
+  const logoPath = getAssetPath('synaptic-labs-logo.png');
+  const fallbackHandler = getImageFallbackHandler('synaptic-labs-logo.png');
 </script>
 
 <div class="about-container">
@@ -63,7 +68,7 @@
   <hr class="divider" />
 
   <div class="synaptic-banner">
-    <img src="/static/synaptic-labs-logo.png" alt="Synaptic Labs Logo">
+    <img src={logoPath} alt="Synaptic Labs Logo" onerror={fallbackHandler}>
   </div>
   
   <section class="about-section">

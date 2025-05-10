@@ -10,6 +10,7 @@
 const { app, Tray, Menu, MenuItem, dialog, shell } = require('electron');
 const path = require('path');
 const { createStore } = require('../utils/storeFactory');
+const { getImageResourcePath } = require('../utils/resourcePaths');
 
 /**
  * Manages the system tray icon and functionality
@@ -40,7 +41,17 @@ class TrayManager {
    */
   createTray() {
     try {
-      const iconPath = path.join(__dirname, '../../../frontend/static/logo.png');
+      // Get the tray icon path with fallback to an empty image if not found
+      const iconPath = getImageResourcePath('logo.png', {
+        additionalPaths: [
+          // Extra paths specific to tray icon
+          path.join(__dirname, '../../../frontend/static/logo.png'),
+          path.join(__dirname, '../../../frontend/static/app-icon.png'),
+          path.join(process.resourcesPath, 'static', 'app-icon.png'),
+          path.join(process.resourcesPath, 'frontend', 'static', 'logo.png'),
+          path.join(app.getPath('userData'), 'logo.png')
+        ]
+      });
       
       // Create the tray icon
       this.tray = new Tray(iconPath);
@@ -51,6 +62,8 @@ class TrayManager {
       
       // Handle tray events
       this.setupTrayEvents();
+      
+      console.log('✅ Tray successfully created');
     } catch (error) {
       console.error('Error creating tray:', error);
     }

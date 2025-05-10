@@ -19,8 +19,8 @@ const DEFAULT_SETTINGS = {
     enabled: false
   },
   transcription: {
-    model: 'whisper',
-    provider: 'openai',
+    model: 'nova-2',
+    provider: 'deepgram',
     deepgramApiKey: ''
   },
   theme: {
@@ -237,9 +237,9 @@ export const setTranscriptionModel = (model) => {
  * @returns {string} Transcription model
  */
 export const getTranscriptionModel = () => {
-  let result = 'whisper';
+  let result = 'nova-2';
   settings.subscribe(value => {
-    result = value.transcription?.model || 'whisper';
+    result = value.transcription?.model || 'nova-2';
   })();
   return result;
 };
@@ -276,10 +276,12 @@ export const getThemeMode = () => {
 
 /**
  * Apply theme to document
- * @param {string} mode - Theme mode
+ * @param {string} mode - Theme mode ('light', 'dark', 'system')
  */
 export const applyTheme = (mode) => {
   if (typeof document === 'undefined') return;
+
+  console.log(`[Settings Store] Applying theme mode: ${mode}`);
 
   // First remove any existing theme classes
   document.documentElement.classList.remove('theme-light', 'theme-dark');
@@ -288,11 +290,23 @@ export const applyTheme = (mode) => {
     // Use system preference
     // We don't add any class, as the CSS media query handles this
     console.log('[Settings Store] Using system theme preference');
+
+    // Check system preference to log what will be applied
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    console.log(`[Settings Store] System prefers ${prefersDark ? 'dark' : 'light'} theme`);
   } else {
     // Apply specific theme
     document.documentElement.classList.add(`theme-${mode}`);
-    console.log(`[Settings Store] Applied ${mode} theme`);
+    console.log(`[Settings Store] Applied ${mode} theme with class theme-${mode}`);
+
+    // Force a document body class as well for enhanced specificity
+    // This helps in cases where the root element styles aren't being correctly applied
+    document.body.classList.remove('theme-light-body', 'theme-dark-body');
+    document.body.classList.add(`theme-${mode}-body`);
   }
+
+  // Debugging output - log all classes on documentElement
+  console.log(`[Settings Store] Document classes: ${document.documentElement.className}`);
 };
 
 /**

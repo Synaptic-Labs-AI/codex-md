@@ -6,17 +6,17 @@
   import Button from './common/Button.svelte';
 
   // Props
-  export let provider = 'openai';
-  export let title = provider === 'openai' ? 'OpenAI API Key' : 'Mistral API Key';
-  export let placeholder = provider === 'openai' ? 'Enter your OpenAI API Key' : 'Enter your Mistral API Key';
-  export let infoText = provider === 'openai' 
+  export let provider = 'deepgram';
+  export let title = provider === 'deepgram' ? 'Deepgram API Key' : 'Mistral API Key';
+  export let placeholder = provider === 'deepgram' ? 'Enter your Deepgram API Key' : 'Enter your Mistral API Key';
+  export let infoText = provider === 'deepgram' 
     ? 'Required for audio/video transcription.' 
     : 'Required for advanced OCR processing.';
-  export let helpLink = provider === 'openai' 
-    ? '/help#api-keys' 
+  export let helpLink = provider === 'deepgram' 
+    ? 'https://console.deepgram.com/signup' 
     : 'https://console.mistral.ai/';
-  export let helpText = provider === 'openai'
-    ? 'Learn more about API keys'
+  export let helpText = provider === 'deepgram'
+    ? 'Get a Deepgram API key'
     : 'Get a Mistral API key';
 
   let apiKeyValue = '';
@@ -192,7 +192,7 @@
     <p>
       {infoText} Your key is stored securely on your device.
     </p>
-    <a href={helpLink} target={provider !== 'openai' ? '_blank' : undefined} rel={provider !== 'openai' ? 'noopener noreferrer' : undefined} class="help-link">{helpText}</a>
+    <a href={helpLink} target="_blank" rel="noopener noreferrer" class="help-link">{helpText}</a>
   </div>
 </div>
 

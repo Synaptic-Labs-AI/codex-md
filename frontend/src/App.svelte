@@ -16,21 +16,52 @@
   import { routes } from './routes';
   import { onMount } from 'svelte';
   import welcomeState from './lib/stores/welcomeState';
+  import { settings, applyTheme, getThemeMode } from './lib/stores/settings';
   import OfflineStatusBar from './lib/components/OfflineStatusBar.svelte';
   import Navigation from './lib/components/common/Navigation.svelte';
   import './lib/styles/global.css';
 
   let hasSeenWelcome;
-  
+  let currentTheme;
+
   // Subscribe to welcome state
-  const unsubscribe = welcomeState.subscribe(state => {
+  const unsubscribeWelcome = welcomeState.subscribe(state => {
     hasSeenWelcome = state.hasSeenWelcome;
   });
-  
+
+  // Subscribe to settings for theme changes
+  const unsubscribeSettings = settings.subscribe(value => {
+    if (value.theme?.mode && currentTheme !== value.theme.mode) {
+      currentTheme = value.theme.mode;
+      applyTheme(currentTheme);
+      console.log(`[App] Applied theme: ${currentTheme}`);
+    }
+  });
+
   onMount(() => {
-    // Clean up subscription
+    // Initialize theme from settings
+    const savedTheme = getThemeMode();
+    console.log(`[App] Initial theme mode: ${savedTheme}`);
+
+    // Force the theme to be applied on mount
+    applyTheme(savedTheme);
+
+    // Also initialize from electron settings if available
+    if (window?.electron?.getSetting) {
+      window.electron.getSetting('theme.mode')
+        .then(value => {
+          if (value !== undefined) {
+            console.log(`[App] Electron theme setting: ${value}`);
+            applyTheme(value);
+          }
+        })
+        .catch(err => console.error('Error loading theme from electron:', err));
+    }
+
+    // Clean up subscriptions
     return () => {
-      unsubscribe();
+      unsubscribeWelcome();
+      unsubscribeSettings();
     };
   });
 </script>
