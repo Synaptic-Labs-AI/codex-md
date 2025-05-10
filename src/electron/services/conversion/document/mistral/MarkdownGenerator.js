@@ -168,28 +168,15 @@ class MarkdownGenerator {
   addPageContent(markdown, ocrResult) {
     // Add content for each page
     if (ocrResult && ocrResult.pages && ocrResult.pages.length > 0) {
-      ocrResult.pages.forEach((page, index) => {
+      // Process each page in sequence but don't add page headers at this point
+      const allPageContents = ocrResult.pages.map((page, index) => {
         // Use page number if available, otherwise use index + 1
         const pageNumber = page.pageNumber || index + 1;
-        markdown.push(`## Page ${pageNumber}`);
-        markdown.push('');
-        
-        // Add page confidence if available
-        if (page.confidence) {
-          const confidencePercent = Math.round(page.confidence * 100);
-          markdown.push(`> OCR Confidence: ${confidencePercent}%`);
-          markdown.push('');
-        }
-        
-        // Add page dimensions if available
-        if (page.width && page.height) {
-          markdown.push(`> Dimensions: ${page.width} × ${page.height}`);
-          markdown.push('');
-        }
-        
+        const pageMarkdown = [];
+
         // Add page text with better handling of different content formats
         let pageContent = '';
-        
+
         if (page.text && page.text.trim()) {
           pageContent = page.text;
         } else if (page.content && typeof page.content === 'string' && page.content.trim()) {
@@ -208,21 +195,45 @@ class MarkdownGenerator {
             }
             return '';
           }).filter(text => text.trim().length > 0);
-          
+
           pageContent = elements.join('\n\n');
         }
-        
+
+        // Add content if available, otherwise indicate no content
         if (pageContent && pageContent.trim()) {
-          markdown.push(pageContent);
+          pageMarkdown.push(pageContent);
         } else {
-          markdown.push('*No text content was extracted from this page.*');
+          pageMarkdown.push('*No text content was extracted from this page.*');
         }
-        
-        markdown.push('');
+
+        return {
+          number: pageNumber,
+          content: pageMarkdown.join('\n\n'),
+          isEmpty: !pageContent || !pageContent.trim()
+        };
       });
+
+      // Combine all non-empty page contents first
+      const nonEmptyPages = allPageContents.filter(page => !page.isEmpty);
+
+      if (nonEmptyPages.length > 0) {
+        // Add combined content
+        markdown.push(nonEmptyPages.map(page => page.content).join('\n\n'));
+        markdown.push('');
+
+        // Then add the page markers at the bottom
+        nonEmptyPages.forEach(page => {
+          markdown.push(`---\n[Page ${page.number}]`);
+          markdown.push('');
+        });
+      } else {
+        // If all pages were empty, show a global message
+        markdown.push('No text content was extracted from this document.');
+        markdown.push('');
+      }
     } else {
       markdown.push('No text content was extracted from this document.');
-      
+
       // If we have a raw text field at the document level, use that
       if (ocrResult && ocrResult.text && typeof ocrResult.text === 'string' && ocrResult.text.trim()) {
         markdown.push('');
@@ -337,20 +348,71 @@ class MarkdownGenerator {
   generateFrontmatter(metadata, options = {}) {
     // Get current datetime
     const now = new Date();
-    const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
-    
+    const convertedDate = now.toISOString();
+
     // Get the title from metadata or filename
     const fileTitle = metadata?.title || options.name || 'PDF Document';
-    
-    // Create standardized frontmatter
-    return [
+
+    // Extract filename without path
+    const filename = options.name || options.originalFileName || '';
+
+    // Get filesize if available
+    const fileSize = options.fileSize || metadata.fileSize || '';
+
+    // Create more comprehensive frontmatter
+    const frontmatter = [
       '---',
       `title: ${fileTitle}`,
       `converted: ${convertedDate}`,
-      'type: pdf-ocr',
-      '---',
-      ''
-    ].join('\n');
+      'type: pdf',
+      'fileType: pdf'
+    ];
+
+    // Add filename if available
+    if (filename) {
+      frontmatter.push(`filename: ${filename}`);
+    }
+
+    // Add page count if available
+    if (metadata.pageCount) {
+      frontmatter.push(`pageCount: ${metadata.pageCount}`);
+    }
+
+    // Add filesize if available
+    if (fileSize) {
+      frontmatter.push(`fileSize: ${fileSize}`);
+    }
+
+    // Add PDF specific metadata if available
+    if (metadata.PDFFormatVersion) {
+      frontmatter.push(`PDFFormatVersion: ${metadata.PDFFormatVersion}`);
+    }
+
+    if (metadata.IsAcroFormPresent !== undefined) {
+      frontmatter.push(`IsAcroFormPresent: ${metadata.IsAcroFormPresent}`);
+    }
+
+    if (metadata.IsXFAPresent !== undefined) {
+      frontmatter.push(`IsXFAPresent: ${metadata.IsXFAPresent}`);
+    }
+
+    // Add creator if available
+    if (metadata.creator) {
+      frontmatter.push(`creator: ${metadata.creator}`);
+    }
+
+    // Specify converter type
+    frontmatter.push('converter: mistral-ocr');
+
+    // Add original filename if available
+    if (options.originalFileName) {
+      frontmatter.push(`originalFileName: ${options.originalFileName}`);
+    }
+
+    // Close frontmatter
+    frontmatter.push('---', '');
+
+    return frontmatter.join('\n');
   }
 
   /**

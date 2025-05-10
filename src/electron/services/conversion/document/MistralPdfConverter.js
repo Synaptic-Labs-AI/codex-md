@@ -26,27 +26,29 @@ class MistralPdfConverter extends BasePdfConverter {
     this.name = 'Mistral PDF Converter';
     this.description = 'Converts PDF files to markdown using Mistral OCR';
     this.skipHandlerSetup = skipHandlerSetup;
-    
+
     // Initialize modular components
     this.apiClient = new mistral.MistralApiClient({
       apiEndpoint: process.env.MISTRAL_API_ENDPOINT,
       apiKey: process.env.MISTRAL_API_KEY
     });
-    
+
     this.ocrProcessor = new mistral.OcrProcessor();
     this.markdownGenerator = new mistral.MarkdownGenerator();
     this.conversionManager = new mistral.ConversionManager({
       fileProcessor,
       fileStorage
     });
-    
+
     // Set the API key in the conversion manager
     this.conversionManager.setApiKey(process.env.MISTRAL_API_KEY);
-    
+
     // Log whether handlers will be set up
     if (skipHandlerSetup) {
       console.log('[MistralPdfConverter] Skipping handler setup (skipHandlerSetup=true)');
     } else {
+      // Instead of relying on BaseService's setTimeout approach, call setupIpcHandlers directly
+      // This ensures we only set up handlers once and explicitly when skipHandlerSetup is false
       this.setupIpcHandlers();
     }
   }
@@ -55,11 +57,24 @@ class MistralPdfConverter extends BasePdfConverter {
    * Set up IPC handlers for PDF conversion
    */
   setupIpcHandlers() {
+    // If skipHandlerSetup was specified, don't register handlers
+    if (this.skipHandlerSetup) {
+      console.log('[MistralPdfConverter] Skipping IPC handler setup due to skipHandlerSetup flag');
+      return;
+    }
+
     console.log('[MistralPdfConverter] Setting up IPC handlers');
-    this.registerHandler('convert:pdf:ocr', this.handleConvert.bind(this));
-    this.registerHandler('convert:pdf:ocr:metadata', this.handleGetMetadata.bind(this));
-    this.registerHandler('convert:pdf:ocr:check', this.handleCheckApiKey.bind(this));
-    console.log('[MistralPdfConverter] IPC handlers registered');
+
+    // Use try-catch to handle cases where handlers are already registered
+    try {
+      this.registerHandler('convert:pdf:ocr', this.handleConvert.bind(this));
+      this.registerHandler('convert:pdf:ocr:metadata', this.handleGetMetadata.bind(this));
+      this.registerHandler('convert:pdf:ocr:check', this.handleCheckApiKey.bind(this));
+      console.log('[MistralPdfConverter] IPC handlers registered');
+    } catch (error) {
+      // If a handler is already registered, log the error but don't crash
+      console.warn(`[MistralPdfConverter] Error in setupIpcHandlers: ${error.message}`);
+    }
   }
 
   /**
@@ -77,6 +92,14 @@ class MistralPdfConverter extends BasePdfConverter {
    */
   get apiKey() {
     return this.apiClient.apiKey;
+  }
+
+  /**
+   * Set the API key
+   * @param {string} value - The API key to set
+   */
+  set apiKey(value) {
+    this.setApiKey(value);
   }
 
   /**
@@ -156,23 +179,47 @@ class MistralPdfConverter extends BasePdfConverter {
   async convertToMarkdown(content, options = {}) {
     try {
       console.log(`[MistralPdfConverter] Converting PDF with OCR: ${options.name || 'unnamed'}`);
-      
+
       // Use API key from options if provided
       if (options.apiKey || options.mistralApiKey) {
         const apiKey = options.apiKey || options.mistralApiKey;
         this.setApiKey(apiKey);
       }
-      
+
+      // Validate that we have an API key
+      if (!this.apiClient.apiKey) {
+        throw new Error('Missing Mistral API key. Please add your API key in the settings page.');
+      }
+
+      // Validate the API key format (basic validation)
+      if (typeof this.apiClient.apiKey !== 'string' || this.apiClient.apiKey.trim().length < 10) {
+        throw new Error('Invalid Mistral API key format. Please check your API key in settings.');
+      }
+
+      console.log(`[MistralPdfConverter] Using API key: ${this.apiClient.apiKey ? '✓ (valid format)' : '✗ (invalid format)'}`);
+
       // Use the ConversionManager to handle the actual conversion
       return await this.conversionManager.convertToMarkdown(content, options);
     } catch (error) {
       console.error('[MistralPdfConverter] Direct conversion failed:', error);
-      
+
+      // Check for specific API key errors
+      if (error.message.includes('API key') ||
+          error.message.includes('Unauthorized') ||
+          error.message.includes('401')) {
+        return {
+          success: false,
+          error: `PDF OCR conversion failed: ${error.message}`,
+          errorDetails: 'API Key Error: Please check your Mistral API key in settings.',
+          content: `# Conversion Error\n\nFailed to convert PDF with OCR: Invalid or missing Mistral API key.\n\n## How to Fix\n\n1. Go to Settings\n2. Add a valid Mistral API key\n3. Try the conversion again`
+        };
+      }
+
       // Create a more detailed error message
       const errorDetails = error.response ?
         `API response: ${JSON.stringify(error.response.data || {})}` :
         error.message;
-      
+
       return {
         success: false,
         error: `PDF OCR conversion failed: ${error.message}`,

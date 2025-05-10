@@ -94,11 +94,20 @@ class ElectronClient {
                 if (fileInfo.converter === 'pdf' && options.useOcr) {
                     // For PDFs with OCR enabled, include additional metadata
                     console.log(`Converting PDF with OCR: ${fileInfo.fileName}`);
+
+                    // Validate Mistral API key is present when OCR is enabled
+                    if (!options.mistralApiKey) {
+                        console.warn('OCR is enabled but no Mistral API key is provided');
+                    }
+
                     conversionOptions.buffer = arrayBuffer;
                     conversionOptions.originalFileName = input.name;
                     conversionOptions.mimeType = input.type;
                     conversionOptions.size = input.size;
                     conversionOptions.useOcr = true;
+
+                    // Log Mistral API key status (but not the key itself)
+                    console.log(`Mistral API key status for OCR: ${options.mistralApiKey ? 'Provided ✓' : 'Missing ✗'}`);
                 } else {
                     // For all other files, just pass the buffer
                     conversionOptions.buffer = arrayBuffer;
@@ -125,7 +134,9 @@ class ElectronClient {
                 type: conversionOptions.type,
                 isWeb: fileInfo.isWeb,
                 originalType: options.type,
-                finalType: conversionOptions.type
+                finalType: conversionOptions.type,
+                useOcr: conversionOptions.useOcr,
+                hasMistralApiKey: !!conversionOptions.mistralApiKey
             });
             
             console.time('🕒 [VERBOSE] Electron IPC conversion call');

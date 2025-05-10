@@ -20,15 +20,12 @@ class BaseService {
         this.serviceName = this.constructor.name;
         this.setupErrorHandling();
 
-        // Delay IPC handler setup to allow subclasses to set skipHandlerSetup flag
-        // We use setTimeout to ensure this runs after the constructor chain completes
-        setTimeout(() => {
-            if (this.skipHandlerSetup) {
-                console.log(`[${this.serviceName}] Skipping IPC handler setup (skipHandlerSetup=true)`);
-            } else {
-                this.setupIpcHandlers();
-            }
-        }, 0);
+        // Maintain a list of registered handlers for this instance
+        this._registeredHandlers = new Set();
+
+        // We're removing the automatic setTimeout-based setupIpcHandlers call here
+        // Instead, subclasses will explicitly call setupIpcHandlers when appropriate
+        // This helps prevent duplicate handler registrations
     }
 
     /**

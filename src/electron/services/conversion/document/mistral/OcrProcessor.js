@@ -15,45 +15,68 @@ class OcrProcessor {
    */
   processResult(result) {
     console.log('[OcrProcessor] Processing OCR result');
-    
+
     try {
       if (!result) {
         throw new Error('Empty OCR result received');
       }
-      
-      // Log the structure of the result for debugging
+
+      // Enhanced logging for debugging the API response structure
       console.log('[OcrProcessor] OCR result structure:',
         Object.keys(result).join(', '));
-      
+
+      // Log detailed information about usage_info if available
+      if (result.usage_info) {
+        console.log('[OcrProcessor] Usage info:', JSON.stringify(result.usage_info));
+      }
+
+      // Log model information
+      console.log('[OcrProcessor] Model:', result.model || 'Not specified');
+
+      // Log first page structure for debugging (up to 500 chars)
+      if (result.pages && result.pages.length > 0) {
+        const firstPage = result.pages[0];
+        console.log('[OcrProcessor] First page keys:', Object.keys(firstPage).join(', '));
+
+        if (firstPage.markdown) {
+          console.log('[OcrProcessor] First page markdown sample:',
+            firstPage.markdown.substring(0, 500) + (firstPage.markdown.length > 500 ? '...' : ''));
+        }
+      }
+
       // Extract document-level information
       const documentInfo = {
         model: result.model || 'unknown',
         language: result.language || 'unknown',
         processingTime: result.processing_time || 0,
         overallConfidence: result.confidence || 0,
-        usage: result.usage || null
+        usage: result.usage_info || result.usage || null
       };
-      
+
       // Process pages based on Mistral OCR API response format
       let pages = this._extractPages(result);
-      
+
       console.log(`[OcrProcessor] Processing ${pages.length} pages from OCR result`);
-      
+
       const processedPages = pages.map((page, index) => this._processPage(page, index));
-      
+
+      // Check if we successfully extracted text from any pages
+      const pagesWithText = processedPages.filter(page => page.text && page.text.trim().length > 0);
+      console.log(`[OcrProcessor] Successfully extracted text from ${pagesWithText.length} of ${processedPages.length} pages`);
+
       console.log(`[OcrProcessor] OCR result processing complete for ${processedPages.length} pages`);
-      
+
       return {
         documentInfo,
         pages: processedPages
       };
     } catch (error) {
       console.error('[OcrProcessor] Error processing OCR result:', error);
-      
+
       // Provide detailed error information
       console.error('[OcrProcessor] OCR result that caused error:',
         result ? JSON.stringify(result, null, 2).substring(0, 500) + '...' : 'undefined');
-      
+
       // Fallback to basic processing if an error occurs
       return this._createFallbackResult(result, error);
     }
@@ -68,7 +91,14 @@ class OcrProcessor {
   _extractPages(result) {
     // Handle different response formats
     if (result.pages && Array.isArray(result.pages)) {
-      // Standard format with pages array
+      // Standard format with pages array (used by current Mistral API)
+
+      // Log detailed structure of the first page if available (for debugging)
+      if (result.pages.length > 0) {
+        console.log('[OcrProcessor] Page structure sample:',
+          Object.keys(result.pages[0]).join(', '));
+      }
+
       return result.pages;
     } else if (result.data && Array.isArray(result.data)) {
       // Alternative format with data array
@@ -88,8 +118,35 @@ class OcrProcessor {
         confidence: result.confidence || 0
       }];
     }
-    
+
+    // If no recognized format, try to handle object-like result
+    if (typeof result === 'object' && result !== null) {
+      console.log('[OcrProcessor] No standard pages array found, attempting to create a fallback page');
+
+      // Create a single page from whatever data we can find
+      const fallbackPage = {
+        page_number: 1,
+        confidence: 0
+      };
+
+      // Try to find text content in common locations
+      if (result.markdown && typeof result.markdown === 'string') {
+        fallbackPage.markdown = result.markdown;
+      } else if (result.text && typeof result.text === 'string') {
+        fallbackPage.text = result.text;
+      } else if (result.content && typeof result.content === 'string') {
+        fallbackPage.content = result.content;
+      }
+
+      // If we found any text content, return as single page
+      if (fallbackPage.markdown || fallbackPage.text || fallbackPage.content) {
+        console.log('[OcrProcessor] Created fallback page with content');
+        return [fallbackPage];
+      }
+    }
+
     // If no recognized format, return empty array
+    console.log('[OcrProcessor] Could not extract any pages from result');
     return [];
   }
 
@@ -102,20 +159,55 @@ class OcrProcessor {
    */
   _processPage(page, index) {
     // Basic page information with fallbacks
-    const pageNumber = page.page_number || page.pageNumber || index + 1;
+    const pageNumber = page.page_number || page.pageNumber || page.index || index + 1;
     const processedPage = {
       pageNumber,
       confidence: page.confidence || 0,
-      width: page.width || page.dimensions?.width || 0,
-      height: page.height || page.dimensions?.height || 0,
+      // Remove width/height as they're not needed in the final output
       text: ''
     };
-    
+
+    // Handle new Mistral OCR API response format (2024) which uses markdown
+    if (page.markdown && typeof page.markdown === 'string' && page.markdown.trim()) {
+      processedPage.text = page.markdown.trim();
+      console.log(`[OcrProcessor] Using markdown content for page ${pageNumber} (length: ${processedPage.text.length})`);
+      return processedPage;
+    }
+
+    // Check for raw content first - it's often the most complete
+    let rawTextContent = '';
+
+    // Look for raw text in multiple possible locations
+    if (page.text && typeof page.text === 'string' && page.text.trim()) {
+      rawTextContent = page.text.trim();
+    } else if (page.raw_text && typeof page.raw_text === 'string' && page.raw_text.trim()) {
+      rawTextContent = page.raw_text.trim();
+    } else if (page.content && typeof page.content === 'string' && page.content.trim()) {
+      rawTextContent = page.content.trim();
+    } else if (page.textContent && typeof page.textContent === 'string' && page.textContent.trim()) {
+      rawTextContent = page.textContent.trim();
+    }
+
+    // If raw text was found, use it
+    if (rawTextContent) {
+      processedPage.text = rawTextContent;
+      console.log(`[OcrProcessor] Using raw text for page ${pageNumber} (length: ${rawTextContent.length})`);
+
+      // We found usable text, so return the page
+      if (processedPage.text.length > 0) {
+        return processedPage;
+      }
+    }
+
+    // If no raw text was found, try structured content
+    console.log(`[OcrProcessor] No raw text for page ${pageNumber}, checking structured content`);
+
     // Process structured content if available
     if (page.blocks && Array.isArray(page.blocks)) {
       // Process blocks (paragraphs, headings, lists, tables, etc.)
       const textBlocks = this.processContentBlocks(page.blocks);
       processedPage.text = textBlocks.join('\n\n');
+      console.log(`[OcrProcessor] Extracted ${textBlocks.length} blocks for page ${pageNumber}`);
     } else if (page.elements && Array.isArray(page.elements)) {
       // Alternative structure with elements instead of blocks
       const elements = page.elements.map(element => {
@@ -126,17 +218,85 @@ class OcrProcessor {
         }
         return '';
       }).filter(text => text.trim().length > 0);
-      
+
       processedPage.text = elements.join('\n\n');
-    } else if (page.content && typeof page.content === 'string') {
-      // Simple content field
-      processedPage.text = page.content;
-    } else if (page.text) {
-      // Fallback to raw text if structured content is not available
-      processedPage.text = page.text;
+      console.log(`[OcrProcessor] Extracted ${elements.length} elements for page ${pageNumber}`);
     }
-    
+
+    // Check for ocr_text which might be provided in some APIs
+    if (!processedPage.text && page.ocr_text && typeof page.ocr_text === 'string' && page.ocr_text.trim()) {
+      processedPage.text = page.ocr_text.trim();
+      console.log(`[OcrProcessor] Using OCR text for page ${pageNumber}`);
+    }
+
+    // If there are lines but no joined text, process the lines
+    if (!processedPage.text && page.lines && Array.isArray(page.lines)) {
+      const lineTexts = page.lines.map(line => {
+        if (typeof line === 'string') {
+          return line;
+        } else if (line.text) {
+          return line.text;
+        } else if (line.content) {
+          return line.content;
+        }
+        return '';
+      }).filter(line => line.trim().length > 0);
+
+      if (lineTexts.length > 0) {
+        processedPage.text = lineTexts.join('\n');
+        console.log(`[OcrProcessor] Extracted ${lineTexts.length} lines for page ${pageNumber}`);
+      }
+    }
+
+    // Check if the page contains any images but no text
+    const hasImages = this._checkForImages(page);
+    if (hasImages && !processedPage.text) {
+      // Mark as potentially an image-only page
+      processedPage.isImageOnly = true;
+      console.log(`[OcrProcessor] Page ${pageNumber} appears to contain images but no text`);
+    }
+
+    // Log completion
+    console.log(`[OcrProcessor] Page ${pageNumber} processing complete: ${processedPage.text ? `${processedPage.text.length} chars` : 'no text'}`);
+
     return processedPage;
+  }
+
+  /**
+   * Check if a page contains images but no text
+   * @param {Object} page - Page data
+   * @returns {boolean} Whether the page likely contains images
+   * @private
+   */
+  _checkForImages(page) {
+    // Look for image indicators in blocks
+    if (page.blocks && Array.isArray(page.blocks)) {
+      return page.blocks.some(block =>
+        block.type === 'image' ||
+        block.type === 'figure' ||
+        block.blockType === 'image'
+      );
+    }
+
+    // Look for image indicators in elements
+    if (page.elements && Array.isArray(page.elements)) {
+      return page.elements.some(element =>
+        element.type === 'image' ||
+        element.type === 'figure'
+      );
+    }
+
+    // Check if page explicitly has images property
+    if (page.images && Array.isArray(page.images) && page.images.length > 0) {
+      return true;
+    }
+
+    // Check if page has hasImages flag
+    if (page.hasImages === true) {
+      return true;
+    }
+
+    return false;
   }
 
   /**

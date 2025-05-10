@@ -183,6 +183,12 @@ class CsvConverter extends BaseService {
             // Get the original filename without extension
             const fileName = options.originalFileName || options.name || 'csv-data';
             const fileTitle = fileName.replace(/\.[^/.]+$/, ''); // Remove file extension if present
+            console.log(`[CsvConverter] Using title for conversion: ${fileTitle} (from ${fileName})`);
+
+            // Store original filename in metadata for later reference
+            options.metadata = options.metadata || {};
+            options.metadata.originalFileName = fileName;
+            console.log(`[CsvConverter] Stored originalFileName in metadata: ${fileName}`);
             
             // Get current datetime
             const now = new Date();

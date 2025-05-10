@@ -99,6 +99,37 @@ let notificationManager = null;
 let updateManager = null;
 let loggerInitialized = false;
 
+/**
+ * Load API keys and set them as environment variables
+ * This ensures API keys are available to converters that need them
+ */
+async function loadApiKeysToEnvironment() {
+  try {
+    console.log('Loading API keys to environment variables...');
+
+    // Get API keys from ApiKeyService
+    const mistralApiKey = ApiKeyService.getApiKey('mistral');
+    const deepgramApiKey = ApiKeyService.getApiKey('deepgram');
+
+    // Set API keys as environment variables
+    if (mistralApiKey) {
+      process.env.MISTRAL_API_KEY = mistralApiKey;
+      console.log('✅ Mistral API key loaded into environment');
+    } else {
+      console.log('⚠️ No Mistral API key found in store');
+    }
+
+    if (deepgramApiKey) {
+      process.env.DEEPGRAM_API_KEY = deepgramApiKey;
+      console.log('✅ Deepgram API key loaded into environment');
+    } else {
+      console.log('⚠️ No Deepgram API key found in store');
+    }
+  } catch (error) {
+    console.error('❌ Failed to load API keys:', error);
+  }
+}
+
 // Initialize tray store
 const trayStore = createStore('tray-manager', {
     encryptionKey: process.env.STORE_ENCRYPTION_KEY
@@ -700,16 +731,19 @@ console.log('====================================');
 app.whenReady().then(async () => {
     try {
         console.log('App ready event fired');
-        
+
         // Initialize logger first thing
         await initializeLogger();
         await logger.logStartup();
-        
+
+        // Load API keys from store into environment variables
+        await loadApiKeysToEnvironment();
+
         // Register protocol handlers
         console.log('Registering protocol handlers');
         registerMediaProtocol();
         registerFileProtocol();
-        
+
         // Initialize app before creating window
         console.log('🚀 Starting app initialization...');
         const success = await initializeApp();

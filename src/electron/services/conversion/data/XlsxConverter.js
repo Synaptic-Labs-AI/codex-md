@@ -133,13 +133,13 @@ class XlsxConverter extends BaseService {
     async convertToMarkdown(workbook, options = {}) {
         try {
             console.log(`[XlsxConverter] convertToMarkdown called with options:`, JSON.stringify(options, null, 2));
-            
+
             // Validate workbook structure
             if (!workbook) {
                 console.error('[XlsxConverter] Invalid workbook: workbook is null or undefined');
                 return '> Error: Invalid Excel workbook structure.';
             }
-            
+
             if (!workbook.SheetNames || !Array.isArray(workbook.SheetNames) || workbook.SheetNames.length === 0) {
                 console.error('[XlsxConverter] Invalid workbook: no sheets found', {
                     hasSheetNames: !!workbook.SheetNames,
@@ -148,10 +148,16 @@ class XlsxConverter extends BaseService {
                 });
                 return '> Error: No sheets found in Excel workbook.';
             }
-            
+
             // Get the original filename without extension
             const fileName = options.originalFileName || options.name || 'excel-data';
             const fileTitle = fileName.replace(/\.[^/.]+$/, ''); // Remove file extension if present
+            console.log(`[XlsxConverter] Using title for conversion: ${fileTitle} (from ${fileName})`);
+
+            // Store original filename in metadata for later reference
+            options.metadata = options.metadata || {};
+            options.metadata.originalFileName = fileName;
+            console.log(`[XlsxConverter] Stored originalFileName in metadata: ${fileName}`);
             
             // Get current datetime
             const now = new Date();

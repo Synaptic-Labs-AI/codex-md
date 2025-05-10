@@ -110,18 +110,18 @@ class ConversionHandler {
             hasApiKey: !!openaiApiKey
         });
         console.time('🕒 [VERBOSE] Electron conversion time');
-        
+
         try {
             // First prompt for output directory
             console.log('🔄 [VERBOSE] Prompting for output directory');
             storeManager.updateConversionStatus(CONVERSION_STATUSES.SELECTING_OUTPUT, 0);
             const outputResult = await electronClient.selectOutputDirectory();
-            
+
             console.log('🔍 [VERBOSE] Output directory selection result:', {
                 success: outputResult.success,
                 path: outputResult.path ? outputResult.path.substring(0, 50) + '...' : 'none'
             });
-            
+
             if (!outputResult.success) {
                 console.log('ℹ️ [VERBOSE] Conversion cancelled: No output directory selected');
                 storeManager.updateConversionStatus(CONVERSION_STATUSES.CANCELLED, 0);
@@ -134,11 +134,11 @@ class ConversionHandler {
             console.log('🔄 [VERBOSE] Getting OCR settings');
             const ocrEnabled = await window.electron.getSetting('ocr.enabled');
             console.log('🔍 [VERBOSE] OCR enabled:', ocrEnabled);
-            
-            // Get Mistral API key from store
+
+            // Get Mistral API key from store - ensure it's the most current value
             const apiKeyState = get(apiKeyStore);
             const mistralApiKey = apiKeyState.keys.mistral || '';
-            
+
             console.log(`Using API keys - OpenAI: ${openaiApiKey ? '✓ (set)' : '✗ (not set)'}, Mistral: ${mistralApiKey ? '✓ (set)' : '✗ (not set)'}`);
             
             // Create options object with separate keys for each service
@@ -149,6 +149,12 @@ class ConversionHandler {
                 useOcr: ocrEnabled,
                 mistralApiKey: mistralApiKey // Dedicated Mistral key for OCR
             };
+
+            // Validate Mistral API key if OCR is enabled
+            if (ocrEnabled && !mistralApiKey) {
+                console.warn('⚠️ OCR is enabled but no Mistral API key is set');
+                this.showFeedback('Warning: OCR is enabled but no Mistral API key is set. Add a Mistral API key in Settings for OCR to work.', 'warning');
+            }
             
             console.log('🔍 [VERBOSE] Conversion options prepared:', {
                 outputDir: options.outputDir ? options.outputDir.substring(0, 50) + '...' : 'none',
@@ -348,12 +354,21 @@ class ConversionHandler {
             
             // Check for API key related errors
             const errorMessage = error.message || '';
-            if (errorMessage.includes('Unauthorized') || 
-                errorMessage.includes('401') || 
+            if (errorMessage.includes('Unauthorized') ||
+                errorMessage.includes('401') ||
                 errorMessage.includes('API key')) {
-                
+
                 // Provide a more user-friendly error message for API key issues
-                const friendlyError = 'OCR conversion failed: Invalid or missing Mistral API key. Please check your API key in Settings.';
+                const apiKeyState = get(apiKeyStore);
+                const mistralKeyExists = !!apiKeyState.keys.mistral;
+
+                let friendlyError;
+                if (mistralKeyExists) {
+                    friendlyError = 'OCR conversion failed: Invalid Mistral API key. Please check your API key in Settings.';
+                } else {
+                    friendlyError = 'OCR conversion failed: Missing Mistral API key. Please add your Mistral API key in Settings.';
+                }
+
                 storeManager.setError(friendlyError);
                 storeManager.updateFileStatus(item.id, CONVERSION_STATUSES.ERROR);
                 throw new Error(friendlyError);
@@ -381,6 +396,8 @@ class ConversionHandler {
      */
     showFeedback(message, type = 'info') {
         console.log(`${type.toUpperCase()}: ${message}`);
+        // In a real implementation, this could show a toast notification or other UI feedback
+        // For now, just log to console
     }
 }
 

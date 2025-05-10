@@ -1,7 +1,7 @@
 /**
  * API Key IPC Handlers
  * Implements handlers for API key management operations.
- * 
+ *
  * Related files:
  * - services/ApiKeyService.js: API key storage and validation
  * - ipc/handlers.js: Handler registration
@@ -13,12 +13,48 @@ const apiKeyService = require('../../../services/ApiKeyService');
 const { IPCChannels } = require('../../types');
 
 /**
+ * Update environment variables with latest API keys
+ * This ensures converters have access to the latest API keys
+ */
+function updateApiKeyEnvironment(provider, key) {
+  try {
+    // Map provider to environment variable name
+    const envMap = {
+      'mistral': 'MISTRAL_API_KEY',
+      'deepgram': 'DEEPGRAM_API_KEY',
+      'openai': 'OPENAI_API_KEY'
+    };
+
+    const envVar = envMap[provider];
+    if (!envVar) return;
+
+    // Update environment variable
+    if (key) {
+      process.env[envVar] = key;
+      console.log(`✅ Updated ${envVar} environment variable`);
+    } else {
+      delete process.env[envVar];
+      console.log(`❌ Removed ${envVar} environment variable`);
+    }
+  } catch (error) {
+    console.error(`Error updating API key environment for ${provider}:`, error);
+  }
+}
+
+/**
  * Register all API key related IPC handlers
  */
 function registerApiKeyHandlers() {
   // Save API key
   ipcMain.handle('codex:apikey:save', async (event, { key, provider = 'openai' }) => {
-    return await apiKeyService.saveApiKey(key, provider);
+    const result = await apiKeyService.saveApiKey(key, provider);
+
+    // Update environment variable with the new key
+    if (result.success) {
+      updateApiKeyEnvironment(provider, key);
+    }
+
+    return result;
   });
 
   // Check if API key exists
@@ -28,7 +64,14 @@ function registerApiKeyHandlers() {
 
   // Delete API key
   ipcMain.handle('codex:apikey:delete', async (event, { provider = 'openai' }) => {
-    return apiKeyService.deleteApiKey(provider);
+    const result = apiKeyService.deleteApiKey(provider);
+
+    // Remove environment variable when key is deleted
+    if (result.success) {
+      updateApiKeyEnvironment(provider, null);
+    }
+
+    return result;
   });
 
   // Validate API key

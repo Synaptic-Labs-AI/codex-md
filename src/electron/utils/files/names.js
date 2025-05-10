@@ -21,6 +21,19 @@ const { URL } = require('url');
 function cleanTemporaryFilename(filename) {
     if (!filename) return 'unknown';
 
+    // Check if filename already contains a date timestamp pattern (e.g., _1234567890)
+    // If it does, we need to extract the base name without the timestamp
+    const dateTimestampPattern = /_\d{9,}(\.\w+)?$/;
+    if (dateTimestampPattern.test(filename)) {
+        console.log(`[Files] Detected timestamp in filename: ${filename}`);
+        // Extract the part before the timestamp
+        const baseNameMatch = filename.match(/(.+)_\d{9,}(\.\w+)?$/);
+        if (baseNameMatch && baseNameMatch[1]) {
+            filename = baseNameMatch[1];
+            console.log(`[Files] Extracted base name: ${filename}`);
+        }
+    }
+
     return filename
         .replace(/[<>:"/\\|?*]+/g, '_') // Replace invalid characters
         .replace(/\s+/g, '_') // Replace spaces with underscores

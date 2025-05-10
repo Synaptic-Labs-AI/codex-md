@@ -434,9 +434,13 @@ ConverterRegistry.prototype.setupConverters = function() {
                         const tempDir = path.join(os.tmpdir(), `xlsx_conversion_${Date.now()}`);
                         await fs.ensureDir(tempDir);
                         
-                        const tempFile = path.join(tempDir, `${name}_${Date.now()}.xlsx`);
+                        // Store original name for later use
+                        const originalFileName = name;
+
+                        // Create a temp file with a generic name
+                        const tempFile = path.join(tempDir, `excel_conversion_${Date.now()}.xlsx`);
                         await fs.writeFile(tempFile, content);
-                        
+
                         // Read the Excel file
                         workbook = xlsx.readFile(tempFile, {
                             cellDates: true,
@@ -452,8 +456,8 @@ ConverterRegistry.prototype.setupConverters = function() {
                     // Use the actual XlsxConverter implementation
                     const result = await xlsxConverterInstance.convertToMarkdown(workbook, {
                         ...options,
-                        name,
-                        originalFileName: name // Pass the original filename
+                        name: originalFileName || name,
+                        originalFileName: originalFileName || name // Pass the original filename
                     });
                     
                     // Ensure we have content
@@ -461,11 +465,13 @@ ConverterRegistry.prototype.setupConverters = function() {
                         throw new Error('Excel conversion produced empty content');
                     }
                     
+                    // Make sure we're properly returning the original filename
                     return {
                         success: true,
                         content: result,
-                        name: name,
-                        type: 'xlsx'
+                        name: originalFileName || name,
+                        type: 'xlsx',
+                        originalFileName: originalFileName || name // Ensure the original filename is preserved
                     };
                 } catch (error) {
                     console.error(`[XlsxAdapter] Error converting Excel: ${error.message}`);

@@ -1076,6 +1076,14 @@ class UnifiedConverterFactory {
   standardizeResult(result, fileType, fileName, category) {
     this.logger.debug(`Raw result received for ${fileType}:`, sanitizeForLogging(result)); // Add logging
 
+    // Log detailed filename information for debugging
+    this.logger.log(`📄 Filename details for ${fileType}:`, {
+      resultOriginalFileName: result?.originalFileName,
+      resultMetadataOriginalFileName: result?.metadata?.originalFileName,
+      resultName: result?.name,
+      functionParamFileName: fileName
+    });
+
     // Handle null or undefined result explicitly
     if (!result) {
         this.logger.warn(`Received null or undefined result for ${fileType}. Assuming failure.`);
@@ -1095,11 +1103,16 @@ class UnifiedConverterFactory {
         success: isSuccess, // Override with determined success status
         type: result.type || fileType,
         fileType: fileType,
-        name: result.name || fileName,
+        name: (result.metadata && result.metadata.originalFileName) || result.originalFileName || result.name || fileName, // Prefer metadata.originalFileName first
+        originalFileName: (result.metadata && result.metadata.originalFileName) || result.originalFileName || result.name || fileName, // Same priority for consistency
         category: result.category || category,
         metadata: {
             ...(result.metadata || {}),
-            converter: result.converter || 'unknown'
+            converter: result.converter || 'unknown',
+            originalFileName: (result.metadata && result.metadata.originalFileName) || // First priority - from converter's metadata
+                            result.originalFileName || // Second priority - from result's direct property
+                            result.name || // Third priority - from result's name
+                            fileName // Final fallback - from function parameter
         },
         images: result.images || [],
         // Ensure content exists, provide fallback if needed
@@ -1139,6 +1152,8 @@ class UnifiedConverterFactory {
 
   async handleConversion(filePath, options) {
     const { progressTracker, fileType, fileName, converterInfo, isUrl } = options;
+    // Extract category from converterInfo to avoid "category is not defined" error
+    const category = converterInfo?.category || FILE_TYPE_CATEGORIES[fileType] || 'unknown';
     
     try {
       // Validate converterInfo
@@ -1164,15 +1179,19 @@ class UnifiedConverterFactory {
         let result;
         
         try {
+          // Extract converter from converterInfo
+          const { converter } = converterInfo;
+
           // Try using the converter's convert method first
           if (typeof converter.convert === 'function') {
             this.logger.log(`Using converter.convert for ${fileType}`, 'INFO');
             result = await converter.convert(filePath, fileName, options.apiKey, {
               ...options,
               name: fileName,
+              originalFileName: fileName, // Explicitly pass originalFileName
               onProgress: (progress) => {
                 if (progressTracker) {
-                  progressTracker.updateScaled(progress, 20, 90, { 
+                  progressTracker.updateScaled(progress, 20, 90, {
                     status: typeof progress === 'object' ? progress.status : `processing_${fileType}`
                   });
                 }
@@ -1185,9 +1204,10 @@ class UnifiedConverterFactory {
             result = await registry.convertToMarkdown(fileType, filePath, {
               ...options,
               name: fileName,
+              originalFileName: fileName, // Explicitly pass originalFileName
               onProgress: (progress) => {
                 if (progressTracker) {
-                  progressTracker.updateScaled(progress, 20, 90, { 
+                  progressTracker.updateScaled(progress, 20, 90, {
                     status: typeof progress === 'object' ? progress.status : `processing_${fileType}`
                   });
                 }
@@ -1199,6 +1219,8 @@ class UnifiedConverterFactory {
           
           // Try the alternative method as a fallback
           const registry = await this._ensureInitialized();
+          // Extract converter from converterInfo
+          const { converter } = converterInfo;
           if (typeof converter.convert === 'function' && typeof registry.convertToMarkdown === 'function') {
             this.logger.log(`Trying alternative conversion method as fallback`, 'INFO');
             
@@ -1207,9 +1229,10 @@ class UnifiedConverterFactory {
               result = await registry.convertToMarkdown(fileType, filePath, {
                 ...options,
                 name: fileName,
+                originalFileName: fileName, // Explicitly pass originalFileName
                 onProgress: (progress) => {
                   if (progressTracker) {
-                    progressTracker.updateScaled(progress, 20, 90, { 
+                    progressTracker.updateScaled(progress, 20, 90, {
                       status: typeof progress === 'object' ? progress.status : `processing_${fileType}`
                     });
                   }
@@ -1286,10 +1309,11 @@ class UnifiedConverterFactory {
       const result = await converter.convert(fileContent, fileName, options.apiKey, {
         ...options,
         name: fileName,
+        originalFileName: fileName, // Explicitly pass originalFileName
         onProgress: (progress) => {
           if (progressTracker) {
-            progressTracker.updateScaled(progress, 20, 90, { 
-              status: typeof progress === 'object' ? progress.status : `converting_${fileType}` 
+            progressTracker.updateScaled(progress, 20, 90, {
+              status: typeof progress === 'object' ? progress.status : `converting_${fileType}`
             });
           }
         }

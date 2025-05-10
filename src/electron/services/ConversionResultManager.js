@@ -25,12 +25,31 @@ const { cleanTemporaryFilename, getBasename, generateUrlFilename } = require('..
  * @returns {string} The appropriate filename
  */
 function generateAppropriateFilename(originalName, type, metadata = {}) {
+  console.log(`🔄 [ConversionResultManager] Generating filename for: ${originalName} (${type})`);
+
+  // For URL conversions, generate from the source URL if available
   if (type === 'url' && metadata.source_url) {
     return generateUrlFilename(metadata.source_url);
   }
-  
-  // For regular files, clean the original name
-  return cleanTemporaryFilename(originalName);
+
+  // For Excel and data files, prioritize originalFileName from metadata
+  if (type === 'xlsx' || type === 'csv') {
+    // Use the metadata.originalFileName if available (added in our fix to converters)
+    if (metadata.originalFileName) {
+      console.log(`📊 [ConversionResultManager] Using originalFileName from metadata: ${metadata.originalFileName}`);
+      console.log(`📊 [ConversionResultManager] Available metadata keys: ${Object.keys(metadata).join(', ')}`);
+      return cleanTemporaryFilename(metadata.originalFileName);
+    }
+
+    // Log if originalFileName is missing for spreadsheet files
+    console.warn(`⚠️ [ConversionResultManager] No originalFileName found in metadata for ${type} file. Metadata keys: ${Object.keys(metadata).join(', ')}`);
+    console.warn(`⚠️ [ConversionResultManager] Using fallback: ${originalName}`);
+  }
+
+  // For all other files, clean the original name
+  const cleanedName = cleanTemporaryFilename(originalName);
+  console.log(`📄 [ConversionResultManager] Generated filename: ${cleanedName}`);
+  return cleanedName;
 }
 
 /**
@@ -266,9 +285,14 @@ class ConversionResultManager {
    const isUrl = contentType === 'url' || contentType === 'parenturl';
 
     // Get the base name without extension and ensure it's valid for the file system
-    const baseName = getBasename(filename).replace(/[<>:"/\\|?*]+/g, '_').replace(/\s+/g, '_');
-    const outputBasePath = createSubdirectory ? 
-      path.join(baseOutputDir, `${baseName}_${Date.now()}`) : 
+    // No need to replace spaces with underscores or make other changes since cleanTemporaryFilename already did that
+    const baseName = getBasename(filename);
+    console.log(`📝 [ConversionResultManager] Using base name: ${baseName}`);
+
+    // For output directory path, use the base name but without timestamp suffix in the directory name
+    // The timestamp is only added to prevent collisions
+    const outputBasePath = createSubdirectory ?
+      path.join(baseOutputDir, `${baseName}_${Date.now()}`) :
       baseOutputDir;
 
     console.log(`📁 [ConversionResultManager] Generated output path: ${outputBasePath}`);
@@ -334,9 +358,10 @@ class ConversionResultManager {
       }
     }
 
-    // Determine main file path
-    const mainFilePath = createSubdirectory ? 
-      path.join(outputBasePath, 'document.md') : 
+    // Determine main file path - use baseName instead of hardcoded 'document.md'
+    // This ensures the original filename is preserved even when creating a subdirectory
+    const mainFilePath = createSubdirectory ?
+      path.join(outputBasePath, `${baseName}.md`) :
       path.join(outputBasePath, `${baseName}.md`);
 
     // Update image references to use Obsidian format

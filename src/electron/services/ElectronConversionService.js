@@ -184,7 +184,9 @@ class ElectronConversionService {
    */
   async convert(filePath, options = {}) {
     console.log('🔄 [VERBOSE] ElectronConversionService.convert called');
-    console.time('🕒 [VERBOSE] Total conversion time');
+    // Use a unique label for each conversion to avoid duplicate label warnings
+    const timeLabel = `🕒 [VERBOSE] Total conversion time ${Date.now()}`;
+    console.time(timeLabel);
     console.trace('🔄 [VERBOSE] Convert method stack trace');
     
     const startTime = Date.now();
@@ -193,7 +195,7 @@ class ElectronConversionService {
       // Validate output directory
       if (!options.outputDir) {
         console.error('❌ [VERBOSE] No output directory provided!');
-        console.timeEnd('🕒 [VERBOSE] Total conversion time');
+        console.timeEnd(timeLabel);
         throw new Error('Output directory is required for conversion');
       }
       
@@ -271,17 +273,40 @@ class ElectronConversionService {
       }
       
       // Save the conversion result using the ConversionResultManager
+      // Ensure we're consistently using the original filename
+      // Priority: converter's metadata.originalFileName > conversionResult fields > options fields
+      const originalFileName = (conversionResult.metadata && conversionResult.metadata.originalFileName) ||
+                              conversionResult.originalFileName ||
+                              conversionResult.name ||
+                              options.originalFileName ||
+                              options.name;
+
+      console.log(`📦 [ElectronConversionService] Using filename for result: ${originalFileName}`);
+
+      // Log metadata from the conversion result for debugging
+      if (conversionResult.metadata) {
+        console.log(`🔍 [ElectronConversionService] Conversion result metadata:`, {
+          keys: Object.keys(conversionResult.metadata),
+          hasOriginalFileName: 'originalFileName' in conversionResult.metadata,
+          originalFileName: conversionResult.metadata.originalFileName
+        });
+      }
+
       const result = await this.resultManager.saveConversionResult({
         content: content,
-        metadata: conversionResult.metadata || {},
+        metadata: {
+          ...(conversionResult.metadata || {}),
+          originalFileName: originalFileName // Ensure original filename is in metadata
+        },
         images: conversionResult.images || [],
         files: conversionResult.files,
-        name: conversionResult.name || options.originalFileName || options.name,
+        name: originalFileName, // Use the original filename consistently
         type: conversionResult.type || fileType,
         fileType: fileType, // Always use the fileType from frontend
         outputDir: options.outputDir,
         options: {
           ...options,
+          originalFileName: originalFileName, // Add it to options too
           category: fileCategory,
           pageCount: conversionResult.pageCount,
           slideCount: conversionResult.slideCount,
@@ -293,11 +318,14 @@ class ElectronConversionService {
         file: filePath,
         outputPath: result.outputPath
       });
-      
+
+      // End timer for successful conversion
+      console.timeEnd(timeLabel);
+
       return result;
       
     } catch (error) {
-      console.timeEnd('🕒 [VERBOSE] Total conversion time');
+      console.timeEnd(timeLabel);
       console.error('❌ [VERBOSE] Conversion error caught in ElectronConversionService.convert');
       
       // Always include fileType in error results

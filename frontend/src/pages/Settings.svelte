@@ -18,6 +18,7 @@
 <script>
   import { onMount } from 'svelte';
   import { settings, setOcrEnabled, setThemeMode, getThemeMode } from '../lib/stores/settings.js';
+  import apiKeyStore from '../lib/stores/apiKey.js';
   import ApiKeyInput from '../lib/components/ApiKeyInput.svelte';
   import TranscriptionSettings from '../lib/components/settings/TranscriptionSettings.svelte';
   import WebsiteScrapingSettings from '../lib/components/settings/WebsiteScrapingSettings.svelte';
@@ -30,6 +31,7 @@
   // Local binding for settings state
   let ocrEnabled = false;
   let themeMode = 'light';
+  let hasMistralApiKey = false;
 
   // Theme options for toggle group
   const themeOptions = [
@@ -47,6 +49,11 @@
   const unsubscribe = settings.subscribe(value => {
     ocrEnabled = value.ocr?.enabled || false;
     themeMode = value.theme?.mode || 'light';
+  });
+
+  // Subscribe to API key store
+  const unsubscribeApiKey = apiKeyStore.subscribe(value => {
+    hasMistralApiKey = !!value.keys.mistral;
   });
 
   // Update settings when toggle changes
@@ -90,10 +97,18 @@
           }
         })
         .catch(err => console.error('Error loading theme settings:', err));
+
+      // Check if Mistral API key exists
+      window.electron.checkApiKeyExists('mistral')
+        .then(result => {
+          hasMistralApiKey = result.exists;
+        })
+        .catch(err => console.error('Error checking Mistral API key:', err));
     }
 
     return () => {
       unsubscribe();
+      unsubscribeApiKey();
     };
   });
 </script>
@@ -150,6 +165,18 @@
         }}
       />
 
+      <div class="ocr-info">
+        {#if ocrEnabled && !hasMistralApiKey}
+          <div class="warning-box">
+            <p><strong>Warning:</strong> Advanced OCR is enabled but no Mistral API key is configured. Please add your Mistral API key in the API Keys section above for OCR to work properly.</p>
+          </div>
+        {:else if ocrEnabled && hasMistralApiKey}
+          <div class="success-box">
+            <p><strong>Ready:</strong> Advanced OCR is enabled and Mistral API key is configured.</p>
+          </div>
+        {/if}
+      </div>
+
       <Accordion title="About Mistral OCR" icon="🔍">
         <div class="info-content">
           <p>Advanced OCR features include:</p>
@@ -159,6 +186,7 @@
             <li>Support for tables and lists</li>
             <li>Higher accuracy for difficult-to-read text</li>
           </ul>
+          <p><strong>API Key Required:</strong> Advanced OCR requires a valid Mistral API key to function.</p>
         </div>
       </Accordion>
     </SettingsSection>
@@ -271,6 +299,39 @@
   
   .info-content li {
     margin-bottom: var(--spacing-xs);
+  }
+
+  .ocr-info {
+    margin-top: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .warning-box {
+    padding: var(--spacing-sm);
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid #ffc107;
+    border-radius: var(--rounded-sm);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .warning-box p {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+  }
+
+  .success-box {
+    padding: var(--spacing-sm);
+    background-color: rgba(76, 175, 80, 0.1);
+    border-left: 3px solid #4caf50;
+    border-radius: var(--rounded-sm);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .success-box p {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
   }
   
   /* Responsive adjustments */

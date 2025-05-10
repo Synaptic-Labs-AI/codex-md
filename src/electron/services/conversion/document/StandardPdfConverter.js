@@ -28,10 +28,15 @@ class StandardPdfConverter extends BasePdfConverter {
         this.name = 'Standard PDF Converter';
         this.description = 'Converts PDF files to markdown using standard text extraction';
         this.skipHandlerSetup = skipHandlerSetup;
-        
+
         // Log whether handlers will be set up
         if (skipHandlerSetup) {
             console.log('[StandardPdfConverter] Skipping handler setup (skipHandlerSetup=true)');
+        } else {
+            // Instead of delaying setupIpcHandlers through BaseService (which is causing duplicate registrations),
+            // we'll ensure we only set up handlers explicitly when skipHandlerSetup is false
+            // This will override BaseService's setTimeout approach
+            this.setupIpcHandlers();
         }
     }
 
@@ -39,9 +44,21 @@ class StandardPdfConverter extends BasePdfConverter {
      * Set up IPC handlers for PDF conversion
      */
     setupIpcHandlers() {
-        this.registerHandler('convert:pdf:standard', this.handleConvert.bind(this));
-        this.registerHandler('convert:pdf:standard:metadata', this.handleGetMetadata.bind(this));
-        this.registerHandler('convert:pdf:standard:thumbnail', this.handleGenerateThumbnail.bind(this));
+        // If skipHandlerSetup was specified, don't register handlers
+        if (this.skipHandlerSetup) {
+            console.log('[StandardPdfConverter] Skipping IPC handler setup due to skipHandlerSetup flag');
+            return;
+        }
+
+        // Use try-catch to handle cases where handlers are already registered
+        try {
+            this.registerHandler('convert:pdf:standard', this.handleConvert.bind(this));
+            this.registerHandler('convert:pdf:standard:metadata', this.handleGetMetadata.bind(this));
+            this.registerHandler('convert:pdf:standard:thumbnail', this.handleGenerateThumbnail.bind(this));
+        } catch (error) {
+            // If a handler is already registered, log the error but don't crash
+            console.warn(`[StandardPdfConverter] Error in setupIpcHandlers: ${error.message}`);
+        }
     }
 
     /**
