@@ -12,7 +12,7 @@ The application follows a modern Single Page Application (SPA) architecture buil
 
 2. Conversion Management Layer
 - `conversionManager.js`: Orchestrates the conversion process
-- Handles batch processing and progress tracking
+- Handles progress tracking
 - Manages file preparation and API communication
 
 3. State Management

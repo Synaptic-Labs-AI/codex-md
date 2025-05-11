@@ -143,18 +143,6 @@ class StoreManager {
         }
     }
 
-    /**
-     * Updates batch conversion progress
-     */
-    updateBatchProgress(current, total) {
-        if (typeof current !== 'number' || typeof total !== 'number') {
-            console.warn('Invalid batch progress values');
-            return;
-        }
-
-        const progress = Math.min(Math.round((current / total) * 100), 100);
-        this.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
-    }
 
     /**
      * Handles conversion completion

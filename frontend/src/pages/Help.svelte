@@ -65,13 +65,13 @@
         <ul>
           <li>You need API keys for specific conversion features:
             <ul class="sub-list">
-              <li><strong>OpenAI API key</strong> - Required for audio/video transcription</li>
+              <li><strong>Deepgram API key</strong> - Required for audio/video transcription</li>
               <li><strong>Mistral API key</strong> - Required for advanced OCR processing of PDF files</li>
             </ul>
           </li>
           <li>Get your API keys from:
             <ul class="sub-list">
-              <li><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI's platform</a> - For audio/video transcription</li>
+              <li><a href="https://console.deepgram.com/signup" target="_blank" rel="noopener noreferrer">Deepgram's platform</a> - For audio/video transcription</li>
               <li><a href="https://console.mistral.ai/" target="_blank" rel="noopener noreferrer">Mistral's platform</a> - For OCR processing</li>
             </ul>
           </li>
@@ -87,8 +87,9 @@
           <li>Add your content (either paste a URL or upload files)</li>
           <li>If you're converting audio/video, add your API key when prompted</li>
           <li>Click the "<strong>Start Conversion</strong>" button</li>
+          <li>Choose a folder to save your notes</li>
           <li>Wait for processing (this might take a minute)</li>
-          <li>Download your converted notes in an organized .zip file</li>
+          
         </ol>
       </section>
 
@@ -120,12 +121,12 @@
         
         <div class="faq-item">
           <h3>Is my data secure?</h3>
-          <p>Yes! <span class="codex-md-brand">codex.md</span> processes your files locally on your device. Your files never leave your computer unless you're using the API key for audio/video transcription, in which case only those specific files are sent to OpenAI's servers.</p>
+          <p>Yes! <span class="codex-md-brand">codex.md</span> processes your files locally on your device. Your files never leave your computer unless you're using the API key for audio/video transcription, in which case only those specific files are sent to Deepgram's servers.</p>
         </div>
-        
+
         <div class="faq-item">
           <h3>What happens to my API keys?</h3>
-          <p>Your API keys are stored securely on your device using machine-specific encryption. They persist between sessions so you don't need to re-enter them each time. Your keys are never sent to our servers and are only used for the specific services they're intended for (OpenAI for transcription, Mistral for OCR).</p>
+          <p>Your API keys are stored securely on your device using machine-specific encryption. They persist between sessions so you don't need to re-enter them each time. Your keys are never sent to our servers and are only used for the specific services they're intended for (Deepgram for transcription, Mistral for OCR).</p>
         </div>
         
         <div class="faq-item">

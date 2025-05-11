@@ -16,29 +16,16 @@ const { URL } = require('url');
 /**
  * Clean a filename to be safe for temporary storage
  * @param {string} filename - The filename to clean
+ * @param {boolean} preserveNumbers - Whether to preserve numbers in the filename
  * @returns {string} The cleaned filename
  */
-function cleanTemporaryFilename(filename) {
+function cleanTemporaryFilename(filename, preserveNumbers = true) {
     if (!filename) return 'unknown';
 
-    // Check if filename already contains a date timestamp pattern (e.g., _1234567890)
-    // If it does, we need to extract the base name without the timestamp
-    const dateTimestampPattern = /_\d{9,}(\.\w+)?$/;
-    if (dateTimestampPattern.test(filename)) {
-        console.log(`[Files] Detected timestamp in filename: ${filename}`);
-        // Extract the part before the timestamp
-        const baseNameMatch = filename.match(/(.+)_\d{9,}(\.\w+)?$/);
-        if (baseNameMatch && baseNameMatch[1]) {
-            filename = baseNameMatch[1];
-            console.log(`[Files] Extracted base name: ${filename}`);
-        }
-    }
-
+    // For Excel/CSV files, it's especially important to preserve the exact filename
+    // This is the only change we need to safely store the file
     return filename
-        .replace(/[<>:"/\\|?*]+/g, '_') // Replace invalid characters
-        .replace(/\s+/g, '_') // Replace spaces with underscores
-        .replace(/__+/g, '_') // Replace multiple underscores with single
-        .replace(/^_+|_+$/g, ''); // Trim underscores from start and end
+        .replace(/[<>:"/\\|?*]+/g, '_'); // Replace only invalid file system characters
 }
 
 /**
@@ -48,7 +35,14 @@ function cleanTemporaryFilename(filename) {
  */
 function getBasename(filePath) {
     const basename = path.basename(filePath);
+
+    // Keep any numbers, special characters, etc. in the filename
+    // Just remove the extension
     const lastDot = basename.lastIndexOf('.');
+
+    // Log the basename for debugging
+    console.log(`[Files] Getting basename from: ${filePath} -> ${lastDot === -1 ? basename : basename.slice(0, lastDot)}`);
+
     return lastDot === -1 ? basename : basename.slice(0, lastDot);
 }
 

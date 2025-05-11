@@ -49,7 +49,7 @@ class ParentUrlConverter extends UrlConverter {
             }
             
             const conversionId = this.generateConversionId();
-            const window = event.sender.getOwnerBrowserWindow();
+            const window = event?.sender?.getOwnerBrowserWindow?.() || null;
             
             // Create temp directory for this conversion
             const tempDir = await this.fileStorage.createTempDir('parent_url_conversion');
@@ -65,8 +65,10 @@ class ParentUrlConverter extends UrlConverter {
                 pages: []
             });
 
-            // Notify client that conversion has started
-            window.webContents.send('parent-url:conversion-started', { conversionId });
+            // Notify client that conversion has started (only if we have a valid window)
+            if (window && window.webContents) {
+                window.webContents.send('parent-url:conversion-started', { conversionId });
+            }
 
             // Start conversion process
             this.processConversion(conversionId, url, options).catch(error => {

@@ -46,10 +46,10 @@
 
       <h3>🔑 About API Keys</h3>
       <ul>
-        <li>You <strong>only</strong> need an OpenAI API key for audio/video files</li>
-        <li>Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI's platform</a></li>
-        <li>You'll need to set up billing with OpenAI, but transcription is very affordable (typically just cents per audio minute)</li>
-        <li>The key is temporary and gets cleared when you refresh</li>
+        <li>You <strong>only</strong> need a Deepgram API key for audio/video files</li>
+        <li>Get your API key from <a href="https://console.deepgram.com/signup" target="_blank" rel="noopener noreferrer">Deepgram's platform</a></li>
+        <li>You'll need to set up billing with Deepgram, but transcription is very affordable (typically just cents per audio minute)</li>
+        <li>The key is securely stored on your device</li>
         <li>Don't worry if you don't have one - you can still convert regular documents!</li>
       </ul>
 
@@ -58,8 +58,8 @@
         <li>Add your content (either paste a URL or upload files)</li>
         <li>If you're converting audio/video, add your API key when prompted</li>
         <li>Click the "<strong>Start Conversion</strong>" button</li>
+        <li>Download your converted notes in a folder of your choise</li>
         <li>Wait for processing (this might take a minute)</li>
-        <li>Download your converted notes in an organized .zip file</li>
       </ol>
 
       <div class="resources-note">

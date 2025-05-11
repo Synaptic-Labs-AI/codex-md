@@ -4,8 +4,6 @@
  * Handles conversion of local files to Markdown format. Uses the Electron IPC bridge
  * for communication with the main process. Supports single file conversion.
  *
- * TEMPORARILY DISABLED: Batch processing functionality has been disabled to simplify
- * the application to only handle one item at a time.
  *
  * Related files:
  * - ../eventHandlers.js: Event registration and handling
@@ -80,65 +78,6 @@ export async function convertFile(filePath, options = {}, onProgress = null) {
   }
 }
 
-/**
- * Converts multiple items to Markdown in sequence
- * @param {Array<Object>} items Array of items to convert (can include files, URLs, etc.)
- * @param {Object} options Conversion options
- * @returns {Promise<Object>} Conversion result
- *
- * TEMPORARILY DISABLED: Batch processing functionality has been disabled
- */
-export async function convertBatch(items, options = {}, onProgress = null, onItemComplete = null) {
-  // TEMPORARILY DISABLED: Batch processing functionality has been disabled
-  console.warn('Batch conversion is temporarily disabled - processing only the first item');
-  
-  // Only process the first item if multiple are provided
-  if (Array.isArray(items) && items.length > 0) {
-    const item = items[0];
-    console.log(`Processing only the first item: ${item.path || item.url}`);
-    
-    try {
-      let result;
-      
-      // Process based on item type
-      if (item.path) {
-        result = await convertFile(item.path, options, onProgress);
-      } else if (item.url) {
-        // Import URL converter dynamically to avoid circular dependencies
-        const { convertUrl, convertParentUrl } = await import('./urlConverter.js');
-        
-        if (item.type === 'parent') {
-          result = await convertParentUrl(item.url, options, onProgress);
-        } else {
-          result = await convertUrl(item.url, options, onProgress);
-        }
-      } else {
-        throw new ConversionError('Item has neither path nor URL');
-      }
-      
-      // Call item complete callback if provided
-      if (onItemComplete) {
-        onItemComplete(result);
-      }
-      
-      // Return a batch-like result structure with just the one item
-      return {
-        success: true,
-        results: [result],
-        outputPath: result.outputPath
-      };
-    } catch (error) {
-      console.error('Single item conversion failed:', error);
-      return {
-        success: false,
-        error: error.message,
-        results: []
-      };
-    }
-  } else {
-    throw new ConversionError('No items provided for conversion');
-  }
-}
 
 /**
  * Gets the result of a conversion

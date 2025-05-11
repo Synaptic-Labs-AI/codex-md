@@ -11,7 +11,6 @@
  * Related files:
  * - frontend/src/lib/utils/conversion/manager/storeManager.js
  * - frontend/src/lib/utils/conversion/handlers/conversionHandler.js
- * - frontend/src/lib/utils/conversion/handlers/batchHandler.js
  * - frontend/src/lib/utils/conversion/handlers/downloadHandler.js
  * - frontend/src/lib/utils/conversion/handlers/tempFileManager.js
  */

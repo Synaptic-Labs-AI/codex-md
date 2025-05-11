@@ -78,10 +78,10 @@ class ConversionHandler {
             
             // Check for API key related errors
             const errorMessage = error.message || '';
-            if (errorMessage.includes('Unauthorized') || 
-                errorMessage.includes('401') || 
+            if (errorMessage.includes('Unauthorized') ||
+                errorMessage.includes('401') ||
                 errorMessage.includes('API key')) {
-                
+
                 // Provide a more user-friendly error message for API key issues
                 const friendlyError = 'OCR conversion failed: Invalid or missing Mistral API key. Please check your API key in Settings.';
                 storeManager.setError(friendlyError);
@@ -98,7 +98,7 @@ class ConversionHandler {
      * Handles conversion in Electron environment
      * @private
      */
-    async handleElectronConversion(item, openaiApiKey) {
+    async handleElectronConversion(item, deepgramApiKey) {
         console.log('🔄 [VERBOSE] handleElectronConversion called with item:', {
             id: item.id,
             name: item.name,
@@ -107,7 +107,7 @@ class ConversionHandler {
             hasUrl: !!item.url,
             hasPath: !!item.path,
             hasFile: !!item.file,
-            hasApiKey: !!openaiApiKey
+            hasApiKey: !!deepgramApiKey
         });
         console.time('🕒 [VERBOSE] Electron conversion time');
 
@@ -139,13 +139,13 @@ class ConversionHandler {
             const apiKeyState = get(apiKeyStore);
             const mistralApiKey = apiKeyState.keys.mistral || '';
 
-            console.log(`Using API keys - OpenAI: ${openaiApiKey ? '✓ (set)' : '✗ (not set)'}, Mistral: ${mistralApiKey ? '✓ (set)' : '✗ (not set)'}`);
-            
+            console.log(`Using API keys - Deepgram: ${deepgramApiKey ? '✓ (set)' : '✗ (not set)'}, Mistral: ${mistralApiKey ? '✓ (set)' : '✗ (not set)'}`);
+
             // Create options object with separate keys for each service
             const options = {
                 outputDir: outputResult.path,
                 createSubdirectory: false,
-                ...(openaiApiKey ? { apiKey: openaiApiKey } : {}), // OpenAI key for general use
+                ...(deepgramApiKey ? { apiKey: deepgramApiKey } : {}), // Deepgram key for general use
                 useOcr: ocrEnabled,
                 mistralApiKey: mistralApiKey // Dedicated Mistral key for OCR
             };

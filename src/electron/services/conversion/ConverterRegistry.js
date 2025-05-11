@@ -499,44 +499,73 @@ ConverterRegistry.prototype.setupConverters = function() {
                     }
 
                     // Create a temporary file to process the media
-                    const tempDir = await fileStorageServiceInstance.createTempDir('media_conversion');
-                    const tempFile = path.join(tempDir, `${name}_${Date.now()}${path.extname(name) || '.mp4'}`);
+                    const tempDir = await fileStorageServiceInstance.createTempDir('media_adapter_temp'); // More specific temp dir name
+                    const tempFileName = `${name}_${Date.now()}${path.extname(name) || '.mp4'}`; // Ensure a valid extension, default to .mp4
+                    const tempFile = path.join(tempDir, tempFileName);
+                    
+                    console.log(`[MediaAdapter] Writing buffer for '${name}' to temporary file: ${tempFile}`);
                     await fs.writeFile(tempFile, content);
+                    console.log(`[MediaAdapter] Buffer written to ${tempFile}`);
 
                     // Get deepgram API key from options or settings
-                    const deepgramApiKey = options.deepgramApiKey || '';
+                    // This logic is now primarily handled within MediaConverter, but can be passed as override.
+                    const deepgramApiKey = options.deepgramApiKey || null; 
 
                     // Process the media file using MediaConverter
-                    // Simulate an event object for the handler
-                    const mockEvent = { sender: { getOwnerBrowserWindow: () => null } };
+                    // Create a more complete mock event that provides a valid BrowserWindow or null
+                    // but in a way that won't throw errors when accessing properties
+                    const mockEvent = {
+                        sender: {
+                            getOwnerBrowserWindow: () => null,
+                            // Add a mock webContents to prevent null reference errors
+                            webContents: {
+                                send: (channel, data) => {
+                                    console.log(`[MediaAdapter] Would send to channel ${channel}:`, data);
+                                    // This is a no-op function that logs the would-be sent data
+                                    // but doesn't actually try to communicate with a window
+                                }
+                            }
+                        }
+                    };
 
                     const result = await mediaConverterInstance.handleConvert(mockEvent, {
-                        filePath: tempFile,
+                        filePath: tempFile, // Pass the path to the temporary file containing the buffer content
                         options: {
-                            ...options,
-                            transcribe: options.transcribe !== false,
-                            deepgramApiKey: deepgramApiKey,
-                            language: options.language || 'en',
-                            title: options.title || name,
-                            _tempDir: tempDir // Pass tempDir for cleanup
+                            ...options, // Pass through all original options
+                            isTempInputFile: true, // Indicate that filePath is a temp file created by the adapter
+                            originalFileName: name, // Pass the original file name
+                            deepgramApiKey: deepgramApiKey, // Pass explicitly if provided, otherwise MediaConverter will find it
+                            // _tempDir is no longer needed here as MediaConverter handles its own temp space or cleans the input temp dir
                         }
                     });
-
-                    // Media conversion is handled asynchronously, so we return a placeholder
-                    // The actual content will be available via the conversion progress events
+                    
+                    // mediaConverterInstance.handleConvert now returns { conversionId, originalFileName }
+                    // The success of the *initiation* is implied if no error is thrown.
+                    // The actual conversion result is asynchronous.
+                    console.log(`[MediaAdapter] Media conversion initiated for '${name}'. Conversion ID: ${result.conversionId}`);
                     return {
-                        success: true,
+                        success: true, // Indicates successful initiation
                         conversionId: result.conversionId,
-                        async: true,
-                        name: name,
-                        type: 'media'
+                        async: true, // Critical: signals to client that result is async
+                        name: result.originalFileName || name, // Use originalFileName from result if available
+                        type: 'media' // Or derive from actual file type if needed
                     };
                 } catch (error) {
-                    console.error(`[MediaAdapter] Error converting media: ${error.message}`);
-                    throw new Error(`Media conversion failed: ${error.message}`);
+                    const errorMessage = error.message || 'Unknown error in media adapter';
+                    console.error(`[MediaAdapter] Error converting media file '${name}':`, error);
+                    // If tempDir was created, attempt to clean it up.
+                    if (tempDir && (await fs.pathExists(tempDir))) {
+                        try {
+                            await fs.remove(tempDir);
+                            console.log(`[MediaAdapter] Cleaned up temp directory ${tempDir} after error.`);
+                        } catch (cleanupError) {
+                            console.error(`[MediaAdapter] Failed to clean up temp directory ${tempDir} after error:`, cleanupError);
+                        }
+                    }
+                    throw new Error(`Media conversion failed for '${name}': ${errorMessage}`);
                 }
             },
-            validate: (content) => Buffer.isBuffer(content) && content.length > 0,
+            validate: (content) => Buffer.isBuffer(content) && content.length > 0, // This adapter is for buffer inputs
             config: {
                 name: 'Media Converter',
                 extensions: ['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.mp4', '.mov', '.avi', '.mkv', '.webm'],

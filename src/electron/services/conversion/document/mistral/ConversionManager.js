@@ -47,7 +47,7 @@ class ConversionManager {
    * @param {Electron.BrowserWindow} params.window - Electron browser window
    * @returns {Promise<Object>} Conversion information
    */
-  async startConversion({ filePath, options = {}, window }) {
+  async startConversion({ filePath, options = {}, window = null }) {
     try {
       console.log('[ConversionManager] Starting conversion with options:', {
         hasApiKey: !!this.mistralApiClient.apiKey,
@@ -80,8 +80,10 @@ class ConversionManager {
         window
       });
 
-      // Notify client that conversion has started
-      window.webContents.send('pdf:conversion-started', { conversionId });
+      // Notify client that conversion has started (only if we have a valid window)
+      if (window && window.webContents) {
+        window.webContents.send('pdf:conversion-started', { conversionId });
+      }
 
       // Start conversion process in background
       this.processConversion(conversionId, filePath, options).catch(error => {

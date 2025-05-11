@@ -281,6 +281,20 @@ class ElectronConversionService {
                               options.originalFileName ||
                               options.name;
 
+      // Add enhanced logging for XLSX/CSV files to track filename handling
+      if (fileType === 'xlsx' || fileType === 'csv') {
+        console.log(`📊 [ElectronConversionService] Excel/CSV originalFileName resolution:`, {
+          fromMetadata: conversionResult.metadata && conversionResult.metadata.originalFileName,
+          fromResult: conversionResult.originalFileName,
+          fromResultName: conversionResult.name,
+          fromOptions: options.originalFileName,
+          fromOptionsName: options.name,
+          resolved: originalFileName,
+          metadataKeys: conversionResult.metadata ? Object.keys(conversionResult.metadata) : [],
+          resultKeys: Object.keys(conversionResult)
+        });
+      }
+
       console.log(`📦 [ElectronConversionService] Using filename for result: ${originalFileName}`);
 
       // Log metadata from the conversion result for debugging
@@ -292,12 +306,27 @@ class ElectronConversionService {
         });
       }
 
+      // For XLSX and CSV files, specifically ensure the metadata contains the originalFileName
+      let enhancedMetadata = {
+        ...(conversionResult.metadata || {}),
+        originalFileName: originalFileName // Ensure original filename is in metadata
+      };
+
+      // For XLSX/CSV files, double-check the metadata structure
+      if (fileType === 'xlsx' || fileType === 'csv') {
+        console.log(`📊 [ElectronConversionService] Enhanced metadata for ${fileType}:`, enhancedMetadata);
+
+        // Log additional debugging info
+        if (!enhancedMetadata.originalFileName) {
+          console.warn(`⚠️ [ElectronConversionService] originalFileName missing in metadata even after setting it!`);
+          // Force set it as a last resort
+          enhancedMetadata = { ...enhancedMetadata, originalFileName };
+        }
+      }
+
       const result = await this.resultManager.saveConversionResult({
         content: content,
-        metadata: {
-          ...(conversionResult.metadata || {}),
-          originalFileName: originalFileName // Ensure original filename is in metadata
-        },
+        metadata: enhancedMetadata, // Use our enhanced metadata
         images: conversionResult.images || [],
         files: conversionResult.files,
         name: originalFileName, // Use the original filename consistently

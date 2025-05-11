@@ -55,7 +55,7 @@ class UrlConverter extends BaseService {
             }
             
             const conversionId = this.generateConversionId();
-            const window = event.sender.getOwnerBrowserWindow();
+            const window = event?.sender?.getOwnerBrowserWindow?.() || null;
             
             // Create temp directory for this conversion
             const tempDir = await this.fileStorage.createTempDir('url_conversion');
@@ -69,8 +69,10 @@ class UrlConverter extends BaseService {
                 window
             });
 
-            // Notify client that conversion has started
-            window.webContents.send('url:conversion-started', { conversionId });
+            // Notify client that conversion has started (only if we have a valid window)
+            if (window && window.webContents) {
+                window.webContents.send('url:conversion-started', { conversionId });
+            }
 
             // Start conversion process
             this.processConversion(conversionId, url, options).catch(error => {

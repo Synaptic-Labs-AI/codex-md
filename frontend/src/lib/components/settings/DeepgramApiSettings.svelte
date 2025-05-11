@@ -25,61 +25,174 @@
   
   onMount(async () => {
     try {
-      // Check if we have a stored Deepgram API key
-      if (window?.electron?.getSetting) {
-        window.electron.getSetting('transcription.deepgramApiKey')
-          .then(value => {
-            if (value) {
+      // Initialize
+      isInitialized = false;
+
+      console.log('[DeepgramApiSettings] Checking for Deepgram API key on mount');
+
+      // Check if we have a stored Deepgram API key using the dedicated handler
+      if (window?.electron) {
+        // Use specialized Deepgram API key methods if available
+        if (window.electron.getDeepgramApiKey) {
+          console.log('[DeepgramApiSettings] Using getDeepgramApiKey to check for API key');
+          try {
+            const result = await window.electron.getDeepgramApiKey();
+            console.log('[DeepgramApiSettings] API key check result:', result);
+
+            if (result && result.hasKey) {
+              console.log('[DeepgramApiSettings] API key found via getDeepgramApiKey');
               keyStatus.set({ exists: true, valid: true });
             }
-          })
-          .catch(err => console.error('Error checking Deepgram API key:', err));
-      }
-    } catch (err) {
-      console.error('Error checking Deepgram API key:', err);
-    }
-  });
-  
-  async function saveApiKey() {
-    if (!apiKey) return;
-    
-    saving = true;
-    error = '';
-    
-    try {
-      // Save key to settings via electron API
-      if (window?.electron?.setSetting) {
-        await window.electron.setSetting('transcription.deepgramApiKey', apiKey);
-      }
-      
-      // Configure Deepgram with the new key if available
-      if (window?.electron?.configureDeepgram) {
-        const result = await window.electron.configureDeepgram({ apiKey });
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to configure Deepgram');
+          } catch (err) {
+            console.error('[DeepgramApiSettings] Error using getDeepgramApiKey:', err);
+            // Fall back to regular API key methods
+          }
+        } else if (window.electron.getApiKey) {
+          console.log('[DeepgramApiSettings] Using getApiKey to check for Deepgram API key');
+          try {
+            const result = await window.electron.getApiKey('deepgram');
+            console.log('[DeepgramApiSettings] API key check result:', result);
+
+            if (result && result.key) {
+              console.log('[DeepgramApiSettings] API key found via getApiKey');
+              keyStatus.set({ exists: true, valid: true });
+            }
+          } catch (err) {
+            console.error('[DeepgramApiSettings] Error using getApiKey:', err);
+            // Fall back to getSetting
+          }
+        } else if (window.electron.getSetting) {
+          console.log('[DeepgramApiSettings] Using getSetting to check for API key');
+
+          // Try both key locations for maximum compatibility
+          try {
+            // Try direct path first
+            const directKey = await window.electron.getSetting('deepgramApiKey');
+            if (directKey) {
+              console.log('[DeepgramApiSettings] API key found at direct path');
+              keyStatus.set({ exists: true, valid: true });
+            } else {
+              // If not found, try nested path
+              const nestedKey = await window.electron.getSetting('transcription.deepgramApiKey');
+              if (nestedKey) {
+                console.log('[DeepgramApiSettings] API key found at nested path');
+                keyStatus.set({ exists: true, valid: true });
+              } else {
+                console.log('[DeepgramApiSettings] No API key found at any path');
+              }
+            }
+          } catch (err) {
+            console.error('[DeepgramApiSettings] Error checking API key with getSetting:', err);
+          }
         }
       }
-      
-      // Update status
+    } catch (err) {
+      console.error('[DeepgramApiSettings] Error checking Deepgram API key:', err);
+    } finally {
+      isInitialized = true;
+    }
+  });
+
+  async function saveApiKey() {
+    if (!apiKey) return;
+
+    saving = true;
+    error = '';
+
+    try {
+      console.log(`[DeepgramApiSettings] Saving API key (length: ${apiKey.length})`);
+
+      // Use specialized Deepgram method if available
+      if (window?.electron?.setDeepgramApiKey) {
+        console.log('[DeepgramApiSettings] Using setDeepgramApiKey to save API key');
+
+        const result = await window.electron.setDeepgramApiKey(apiKey);
+        console.log('[DeepgramApiSettings] API key save result:', result);
+
+        if (!result || !result.success) {
+          throw new Error((result && result.error) || 'Failed to save API key');
+        }
+      } else if (window?.electron?.saveApiKey) {
+        console.log('[DeepgramApiSettings] Using saveApiKey to save Deepgram API key');
+
+        const result = await window.electron.saveApiKey(apiKey, 'deepgram');
+        console.log('[DeepgramApiSettings] API key save result:', result);
+
+        if (!result || !result.success) {
+          throw new Error((result && result.error) || 'Failed to save API key');
+        }
+      } else if (window?.electron?.setSetting) {
+        console.log('[DeepgramApiSettings] Using setSetting to save API key');
+
+        // Save to both locations for maximum compatibility
+        await window.electron.setSetting('deepgramApiKey', apiKey);
+
+        // Save to nested location for frontend compatibility
+        const currentTranscription = await window.electron.getSetting('transcription') || {};
+        currentTranscription.deepgramApiKey = apiKey;
+        await window.electron.setSetting('transcription', currentTranscription);
+
+        console.log('[DeepgramApiSettings] API key saved via setSetting');
+      } else {
+        throw new Error('No method available to save API key');
+      }
+
+      // Configure Deepgram with the new key if available
+      if (window?.electron?.configureDeepgram) {
+        console.log('[DeepgramApiSettings] Configuring Deepgram with new key');
+        const result = await window.electron.configureDeepgram({ apiKey });
+
+        if (!result.success) {
+          console.error('[DeepgramApiSettings] Deepgram configuration failed:', result.error);
+          throw new Error(result.error || 'Failed to configure Deepgram');
+        } else {
+          console.log('[DeepgramApiSettings] Deepgram successfully configured');
+        }
+      }
+
+      // Update status and clear input
+      console.log('[DeepgramApiSettings] API key saved successfully');
       keyStatus.set({ exists: true, valid: true });
       apiKey = ''; // Clear input
     } catch (e) {
+      console.error('[DeepgramApiSettings] Error saving API key:', e);
       error = e.message;
     } finally {
       saving = false;
       validating = false;
     }
   }
-  
+
   async function deleteApiKey() {
     try {
-      // Clear key from settings
-      if (window?.electron?.setSetting) {
-        await window.electron.setSetting('transcription.deepgramApiKey', '');
+      console.log('[DeepgramApiSettings] Deleting API key');
+
+      // Use API key management if available
+      if (window?.electron?.deleteApiKey) {
+        console.log('[DeepgramApiSettings] Using deleteApiKey to remove Deepgram API key');
+
+        await window.electron.deleteApiKey('deepgram');
+        console.log('[DeepgramApiSettings] API key deleted via deleteApiKey');
+      } else if (window?.electron?.setSetting) {
+        console.log('[DeepgramApiSettings] Using setSetting to delete API key');
+
+        // Clear from both locations
+        await window.electron.setSetting('deepgramApiKey', '');
+
+        // Clear from nested location if it exists
+        const currentTranscription = await window.electron.getSetting('transcription') || {};
+        if (currentTranscription.deepgramApiKey) {
+          currentTranscription.deepgramApiKey = '';
+          await window.electron.setSetting('transcription', currentTranscription);
+        }
+
+        console.log('[DeepgramApiSettings] API key deleted via setSetting');
       }
-      
+
+      console.log('[DeepgramApiSettings] API key deleted successfully');
       keyStatus.set({ exists: false, valid: false });
     } catch (e) {
+      console.error('[DeepgramApiSettings] Error deleting API key:', e);
       error = e.message;
     }
   }

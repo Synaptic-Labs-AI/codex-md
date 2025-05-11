@@ -50,7 +50,6 @@ export const CONFIG = {
             FILE: '/document/file',
             URL: '/web/url',
             PARENT_URL: '/web/parent-url',
-            BATCH: '/batch',
             AUDIO: '/multimedia/audio',
             VIDEO: '/multimedia/video'
         },
@@ -83,8 +82,6 @@ export const CONFIG = {
                 AUDIO: 'audio',
                 VIDEO: 'video',
                 
-                // Batch processing
-                BATCH: 'batch'
             },
         API_REQUIRED: [
             'mp3', 'wav', 'm4a',
@@ -113,14 +110,13 @@ export const CONFIG = {
     },
 
     CONVERSION: {
-        SUPPORTED_TYPES: ['file', 'url', 'parent', 'batch'],
+        SUPPORTED_TYPES: ['file', 'url', 'parent'],
         DEFAULT_OPTIONS: {
             includeImages: true,
             includeMeta: true,
             maxDepth: 1,
             convertLinks: true
         },
-        BATCH_SIZE_LIMIT: 10,
         // No size limits
     },
 

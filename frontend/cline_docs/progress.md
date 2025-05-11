@@ -11,7 +11,6 @@
 
 ### Conversion Features
 - ✅ Base64 file encoding
-- ✅ Batch processing support
 - ✅ Progress tracking
 - ✅ Conversion cancellation
 - ✅ ZIP file packaging
@@ -38,12 +37,11 @@
 - 📝 Advanced URL crawling options
 - 📝 Custom Markdown formatting options
 - 📝 Metadata extraction improvements
-- 📝 Batch conversion optimization
 
 ## Known Issues
 1. Large File Handling
    - Need to implement chunked uploads for very large files
-   - Memory optimization for batch processing
+   - Memory optimization for file processing
 
 2. URL Processing
    - Some complex web pages may need improved parsing

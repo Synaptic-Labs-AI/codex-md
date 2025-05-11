@@ -95,7 +95,7 @@ src/
    - Cancellation support
 
 2. Conversion Process
-   - Batch processing optimization
+   - File processing optimization
    - Progress indicators
    - Error recovery
 

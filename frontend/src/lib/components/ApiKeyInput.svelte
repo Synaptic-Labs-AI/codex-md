@@ -9,11 +9,11 @@
   export let provider = 'deepgram';
   export let title = provider === 'deepgram' ? 'Deepgram API Key' : 'Mistral API Key';
   export let placeholder = provider === 'deepgram' ? 'Enter your Deepgram API Key' : 'Enter your Mistral API Key';
-  export let infoText = provider === 'deepgram' 
-    ? 'Required for audio/video transcription.' 
+  export let infoText = provider === 'deepgram'
+    ? 'Required for audio/video transcription.'
     : 'Required for advanced OCR processing.';
-  export let helpLink = provider === 'deepgram' 
-    ? 'https://console.deepgram.com/signup' 
+  export let helpLink = provider === 'deepgram'
+    ? 'https://console.deepgram.com/signup'
     : 'https://console.mistral.ai/';
   export let helpText = provider === 'deepgram'
     ? 'Get a Deepgram API key'
@@ -83,16 +83,30 @@
   // Save API key
   async function saveApiKey() {
     if (!apiKeyValue) return;
-    
+
     saving = true;
     error = '';
-    
+
     try {
+      // Save using the API key service
       const result = await window.electron.saveApiKey(apiKeyValue, provider);
       if (!result.success) {
         throw new Error(result.error || 'Failed to save API key');
       }
-      
+
+      // If this is the Deepgram API key, also save to settings store as backup
+      if (provider === 'deepgram') {
+        console.log('Saving Deepgram API key to settings store as backup');
+        try {
+          // Save to both possible settings locations for maximum compatibility
+          await window.electron.setSetting('deepgramApiKey', apiKeyValue);
+          await window.electron.setSetting('transcription.deepgramApiKey', apiKeyValue);
+        } catch (settingsError) {
+          console.warn('Failed to save Deepgram API key to settings store:', settingsError);
+          // Continue anyway since the API key service save was successful
+        }
+      }
+
       keyStatus = { exists: true, valid: true };
     } catch (e) {
       error = e.message;
@@ -105,6 +119,20 @@
   async function deleteApiKey() {
     try {
       await window.electron.deleteApiKey(provider);
+
+      // If this is the Deepgram API key, also clear it from settings store
+      if (provider === 'deepgram') {
+        console.log('Removing Deepgram API key from settings store');
+        try {
+          // Remove from both possible settings locations for maximum compatibility
+          await window.electron.setSetting('deepgramApiKey', '');
+          await window.electron.setSetting('transcription.deepgramApiKey', '');
+        } catch (settingsError) {
+          console.warn('Failed to clear Deepgram API key from settings store:', settingsError);
+          // Continue anyway since the API key service deletion was successful
+        }
+      }
+
       keyStatus = { exists: false, valid: false };
       apiKeyValue = '';
       setApiKey('', provider);

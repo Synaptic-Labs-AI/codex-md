@@ -10,7 +10,6 @@ Users need to convert different types of files (documents, media, web content) i
 A user-friendly web interface that:
 - Accepts multiple file formats (documents, data files, audio, video)
 - Supports URL-based conversions
-- Handles batch processing
 - Provides real-time conversion status
 - Delivers results in a convenient ZIP format
 
@@ -24,8 +23,7 @@ A user-friendly web interface that:
 2. Flexible Input Methods:
    - File upload via drag-and-drop
    - URL input for web content
-   - Batch processing capability
-
+   
 3. User-Friendly Interface:
    - Real-time progress tracking
    - Error handling and feedback

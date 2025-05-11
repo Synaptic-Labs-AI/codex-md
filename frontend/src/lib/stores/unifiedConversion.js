@@ -28,7 +28,6 @@ export const ConversionState = {
   // Conversion types
   TYPE: {
     FILE: 'file',
-    BATCH: 'batch',
     WEBSITE: 'website'
   }
 };
@@ -130,20 +129,7 @@ function createUnifiedConversionStore() {
       unifiedConversion.startTimer();
     },
     
-    startBatchConversion: async (files) => {
-      // Set initial state
-      set({
-        ...initialState,
-        status: ConversionState.STATUS.CONVERTING,
-        type: ConversionState.TYPE.BATCH,
-        totalCount: files.length,
-        startTime: Date.now()
-      });
       
-      // Start our timer
-      unifiedConversion.startTimer();
-    },
-    
     startWebsiteConversion: async (url) => {
       // Set initial state
       set({

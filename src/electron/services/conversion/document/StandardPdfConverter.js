@@ -69,7 +69,7 @@ class StandardPdfConverter extends BasePdfConverter {
     async handleConvert(event, { filePath, options = {} }) {
         try {
             const conversionId = this.generateConversionId();
-            const window = event.sender.getOwnerBrowserWindow();
+            const window = event?.sender?.getOwnerBrowserWindow?.() || null;
             
             // Create temp directory for this conversion
             const tempDir = await this.fileStorage.createTempDir('pdf_conversion');
@@ -83,8 +83,10 @@ class StandardPdfConverter extends BasePdfConverter {
                 window
             });
 
-            // Notify client that conversion has started
-            window.webContents.send('pdf:conversion-started', { conversionId });
+            // Notify client that conversion has started (only if we have a valid window)
+            if (window && window.webContents) {
+                window.webContents.send('pdf:conversion-started', { conversionId });
+            }
 
             // Start conversion process
             this.processConversion(conversionId, filePath, options).catch(error => {

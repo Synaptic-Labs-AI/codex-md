@@ -56,7 +56,7 @@ The Obsidian Note Converter Frontend is a functioning web application that enabl
 ## Notes
 - Project uses SvelteKit with Vite for modern web development
 - API key management is critical for protected operations
-- File processing includes multiple formats and batch capabilities
+- File processing includes multiple formats and conversion options
 - ZIP packaging handles converted file delivery
 
 ## Context Preservation

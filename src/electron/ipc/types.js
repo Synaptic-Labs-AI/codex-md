@@ -14,11 +14,6 @@
  * @property {string} [options.apiKey] API key for certain conversions
  */
 
-/**
- * @typedef {Object} BatchConversionRequest
- * @property {string[]} paths Array of file paths to convert
- * @property {Object} [options] Conversion options
- */
 
 /**
  * @typedef {Object} ConversionResult
@@ -34,8 +29,8 @@
  * @property {string} [id] Job identifier
  * @property {string} [file] Current file name
  * @property {number} progress Progress percentage (0-100)
- * @property {number} [index] Current file index in batch
- * @property {number} [total] Total files in batch
+ * @property {number} [index] Current file index
+ * @property {number} [total] Total files
  * @property {string} status Current status
  */
 
@@ -276,7 +271,6 @@
 const IPCChannels = {
   // Conversion operations
   CONVERT_FILE: 'codex:convert:file',
-  CONVERT_BATCH: 'codex:convert:batch',
   CONVERT_URL: 'codex:convert:url',
   CONVERT_PARENT_URL: 'codex:convert:parent-url',
   CONVERT_YOUTUBE: 'codex:convert:youtube',

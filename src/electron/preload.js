@@ -463,17 +463,77 @@ contextBridge.exposeInMainWorld('electron', {
     transcribeAudio: async (filePath) => {
         return queueCall('codex:transcribe:audio', [{ filePath }]);
     },
-    
+
     transcribeVideo: async (filePath) => {
         return queueCall('codex:transcribe:video', [{ filePath }]);
     },
-    
+
     getTranscriptionModel: async () => {
         return queueCall('codex:get-setting', ['transcription.model']);
     },
-    
+
     setTranscriptionModel: async (model) => {
         return queueCall('codex:set-setting', ['transcription.model', model]);
+    },
+
+    // Enhanced Deepgram API key handlers - added to provide more reliable API key handling
+    getDeepgramApiKey: async () => {
+        console.log('[Preload] Getting Deepgram API key');
+        try {
+            // First try dedicated handler
+            const result = await queueCall('codex:transcription:get-api-key', []);
+            console.log('[Preload] Deepgram API key retrieval result:',
+                result ? (result.hasKey ? 'Found key' : 'No key found') : 'No result');
+            return result;
+        } catch (error) {
+            console.error('[Preload] Error getting Deepgram API key:', error);
+            // Fallback to generic setting
+            try {
+                const directKey = await queueCall('codex:get-setting', ['deepgramApiKey']);
+                const nestedKey = await queueCall('codex:get-setting', ['transcription.deepgramApiKey']);
+                const apiKey = directKey || nestedKey || '';
+                return {
+                    success: true,
+                    apiKey,
+                    hasKey: !!apiKey,
+                    source: directKey ? 'direct' : (nestedKey ? 'nested' : 'none')
+                };
+            } catch (fallbackError) {
+                console.error('[Preload] Fallback error getting Deepgram API key:', fallbackError);
+                throw error; // Throw original error
+            }
+        }
+    },
+
+    setDeepgramApiKey: async (apiKey) => {
+        console.log('[Preload] Setting Deepgram API key');
+        try {
+            // First try dedicated handler
+            const result = await queueCall('codex:transcription:set-api-key', [{ apiKey }]);
+            console.log('[Preload] Deepgram API key set result:', result);
+
+            // Also set the key for the ApiKeyService for better compatibility
+            try {
+                await queueCall('codex:apikey:save', [{ key: apiKey, provider: 'deepgram' }]);
+                console.log('[Preload] Deepgram API key also saved via API key service');
+            } catch (apiKeyError) {
+                console.error('[Preload] Error saving to API key service:', apiKeyError);
+                // Continue even if this fails
+            }
+
+            return result;
+        } catch (error) {
+            console.error('[Preload] Error setting Deepgram API key:', error);
+            // Fallback to generic settings
+            try {
+                await queueCall('codex:set-setting', ['deepgramApiKey', apiKey]);
+                await queueCall('codex:set-setting', ['transcription.deepgramApiKey', apiKey]);
+                return { success: true };
+            } catch (fallbackError) {
+                console.error('[Preload] Fallback error setting Deepgram API key:', fallbackError);
+                throw error; // Throw original error
+            }
+        }
     },
     
     //=== Application ===//

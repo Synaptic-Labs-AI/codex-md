@@ -42,10 +42,7 @@
         <strong>Intelligent Formatting</strong>: Preserve document structure, headings, tables, and formatting during conversion for high-fidelity output.
       </li>
       <li>
-        <strong>Batch Processing</strong>: Convert multiple files at once with organized output files and proper metadata.
-      </li>
-      <li>
-        <strong>AI Integration</strong>: Transcribe audio and video content, and use more advanced PDf processing using state-of-the-art AI technology (requires API key).
+        <strong>AI Integration</strong>: Transcribe audio and video content, and use more advanced PDF processing using state-of-the-art AI technology (requires API key).
       </li>
     </ul>
 

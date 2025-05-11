@@ -23,13 +23,40 @@ const { createStore } = require('../../../utils/storeFactory');
 // Settings store for transcription settings
 const settingsStore = createStore('settings');
 
+// Utility to sanitize objects for logging, especially to handle Buffers
+// Copied from DeepgramService.js for consistency, or could be moved to a shared util
+function sanitizeForLogging(obj, visited = new Set()) {
+  if (obj === null || typeof obj !== 'object' || visited.has(obj)) {
+    return obj;
+  }
+
+  visited.add(obj);
+
+  if (Buffer.isBuffer(obj)) {
+    return `[Buffer length: ${obj.length}]`;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForLogging(item, new Set(visited)));
+  }
+
+  const sanitized = {};
+  for (const [key, value] of Object.entries(obj)) {
+    sanitized[key] = sanitizeForLogging(value, new Set(visited));
+  }
+  
+  visited.delete(obj);
+  return sanitized;
+}
+
 class MediaConverter extends BaseService {
     constructor(registry, fileProcessor, fileStorage) {
         super();
         this.registry = registry;
         this.fileProcessor = fileProcessor;
         this.fileStorage = fileStorage;
-        this.deepgramService = require('../../ai/DeepgramService');
+        // It's better to use the TranscriptionService which abstracts Deepgram
+        this.transcriptionService = require('../../TranscriptionService'); 
         
         // Supported file extensions
         this.supportedExtensions = [
@@ -57,39 +84,82 @@ class MediaConverter extends BaseService {
      * @param {Object} request - Conversion request details
      */
     async handleConvert(event, { filePath, options = {} }) {
+        const conversionId = this.generateConversionId();
+        // filePath here is the path to the temporary file created by the adapter, or the original user file path if not from buffer.
+        const originalFileNameForLog = options.originalFileName || path.basename(filePath);
+        console.log(`[MediaConverter:HANDLE_CONVERT_START][convId:${conversionId}] Starting media conversion for: ${originalFileNameForLog} (input path: ${filePath})`);
+        console.log(`[MediaConverter:HANDLE_CONVERT_START][convId:${conversionId}] Options:`, sanitizeForLogging(options));
+        
+        // The directory containing the filePath will be managed for cleanup.
+        // If filePath is a direct user file, its directory should NOT be deleted.
+        // The adapter should indicate if filePath is a temporary file it created.
+        // Let's assume options.isTempInputFile indicates this.
+        const tempDirForCleanup = options.isTempInputFile ? path.dirname(filePath) : null;
+        if (options.isTempInputFile) {
+            console.log(`[MediaConverter:TEMP_INPUT][convId:${conversionId}] Input file ${filePath} is temporary and its directory ${tempDirForCleanup} will be cleaned up.`);
+        }
+
+
         try {
-            const conversionId = this.generateConversionId();
-            const window = event.sender.getOwnerBrowserWindow();
+            const window = event?.sender?.getOwnerBrowserWindow?.() || null;
             
-            // Create a temp directory for processing
-            const tempDir = await this.fileStorage.createTempDir('media_conversion');
-            
+            // No longer creating a new tempDir here; will use the directory of filePath if it's a temp file.
+            // Or, if we need isolated processing space, create one and copy filePath into it.
+            // For now, let's assume filePath can be processed in place, and its dir cleaned if temp.
+
             this.registry.registerConversion(conversionId, {
                 id: conversionId,
                 status: 'starting',
                 progress: 0,
-                filePath,
-                tempDir,
+                filePath: filePath, // Path to the actual media file to process
+                tempDir: tempDirForCleanup, // Directory to clean up if input was temporary
                 window,
-                startTime: Date.now()
+                startTime: Date.now(),
+                originalFileName: options.originalFileName || path.basename(filePath) // Use original name from options if available
             });
 
-            // Notify client that conversion has started
-            window.webContents.send('media:conversion-started', { conversionId });
+            if (window && window.webContents) {
+                window.webContents.send('media:conversion-started', { conversionId, originalFileName: options.originalFileName || path.basename(filePath) });
+            }
 
-            // Start conversion process
-            this.processConversion(conversionId, filePath, options).catch(error => {
-                console.error(`[MediaConverter] Conversion failed for ${conversionId}:`, error);
+            // Asynchronously process the conversion
+            this.processConversion(conversionId, filePath, options).catch(async error => { // Make catch async for cleanup
+                const errorMessage = error.message || 'Unknown media conversion processing error';
+                console.error(`[MediaConverter:PROCESS_CONVERSION_ERROR][convId:${conversionId}] Overall conversion failed for ${originalFileNameForLog}:`, sanitizeForLogging(error));
                 this.registry.pingConversion(conversionId, { 
                     status: 'failed', 
-                    error: error.message 
+                    error: errorMessage,
+                    progress: 100 // Mark as complete for UI handling, but with error
                 });
+                // Attempt cleanup even on error
+                if (tempDirForCleanup) {
+                    try {
+                        console.log(`[MediaConverter:CLEANUP_ON_ERROR][convId:${conversionId}] Cleaning up temp directory: ${tempDirForCleanup}`);
+                        await fs.remove(tempDirForCleanup);
+                    } catch (cleanupErr) {
+                        console.error(`[MediaConverter:CLEANUP_ON_ERROR_FAILED][convId:${conversionId}] Failed to clean up temp directory ${tempDirForCleanup}:`, sanitizeForLogging(cleanupErr));
+                    }
+                }
             });
 
-            return { conversionId };
+            return { conversionId, originalFileName: options.originalFileName || path.basename(filePath) };
         } catch (error) {
-            console.error('[MediaConverter] Failed to start conversion:', error);
-            throw error;
+            const errorMessage = error.message || 'Failed to start media conversion';
+            console.error(`[MediaConverter:HANDLE_CONVERT_ERROR][convId:${conversionId}] Error for ${originalFileNameForLog}:`, sanitizeForLogging(error));
+            // If registration happened, update it to failed.
+            if (this.registry.getConversion(conversionId)) {
+                 this.registry.pingConversion(conversionId, { status: 'failed', error: errorMessage, progress: 100});
+            }
+            // Attempt cleanup if tempDirForCleanup was determined
+            if (tempDirForCleanup) {
+                try {
+                    console.log(`[MediaConverter:CLEANUP_ON_START_ERROR][convId:${conversionId}] Cleaning up temp directory: ${tempDirForCleanup}`);
+                    await fs.remove(tempDirForCleanup);
+                } catch (cleanupErr) {
+                    console.error(`[MediaConverter:CLEANUP_ON_START_ERROR_FAILED][convId:${conversionId}] Failed to clean up temp directory ${tempDirForCleanup}:`, sanitizeForLogging(cleanupErr));
+                }
+            }
+            throw new Error(errorMessage); // Re-throw for IPC to catch if needed
         }
     }
 
@@ -137,116 +207,130 @@ class MediaConverter extends BaseService {
      * @param {Object} options - Conversion options
      */
     async processConversion(conversionId, filePath, options) {
+        const originalFileName = options.originalFileName || path.basename(filePath);
+        console.log(`[MediaConverter:PROCESS_CONVERSION_START][convId:${conversionId}] Processing media file: ${originalFileName} (from path: ${filePath})`);
+        
+        const jobData = this.registry.getConversion(conversionId);
+        const tempDirToCleanup = jobData ? jobData.tempDir : null; // This is path.dirname(filePath) if temp
+
         try {
             const fileType = this.getFileType(filePath);
             
             this.registry.pingConversion(conversionId, { 
                 status: 'validating', 
                 progress: 5,
-                fileType: fileType.type
+                fileType: fileType.type,
+                message: 'Validating file...'
             });
             
-            // Get basic file metadata
-            const stats = await fs.stat(filePath);
+            const stats = await fs.stat(filePath); // filePath is the actual file to process
             const metadata = {
-                filename: path.basename(filePath),
+                filename: originalFileName, // Use the original filename for metadata
                 fileType: fileType.type,
                 size: stats.size,
                 isAudio: fileType.isAudio,
                 isVideo: fileType.isVideo
             };
+            console.log(`[MediaConverter:VALIDATED][convId:${conversionId}] File validated. Metadata:`, sanitizeForLogging(metadata));
             
-            // Transcribe using Deepgram
-            this.registry.pingConversion(conversionId, { status: 'transcribing', progress: 30 });
+            this.registry.pingConversion(conversionId, { status: 'transcribing', progress: 30, message: 'Starting transcription...' });
             
-            // Get transcription model from settings
-            const model = settingsStore.get('transcription.model', 'nova-2');
-            
-            // Get transcription API key if not provided
-            const deepgramApiKey = settingsStore.get('transcription.deepgramApiKey', '');
+            let deepgramApiKey = options.deepgramApiKey; // API key from options takes precedence
             if (!deepgramApiKey) {
-                throw new Error('No Deepgram API key found. Please set one in Settings.');
+                const apiKeyService = require('../../ApiKeyService');
+                deepgramApiKey = apiKeyService.getApiKey('deepgram');
+                if (deepgramApiKey) {
+                    console.log(`[MediaConverter:API_KEY_FOUND][convId:${conversionId}] Deepgram API key found via ApiKeyService.`);
+                } else {
+                     console.warn(`[MediaConverter:API_KEY_WARN][convId:${conversionId}] Deepgram API key not provided in options, attempting to find in settings store.`);
+                    try {
+                        deepgramApiKey = settingsStore.get('deepgramApiKey') || 
+                                         settingsStore.get('transcription.deepgramApiKey');
+                        if (deepgramApiKey) {
+                             console.log(`[MediaConverter:API_KEY_FOUND][convId:${conversionId}] Deepgram API key found in settings store.`);
+                        }
+                    } catch (err) {
+                        console.warn('[MediaConverter:API_KEY_STORE_ERROR][convId:${conversionId}] Error accessing settings store for API key:', sanitizeForLogging(err));
+                    }
+                }
+            } else {
+                 console.log(`[MediaConverter:API_KEY_PROVIDED][convId:${conversionId}] Deepgram API key provided in options.`);
+            }
+
+            if (!deepgramApiKey) {
+                console.error(`[MediaConverter:NO_API_KEY][convId:${conversionId}] No Deepgram API key found. Aborting transcription.`);
+                throw new Error('Deepgram API key not found. Please configure it in Settings > Transcription.');
             }
             
-            // Start transcription job
-            const transcriptionResult = await this.transcribeMedia(filePath, {
-                model,
-                deepgramApiKey,
-                ...options
+            console.log(`[MediaConverter:TRANSCRIPTION_START][convId:${conversionId}] Initiating transcription for ${originalFileName}`);
+            
+            // Use TranscriptionService for transcription, filePath is the actual media data
+            const transcriptionText = await this.transcriptionService.transcribeAudio(filePath, deepgramApiKey, {
+                language: options.language, // Pass relevant options
+                punctuate: options.punctuate,
+                smart_format: options.smart_format,
+                diarize: options.diarize,
+                utterances: options.utterances,
+                deepgramOptions: options.deepgramOptions, // Pass through any specific DG options
+                model: options.model // Allow model override from options
             });
             
-            // Generate markdown
-            this.registry.pingConversion(conversionId, { status: 'generating_markdown', progress: 90 });
-            const markdown = this.generateMarkdown(metadata, transcriptionResult, options);
+            // TranscriptionService now throws on empty/failed result, so this check might be redundant but safe.
+            if (!transcriptionText || transcriptionText.trim() === '') {
+                console.error(`[MediaConverter:EMPTY_TRANSCRIPTION][convId:${conversionId}] Transcription completed but returned no text content.`);
+                throw new Error('Transcription produced no text content.');
+            }
+            console.log(`[MediaConverter:TRANSCRIPTION_SUCCESS][convId:${conversionId}] Transcription successful. Text length: ${transcriptionText.length}`);
             
-            // Complete conversion
+            // Construct a result object similar to what DeepgramService's formatTranscriptionResult would produce
+            const transcriptionResult = {
+                text: transcriptionText,
+                // We might not have detailed duration/model from TranscriptionService directly here,
+                // but we can pass what we know or enhance TranscriptionService to return more details.
+                model: options.model || settingsStore.get('transcription.model', 'nova-2'),
+                language: options.language || 'en',
+                // duration: "Unknown" // Or get from metadata if possible
+            };
+            
+            this.registry.pingConversion(conversionId, { status: 'generating_markdown', progress: 90, message: 'Generating Markdown...' });
+            const markdown = this.generateMarkdown(metadata, transcriptionResult, options);
+            console.log(`[MediaConverter:MARKDOWN_GENERATED][convId:${conversionId}] Markdown generated.`);
+            
             this.registry.pingConversion(conversionId, { 
                 status: 'completed', 
                 progress: 100,
-                result: markdown 
+                result: markdown,
+                transcribed: true,
+                originalFileName: metadata.filename,
+                message: 'Conversion complete!'
             });
             
             return markdown;
         } catch (error) {
-            console.error('[MediaConverter] Conversion processing failed:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Transcribe media file using Deepgram
-     * @param {string} filePath - Path to media file
-     * @param {Object} options - Transcription options
-     * @returns {Promise<Object>} Transcription result
-     */
-    async transcribeMedia(filePath, options = {}) {
-        try {
-            console.log(`[MediaConverter] Transcribing: ${filePath} with model: ${options.model}`);
+            const errorMessage = error.message || 'Unknown media conversion error';
+            console.error(`[MediaConverter:PROCESS_CONVERSION_FAILED][convId:${conversionId}] Error for ${originalFileName}:`, sanitizeForLogging(error));
             
-            // Configure Deepgram with API key if provided
-            if (options.deepgramApiKey) {
-                await this.deepgramService.handleConfigure(null, { 
-                    apiKey: options.deepgramApiKey 
-                });
-            }
-            
-            // Start transcription job
-            const result = await this.deepgramService.handleTranscribeStart(null, {
-                filePath,
-                options: {
-                    model: options.model || 'nova-2',
-                    language: options.language || 'en'
+            this.registry.pingConversion(conversionId, { 
+                status: 'failed', 
+                error: errorMessage,
+                progress: 100, // Mark as complete for UI handling
+                originalFileName: originalFileName, // Keep originalFileName in the status update
+                message: `Conversion failed: ${errorMessage}`
+            });
+            // Error is logged and status updated. Do not re-throw to allow cleanup.
+        } finally {
+            // Cleanup the temporary directory if one was specified for cleanup
+            if (tempDirToCleanup) {
+                try {
+                    console.log(`[MediaConverter:CLEANUP_FINALLY][convId:${conversionId}] Cleaning up temp directory: ${tempDirToCleanup}`);
+                    await fs.remove(tempDirToCleanup);
+                    console.log(`[MediaConverter:CLEANUP_FINALLY_SUCCESS][convId:${conversionId}] Temp directory ${tempDirToCleanup} removed.`);
+                } catch (cleanupErr) {
+                    console.error(`[MediaConverter:CLEANUP_FINALLY_FAILED][convId:${conversionId}] Failed to clean up temp directory ${tempDirToCleanup}:`, sanitizeForLogging(cleanupErr));
                 }
-            });
-            
-            console.log(`[MediaConverter] Transcription job started: ${result.jobId}`);
-            
-            // Wait for transcription to complete
-            let status = await this.deepgramService.handleTranscribeStatus(null, { 
-                jobId: result.jobId 
-            });
-            
-            // Poll for completion
-            while (status.status !== 'completed' && status.status !== 'failed' && status.status !== 'cancelled') {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                status = await this.deepgramService.handleTranscribeStatus(null, { 
-                    jobId: result.jobId 
-                });
+            } else {
+                console.log(`[MediaConverter:NO_CLEANUP_NEEDED][convId:${conversionId}] No temporary input directory was specified for cleanup.`);
             }
-            
-            if (status.status === 'failed') {
-                throw new Error(status.error || 'Transcription failed');
-            }
-            
-            if (status.status === 'cancelled') {
-                throw new Error('Transcription cancelled');
-            }
-            
-            console.log(`[MediaConverter] Transcription completed successfully`);
-            return status.result;
-        } catch (error) {
-            console.error('[MediaConverter] Transcription failed:', error);
-            throw error;
         }
     }
     
@@ -259,7 +343,7 @@ class MediaConverter extends BaseService {
      */
     generateMarkdown(metadata, transcription, options) {
         const markdown = [];
-        
+
         // Add title
         if (options.title) {
             markdown.push(`# ${options.title}`);
@@ -267,9 +351,9 @@ class MediaConverter extends BaseService {
             const mediaType = metadata.isVideo ? 'Video' : 'Audio';
             markdown.push(`# ${mediaType}: ${metadata.filename}`);
         }
-        
+
         markdown.push('');
-        
+
         // Add metadata
         markdown.push('## Media Information');
         markdown.push('');
@@ -279,18 +363,35 @@ class MediaConverter extends BaseService {
         markdown.push(`| Type | ${metadata.isVideo ? 'Video' : 'Audio'} |`);
         markdown.push(`| Format | ${metadata.fileType} |`);
         markdown.push(`| File Size | ${this.formatFileSize(metadata.size)} |`);
-        
+
+        markdown.push('');
+
+        // Add transcription section
+        markdown.push('## Transcription');
         markdown.push('');
         
-        // Add transcription if available
-        if (transcription && transcription.text) {
-            markdown.push('## Transcription');
+        // Add transcription text
+        markdown.push(transcription.text);
+
+        // Add transcription metadata if available
+        if (transcription.model || transcription.duration) {
             markdown.push('');
-            markdown.push(transcription.text);
-        } else {
-            markdown.push('## Transcription');
+            markdown.push('### Transcription Details');
             markdown.push('');
-            markdown.push('*No transcription available for this media file.*');
+            markdown.push('| Property | Value |');
+            markdown.push('| --- | --- |');
+            if (transcription.model) {
+                markdown.push(`| Model | ${transcription.model} |`);
+            }
+            if (transcription.duration) {
+                const duration = typeof transcription.duration === 'number'
+                    ? this.formatDuration(transcription.duration)
+                    : transcription.duration;
+                markdown.push(`| Duration | ${duration} |`);
+            }
+            if (transcription.language) {
+                markdown.push(`| Language | ${transcription.language} |`);
+            }
         }
         
         return markdown.join('\n');
@@ -305,13 +406,33 @@ class MediaConverter extends BaseService {
         const units = ['B', 'KB', 'MB', 'GB'];
         let size = bytes;
         let unitIndex = 0;
-        
+
         while (size >= 1024 && unitIndex < units.length - 1) {
             size /= 1024;
             unitIndex++;
         }
-        
+
         return `${size.toFixed(2)} ${units[unitIndex]}`;
+    }
+
+    /**
+     * Format duration in seconds to a human-readable format
+     * @param {number} seconds - Duration in seconds
+     * @returns {string} Formatted duration
+     */
+    formatDuration(seconds) {
+        if (!seconds || typeof seconds !== 'number') {
+            return 'Unknown';
+        }
+
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+
+        if (minutes === 0) {
+            return `${remainingSeconds} sec`;
+        }
+
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
     
     /**

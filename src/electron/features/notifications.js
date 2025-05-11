@@ -59,30 +59,6 @@ class NotificationManager {
     notification.show();
   }
 
-  /**
-   * Shows a notification for a batch conversion completion
-   * @param {number} count - Number of files converted
-   * @param {string} outputDir - Path to the output directory
-   */
-  showBatchConversionComplete(count, outputDir) {
-    const notification = new Notification({
-      title: 'Batch Conversion Complete',
-      body: `Successfully converted ${count} files`,
-      // TODO: Replace with actual success icon
-      // icon: path.join(__dirname, '../assets/success-icon.png'),
-      silent: false
-    });
-    
-    // Handle notification click - open the output directory
-    notification.on('click', () => {
-      if (outputDir) {
-        const { shell } = require('electron');
-        shell.openPath(outputDir);
-      }
-    });
-    
-    notification.show();
-  }
 
   /**
    * Shows a notification for a conversion error

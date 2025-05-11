@@ -38,7 +38,12 @@ function generateAppropriateFilename(originalName, type, metadata = {}) {
     if (metadata.originalFileName) {
       console.log(`📊 [ConversionResultManager] Using originalFileName from metadata: ${metadata.originalFileName}`);
       console.log(`📊 [ConversionResultManager] Available metadata keys: ${Object.keys(metadata).join(', ')}`);
-      return cleanTemporaryFilename(metadata.originalFileName);
+
+      // Preserve the complete original filename (including numbers and special characters)
+      // Only replace characters that are invalid for the filesystem
+      const safeFilename = cleanTemporaryFilename(metadata.originalFileName);
+      console.log(`📊 [ConversionResultManager] Preserving full original filename: ${metadata.originalFileName} -> ${safeFilename}`);
+      return safeFilename;
     }
 
     // Log if originalFileName is missing for spreadsheet files

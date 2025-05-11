@@ -111,35 +111,6 @@ export class Converters {
     return this._makeConversionRequest(ENDPOINTS.CONVERT_URL, options, 'URL');
   }
 
-  /**
-   * Converts URLs in batch
-   * @public
-   */
-  static async convertBatch(items, apiKey) {
-    if (!Array.isArray(items) || items.length === 0) {
-      throw ConversionError.validation('Items must be an array');
-    }
-
-    const batchItems = items.map(item => ({
-      type: item.type.toLowerCase(),
-      url: item.url ? this._normalizeUrl(item.url) : null,
-      name: item.name?.trim() || 'Untitled',
-      options: {
-        ...DEFAULT_OPTIONS,
-        ...item.options
-      }
-    }));
-
-    console.log('🔄 Converting batch:', { items: batchItems });
-
-    const options = {
-      method: 'POST',
-      headers: this._createHeaders(apiKey),
-      body: JSON.stringify({ items: batchItems })
-    };
-
-    return this._makeConversionRequest(ENDPOINTS.CONVERT_BATCH, options, 'Batch');
-  }
 
   /**
    * Converts a parent URL and its linked pages
@@ -227,6 +198,5 @@ export class Converters {
 // Export conversion methods
 export const {
   convertUrl,
-  convertBatch,
   convertParentUrl
 } = Converters;

@@ -67,12 +67,12 @@ Codex MD exists to simplify the process of converting various file formats to Ma
 2. **Regular User**:
    - Open the application
    - Access recent conversions or start new ones
-   - Batch convert multiple files
+   - Convert files efficiently
    - Organize conversions by project
 
 3. **Power User**:
    - Customize conversion settings
-   - Use advanced features like batch processing
+   - Use advanced features and conversion options
    - Integrate with other tools in their workflow
    - Troubleshoot complex conversion scenarios
 

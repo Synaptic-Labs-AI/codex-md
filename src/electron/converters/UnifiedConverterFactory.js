@@ -897,16 +897,17 @@ class UnifiedConverterFactory {
       if (!fileType) {
         throw new Error('fileType is required in options');
       }
-      
+
       // Determine if this is a URL or a file
       const isUrl = fileType === 'url' || fileType === 'parenturl';
-      
+
       // Get file details - handle URLs differently
       let fileName;
-      
+
       if (Buffer.isBuffer(filePath)) {
-        fileName = options.originalFileName;
-        
+        // Use originalFileName from options, or fallback to provided name if available
+        fileName = options.originalFileName || options.name;
+
         if (!fileName) {
           throw new Error('originalFileName is required when passing buffer input');
         }
@@ -918,8 +919,11 @@ class UnifiedConverterFactory {
           fileName = filePath;
         }
       } else {
-        fileName = path.basename(filePath);
+        fileName = options.originalFileName || options.name || path.basename(filePath);
       }
+
+      // Ensure originalFileName is always set in options
+      options.originalFileName = fileName;
 
       this.logger.logPhaseTransition(
         ConversionStatus.STATUS.STARTING,
@@ -1084,6 +1088,18 @@ class UnifiedConverterFactory {
       functionParamFileName: fileName
     });
 
+    // Add enhanced logging specifically for Excel/CSV files to trace filename handling
+    if (fileType === 'xlsx' || fileType === 'csv') {
+      this.logger.log(`📊 Excel/CSV file details:`, {
+        originalFileNameFromResult: result?.originalFileName,
+        originalFileNameFromMetadata: result?.metadata?.originalFileName,
+        nameFromResult: result?.name,
+        fileNameParam: fileName,
+        resultKeys: result ? Object.keys(result) : [],
+        metadataKeys: result?.metadata ? Object.keys(result.metadata) : []
+      });
+    }
+
     // Handle null or undefined result explicitly
     if (!result) {
         this.logger.warn(`Received null or undefined result for ${fileType}. Assuming failure.`);
@@ -1098,21 +1114,26 @@ class UnifiedConverterFactory {
     // Sanitize potentially complex objects within the result *after* determining success
     const sanitizedResult = sanitizeForLogging(result);
 
+    // For XLSX and CSV files, we want to be absolutely certain that originalFileName is preserved
+    const originalFileName = (fileType === 'xlsx' || fileType === 'csv')
+      ? ((result.metadata && result.metadata.originalFileName) || result.originalFileName || result.name || fileName)
+      : ((result.metadata && result.metadata.originalFileName) || result.originalFileName || result.name || fileName);
+
+    // Log the determined originalFileName
+    this.logger.log(`📝 Final originalFileName determined for ${fileType}: ${originalFileName}`);
+
     const standardized = {
         ...sanitizedResult, // Spread sanitized result first
         success: isSuccess, // Override with determined success status
         type: result.type || fileType,
         fileType: fileType,
-        name: (result.metadata && result.metadata.originalFileName) || result.originalFileName || result.name || fileName, // Prefer metadata.originalFileName first
-        originalFileName: (result.metadata && result.metadata.originalFileName) || result.originalFileName || result.name || fileName, // Same priority for consistency
+        name: originalFileName, // Use the resolved originalFileName
+        originalFileName: originalFileName, // Same for consistency
         category: result.category || category,
         metadata: {
             ...(result.metadata || {}),
             converter: result.converter || 'unknown',
-            originalFileName: (result.metadata && result.metadata.originalFileName) || // First priority - from converter's metadata
-                            result.originalFileName || // Second priority - from result's direct property
-                            result.name || // Third priority - from result's name
-                            fileName // Final fallback - from function parameter
+            originalFileName: originalFileName // Use the resolved originalFileName for consistency
         },
         images: result.images || [],
         // Ensure content exists, provide fallback if needed
@@ -1185,10 +1206,16 @@ class UnifiedConverterFactory {
           // Try using the converter's convert method first
           if (typeof converter.convert === 'function') {
             this.logger.log(`Using converter.convert for ${fileType}`, 'INFO');
+            this.logger.log(`URL convert called with originalFileName: ${fileName}`, 'INFO');
+
             result = await converter.convert(filePath, fileName, options.apiKey, {
               ...options,
               name: fileName,
               originalFileName: fileName, // Explicitly pass originalFileName
+              metadata: {
+                ...(options.metadata || {}),
+                originalFileName: fileName // Also add originalFileName to metadata
+              },
               onProgress: (progress) => {
                 if (progressTracker) {
                   progressTracker.updateScaled(progress, 20, 90, {
@@ -1201,10 +1228,16 @@ class UnifiedConverterFactory {
             // Fall back to using the registry's convertToMarkdown method
             const registry = await this._ensureInitialized();
             this.logger.log(`Using registry.convertToMarkdown for ${fileType}`, 'INFO');
+            this.logger.log(`URL convertToMarkdown called with originalFileName: ${fileName}`, 'INFO');
+
             result = await registry.convertToMarkdown(fileType, filePath, {
               ...options,
               name: fileName,
               originalFileName: fileName, // Explicitly pass originalFileName
+              metadata: {
+                ...(options.metadata || {}),
+                originalFileName: fileName // Also add originalFileName to metadata
+              },
               onProgress: (progress) => {
                 if (progressTracker) {
                   progressTracker.updateScaled(progress, 20, 90, {
@@ -1230,6 +1263,10 @@ class UnifiedConverterFactory {
                 ...options,
                 name: fileName,
                 originalFileName: fileName, // Explicitly pass originalFileName
+                metadata: {
+                  ...(options.metadata || {}),
+                  originalFileName: fileName // Also add originalFileName to metadata
+                },
                 onProgress: (progress) => {
                   if (progressTracker) {
                     progressTracker.updateScaled(progress, 20, 90, {
@@ -1306,10 +1343,24 @@ class UnifiedConverterFactory {
       
       // Use the converter's convert method
       const { converter, category } = converterInfo;
+
+      // Log the original filename details being passed to the converter
+      this.logger.log(`Convert method called with originalFileName: ${fileName}`, 'INFO');
+      this.logger.log(`Options being passed to converter:`, {
+        hasOriginalFileName: !!options.originalFileName,
+        originalFileNameValue: options.originalFileName,
+        fileName: fileName,
+        fileType: fileType
+      });
+
       const result = await converter.convert(fileContent, fileName, options.apiKey, {
         ...options,
         name: fileName,
         originalFileName: fileName, // Explicitly pass originalFileName
+        metadata: {
+          ...(options.metadata || {}),
+          originalFileName: fileName // Also add originalFileName to metadata
+        },
         onProgress: (progress) => {
           if (progressTracker) {
             progressTracker.updateScaled(progress, 20, 90, {

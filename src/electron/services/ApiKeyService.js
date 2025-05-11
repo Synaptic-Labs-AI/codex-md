@@ -40,10 +40,30 @@ class ApiKeyService {
 
   /**
    * Get an API key
-   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
+   * @param {string} provider - The API provider (e.g., 'openai', 'mistral', 'deepgram')
    * @returns {string|null} The API key or null if not found
    */
   getApiKey(provider = 'openai') {
+    // For deepgram, also check the transcription settings store
+    if (provider === 'deepgram') {
+      const transcriptionStore = createStore('transcription-settings');
+
+      // First check our key store
+      const key = this.store.get(`${provider}-api-key`, null);
+      if (key) return key;
+
+      // Then try all the possible legacy locations
+      try {
+        // Legacy format was to store it in settings.transcription.deepgramApiKey
+        return transcriptionStore.get('transcription.deepgramApiKey') ||
+               transcriptionStore.get('deepgramApiKey') ||
+               null;
+      } catch (error) {
+        console.warn('[ApiKeyService] Error accessing transcription store:', error);
+        return null;
+      }
+    }
+
     return this.store.get(`${provider}-api-key`, null);
   }
 

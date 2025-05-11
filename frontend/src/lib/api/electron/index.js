@@ -37,7 +37,7 @@ export function getFileCategory(fileType) {
 }
 
 // Re-export converters for direct access
-export { convertFile, convertBatch, getResult } from './converters/fileConverter.js';
+export { convertFile, getResult } from './converters/fileConverter.js';
 export { convertUrl, convertParentUrl, convertYoutube } from './converters/urlConverter.js';
 
 // Export file categories constant
