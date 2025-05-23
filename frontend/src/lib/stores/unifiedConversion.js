@@ -48,7 +48,10 @@ const initialState = {
   totalCount: 0,
   
   // Conversion type
-  type: null
+  type: null,
+  
+  // Error flags
+  isTranscriptionError: false // Flag to indicate if the error is a transcription error
 };
 
 /**
@@ -74,7 +77,8 @@ function createUnifiedConversionStore() {
       update(state => ({ 
         ...state, 
         error, 
-        status: error ? ConversionState.STATUS.ERROR : state.status 
+        status: error ? ConversionState.STATUS.ERROR : state.status,
+        isTranscriptionError: false // Reset transcription error flag for regular errors
       })),
     
     reset: () => set(initialState),
@@ -201,6 +205,7 @@ export const currentFile = derived(unifiedConversion, $state => $state.currentFi
 export const conversionError = derived(unifiedConversion, $state => $state.error);
 export const conversionType = derived(unifiedConversion, $state => $state.type);
 export const conversionStatus = derived(unifiedConversion, $state => $state.status);
+export const isTranscriptionError = derived(unifiedConversion, $state => $state.isTranscriptionError);
 
 // Derived store to check if conversion is complete
 export const isConversionComplete = derived(

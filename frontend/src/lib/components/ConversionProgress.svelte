@@ -215,7 +215,9 @@
         <ChatBubble
           name="Codex"
           avatar="📖"
-          message={`Encountered an error during conversion: ${error || 'Unknown error'}. Please try again.`}
+          message={$unifiedConversion.isTranscriptionError 
+            ? `Transcription failed: ${error || 'Unable to transcribe audio/video'}. Please check your Deepgram API key and try again.` 
+            : `Encountered an error during conversion: ${error || 'Unknown error'}. Please try again.`}
           avatarPosition={togglePosition()}
         />
       {:else if status === 'stopped' || status === ConversionState.STATUS.CANCELLED}

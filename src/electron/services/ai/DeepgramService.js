@@ -123,8 +123,16 @@ class DeepgramService extends BaseService {
      */
     async handleConfigure(event, { apiKey }) {
         try {
-            // Create Deepgram client with API key
-            this.deepgram = createClient(apiKey);
+            // Create Deepgram client with API key and extended timeout
+            this.deepgram = createClient(apiKey, {
+                global: {
+                    fetch: {
+                        options: {
+                            timeout: 300000 // 5 minutes timeout for large files
+                        }
+                    }
+                }
+            });
             
             // Test the connection with a simple request
             // Just checking if the client is working, not actually making a transcription
@@ -165,7 +173,16 @@ class DeepgramService extends BaseService {
             if (apiKey) {
                 try {
                     console.log(`[DeepgramService] Creating Deepgram client with key (length: ${apiKey.length})`);
-                    this.deepgram = createClient(apiKey);
+                    // Create client with extended timeout for large files
+                    this.deepgram = createClient(apiKey, {
+                        global: {
+                            fetch: {
+                                options: {
+                                    timeout: 300000 // 5 minutes timeout for large files
+                                }
+                            }
+                        }
+                    });
 
                     // Test if the client was created successfully
                     if (!this.deepgram) {
@@ -303,9 +320,15 @@ class DeepgramService extends BaseService {
             console.log(`[DeepgramService:INFO][jobId:${jobId}] File info: type=${mediaType}, ext=${fileExt}, size=${fileSizeMB.toFixed(2)}MB`);
 
             // Check if file size exceeds Deepgram's limit (2GB)
-            if (stats.size > 2 * 1024 * 1024 * 1024) {
+            const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+            if (stats.size > MAX_FILE_SIZE) {
                 console.error(`[DeepgramService:VALIDATION_FAILED][jobId:${jobId}] File size (${fileSizeMB.toFixed(2)}MB) exceeds Deepgram's 2GB limit.`);
-                throw new Error('File size exceeds Deepgram\'s 2GB limit');
+                throw new Error(`File size (${fileSizeMB.toFixed(2)}MB) exceeds Deepgram's 2GB limit. Please use a smaller file.`);
+            }
+            
+            // Warn if file is large (over 100MB)
+            if (stats.size > 100 * 1024 * 1024) {
+                console.warn(`[DeepgramService:LARGE_FILE_WARNING][jobId:${jobId}] Large file detected (${fileSizeMB.toFixed(2)}MB). This may take longer to process.`);
             }
             this.updateJobStatus(jobId, 'processing', { progress: 15 });
 

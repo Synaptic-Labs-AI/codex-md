@@ -51,6 +51,24 @@ ConverterRegistry.prototype.setupConversionValidation = function() {
             
             // Check all active conversions
             Array.from(this.activeConversions.entries()).forEach(([id, conv]) => {
+                // Handle completed conversions differently
+                if (conv.status === 'completed') {
+                    // If already retrieved, remove immediately
+                    if (conv.retrieved) {
+                        console.log(`[ConverterRegistry] Removing retrieved conversion ${id}`);
+                        this.activeConversions.delete(id);
+                        staleCount++;
+                        return;
+                    }
+                    // Keep un-retrieved completed conversions for up to 5 minutes
+                    if (now - conv.lastPing > 300000) {
+                        console.warn(`[ConverterRegistry] Removing old completed conversion ${id} (completed ${Math.round((now - conv.lastPing) / 1000)}s ago)`);
+                        this.activeConversions.delete(id);
+                        staleCount++;
+                    }
+                    return;
+                }
+                
                 // Consider a conversion stale if it hasn't pinged in the last 30 seconds
                 if (now - conv.lastPing > 30000) {
                     // Remove the stale conversion
@@ -490,6 +508,7 @@ ConverterRegistry.prototype.setupConverters = function() {
         // Create standardized adapter for media converters (audio and video)
         const mediaAdapter = {
             convert: async (content, name, apiKey, options) => {
+                let tempDir = null; // Declare tempDir outside try block for cleanup access
                 try {
                     console.log(`[MediaAdapter] Converting media file: ${name}`);
 
@@ -499,7 +518,7 @@ ConverterRegistry.prototype.setupConverters = function() {
                     }
 
                     // Create a temporary file to process the media
-                    const tempDir = await fileStorageServiceInstance.createTempDir('media_adapter_temp'); // More specific temp dir name
+                    tempDir = await fileStorageServiceInstance.createTempDir('media_adapter_temp'); // More specific temp dir name
                     const tempFileName = `${name}_${Date.now()}${path.extname(name) || '.mp4'}`; // Ensure a valid extension, default to .mp4
                     const tempFile = path.join(tempDir, tempFileName);
                     
@@ -548,16 +567,21 @@ ConverterRegistry.prototype.setupConverters = function() {
                         conversionId: result.conversionId,
                         async: true, // Critical: signals to client that result is async
                         name: result.originalFileName || name, // Use originalFileName from result if available
-                        type: 'media' // Or derive from actual file type if needed
+                        type: 'media', // Or derive from actual file type if needed
+                        // Add a flag to indicate that this is a transcription conversion
+                        isTranscription: true // This will be used to handle transcription failures differently
                     };
                 } catch (error) {
                     const errorMessage = error.message || 'Unknown error in media adapter';
                     console.error(`[MediaAdapter] Error converting media file '${name}':`, error);
                     // If tempDir was created, attempt to clean it up.
-                    if (tempDir && (await fs.pathExists(tempDir))) {
+                    if (tempDir) {
                         try {
-                            await fs.remove(tempDir);
-                            console.log(`[MediaAdapter] Cleaned up temp directory ${tempDir} after error.`);
+                            const exists = await fs.pathExists(tempDir);
+                            if (exists) {
+                                await fs.remove(tempDir);
+                                console.log(`[MediaAdapter] Cleaned up temp directory ${tempDir} after error.`);
+                            }
                         } catch (cleanupError) {
                             console.error(`[MediaAdapter] Failed to clean up temp directory ${tempDir} after error:`, cleanupError);
                         }

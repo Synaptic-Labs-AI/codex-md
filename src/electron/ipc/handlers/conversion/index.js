@@ -122,6 +122,17 @@ function registerConversionHandlers() {
             return await ElectronConversionService.convert(input, options);
         } catch (error) {
             console.error('Conversion error:', error);
+            
+            // Check if this is a transcription error
+            if (error.isTranscriptionError) {
+                console.error('Transcription error detected:', error.message);
+                return {
+                    success: false,
+                    error: error.message,
+                    isTranscriptionError: true // Add a flag to indicate this is a transcription error
+                };
+            }
+            
             return {
                 success: false,
                 error: error.message

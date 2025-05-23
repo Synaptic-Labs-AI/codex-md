@@ -1080,6 +1080,35 @@ class UnifiedConverterFactory {
   standardizeResult(result, fileType, fileName, category) {
     this.logger.debug(`Raw result received for ${fileType}:`, sanitizeForLogging(result)); // Add logging
 
+    // Check if this is an asynchronous result (has async: true and conversionId)
+    if (result && result.async === true && result.conversionId) {
+      this.logger.log(`[${fileType}] Received async result with conversionId: ${result.conversionId}`);
+      
+      // For async results, we need to preserve the async flag and conversionId
+      // This will signal to ElectronConversionService that it needs to handle this differently
+      return {
+        ...result,
+        success: true, // Async initiation is considered successful at this point
+        type: result.type || fileType,
+        fileType: fileType,
+        name: result.name || fileName,
+        originalFileName: result.originalFileName || result.name || fileName,
+        category: result.category || category,
+        async: true, // Preserve the async flag
+        conversionId: result.conversionId, // Preserve the conversionId
+        // For async results, we'll provide a placeholder content that will be replaced
+        // with the actual content when the conversion completes
+        content: result.content || `# Processing ${fileType.toUpperCase()} File\n\nYour file is being processed. The content will be available shortly.`,
+        metadata: {
+          ...(result.metadata || {}),
+          converter: result.converter || 'unknown',
+          originalFileName: result.originalFileName || result.name || fileName,
+          async: true,
+          conversionId: result.conversionId
+        }
+      };
+    }
+
     // Log detailed filename information for debugging
     this.logger.log(`📄 Filename details for ${fileType}:`, {
       resultOriginalFileName: result?.originalFileName,

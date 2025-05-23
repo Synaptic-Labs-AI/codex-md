@@ -103,8 +103,20 @@ class EventHandlerManager {
       error: (event, data) => {
         console.error('[EventHandler] Error event received:', data?.error);
         
-        // Set error state
-        unifiedConversion.setError(data?.error || 'Unknown error occurred');
+        // Check if this is a transcription error
+        if (data?.isTranscriptionError) {
+          console.error('[EventHandler] Transcription error detected:', data.error);
+          
+          // Set error state with special flag for transcription errors
+          unifiedConversion.batchUpdate({
+            error: data?.error || 'Transcription failed',
+            status: ConversionState.STATUS.ERROR,
+            isTranscriptionError: true
+          });
+        } else {
+          // Set regular error state
+          unifiedConversion.setError(data?.error || 'Unknown error occurred');
+        }
         
         // Clean up
         this.removeHandlers(jobId);

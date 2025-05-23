@@ -88,7 +88,24 @@ class MediaConverter extends BaseService {
         // filePath here is the path to the temporary file created by the adapter, or the original user file path if not from buffer.
         const originalFileNameForLog = options.originalFileName || path.basename(filePath);
         console.log(`[MediaConverter:HANDLE_CONVERT_START][convId:${conversionId}] Starting media conversion for: ${originalFileNameForLog} (input path: ${filePath})`);
-        console.log(`[MediaConverter:HANDLE_CONVERT_START][convId:${conversionId}] Options:`, sanitizeForLogging(options));
+        // Don't log the full options object as it might contain large buffers
+        // Create a clean object without spreading to avoid copying buffer data
+        const safeOptionsForLogging = {
+            originalFileName: options.originalFileName,
+            isTempInputFile: options.isTempInputFile,
+            deepgramApiKey: options.deepgramApiKey ? '[API Key Hidden]' : undefined,
+            language: options.language,
+            punctuate: options.punctuate,
+            smart_format: options.smart_format,
+            diarize: options.diarize,
+            utterances: options.utterances,
+            model: options.model,
+            // Explicitly exclude any buffer-like properties
+            content: options.content ? '[Buffer excluded from logs]' : undefined,
+            buffer: options.buffer ? '[Buffer excluded from logs]' : undefined,
+            // Add any other safe properties you want to log
+        };
+        console.log(`[MediaConverter:HANDLE_CONVERT_START][convId:${conversionId}] Options:`, safeOptionsForLogging);
         
         // The directory containing the filePath will be managed for cleanup.
         // If filePath is a direct user file, its directory should NOT be deleted.
@@ -317,7 +334,10 @@ class MediaConverter extends BaseService {
                 originalFileName: originalFileName, // Keep originalFileName in the status update
                 message: `Conversion failed: ${errorMessage}`
             });
-            // Error is logged and status updated. Do not re-throw to allow cleanup.
+            
+            // Re-throw the error to prevent creating a placeholder note
+            // This will be caught by the handleConvert method and properly handled
+            throw error;
         } finally {
             // Cleanup the temporary directory if one was specified for cleanup
             if (tempDirToCleanup) {

@@ -253,11 +253,79 @@ class ElectronConversionService {
         throw new Error(conversionResult.error || 'Conversion failed');
       }
       
-      // Extract content from result
-      const content = conversionResult.content || '';
-      
-      if (!content) {
-        throw new Error('Conversion produced empty content');
+      // Check if this is an asynchronous conversion (has async: true and conversionId)
+      if (conversionResult.async === true && conversionResult.conversionId) {
+        console.log(`🔄 [ElectronConversionService] Handling async conversion with ID: ${conversionResult.conversionId}`);
+        
+        // Get the converter registry
+        const converterRegistry = global.converterRegistry;
+        if (!converterRegistry) {
+          throw new Error('Converter registry not available for async conversion');
+        }
+        
+        // Poll for the conversion result
+        let finalResult = null;
+        let attempts = 0;
+        const maxAttempts = 60; // 30 seconds (500ms * 60)
+        
+        while (attempts < maxAttempts) {
+          // Get the conversion from the registry
+          const conversion = converterRegistry.getConversion(conversionResult.conversionId);
+          
+          if (!conversion) {
+            console.warn(`⚠️ [ElectronConversionService] Conversion ${conversionResult.conversionId} not found in registry`);
+            break;
+          }
+          
+          // Check if the conversion is complete
+          if (conversion.status === 'completed' && conversion.result) {
+            console.log(`✅ [ElectronConversionService] Async conversion ${conversionResult.conversionId} completed`);
+            finalResult = conversion.result;
+            // Mark the conversion as retrieved so it can be cleaned up
+            converterRegistry.pingConversion(conversionResult.conversionId, { retrieved: true });
+            break;
+          }
+          
+          // Check if the conversion failed
+          if (conversion.status === 'failed') {
+            console.error(`❌ [ElectronConversionService] Async conversion ${conversionResult.conversionId} failed: ${conversion.error || 'Unknown error'}`);
+            
+            // If this is a transcription conversion, we want to throw a specific error
+            // that will be caught and handled differently by the UI
+            if (conversionResult.isTranscription) {
+              const transcriptionError = new Error(conversion.error || 'Transcription failed');
+              transcriptionError.isTranscriptionError = true;
+              throw transcriptionError;
+            } else {
+              throw new Error(conversion.error || 'Async conversion failed');
+            }
+          }
+          
+          // Wait before checking again
+          await new Promise(resolve => setTimeout(resolve, 500));
+          attempts++;
+        }
+        
+        // If we didn't get a result after all attempts, throw an error
+        if (!finalResult) {
+          throw new Error(`Async conversion ${conversionResult.conversionId} timed out or was not found`);
+        }
+        
+        // Use the final result as the content
+        if (!finalResult) {
+          throw new Error('Async conversion produced empty content');
+        }
+        
+        // Update the conversionResult with the final content
+        conversionResult.content = finalResult;
+        console.log(`✅ [ElectronConversionService] Updated conversionResult.content with final result (length: ${finalResult.length})`);
+      } else {
+        // For synchronous conversions, extract content from result
+        const content = conversionResult.content || '';
+        
+        if (!content) {
+          throw new Error('Conversion produced empty content');
+        }
       }
       
       // Use category from frontend if available
@@ -325,7 +393,7 @@ class ElectronConversionService {
       }
 
       const result = await this.resultManager.saveConversionResult({
-        content: content,
+        content: conversionResult.content, // Use conversionResult.content directly
         metadata: enhancedMetadata, // Use our enhanced metadata
         images: conversionResult.images || [],
         files: conversionResult.files,

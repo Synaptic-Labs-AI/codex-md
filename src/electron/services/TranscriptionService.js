@@ -141,7 +141,7 @@ class TranscriptionService {
       console.log(`[TranscriptionService:JOB_STARTED][opId:${operationId}][jobId:${jobId}] Deepgram job started.`);
 
       let status;
-      const maxPollTime = 300 * 1000; // 5 minutes
+      const maxPollTime = 600 * 1000; // 10 minutes for large files
       const pollInterval = 2000; // 2 seconds
       let elapsedTime = 0;
 
