@@ -990,7 +990,7 @@ class UnifiedConverterFactory {
       }));
       
       // Handle the conversion based on file type
-      const result = await this.handleConversion(filePath, {
+      const conversionResult = await this.handleConversion(filePath, {
         ...options,
         fileType: fileType,
         fileName,
@@ -1005,7 +1005,7 @@ class UnifiedConverterFactory {
 
       this.logger.logConversionComplete(fileType);
       
-      return result;
+      return conversionResult;
       
     } catch (error) {
       this.logger.logConversionError(fileType, error);
@@ -1080,6 +1080,12 @@ class UnifiedConverterFactory {
   standardizeResult(result, fileType, fileName, category) {
     this.logger.debug(`Raw result received for ${fileType}:`, sanitizeForLogging(result)); // Add logging
 
+    // Handle null or undefined result explicitly at the beginning
+    if (!result) {
+        this.logger.warn(`Received null or undefined result for ${fileType}. Assuming failure.`);
+        result = { success: false, error: 'Converter returned null or undefined result' };
+    }
+
     // Check if this is an asynchronous result (has async: true and conversionId)
     if (result && result.async === true && result.conversionId) {
       this.logger.log(`[${fileType}] Received async result with conversionId: ${result.conversionId}`);
@@ -1127,12 +1133,6 @@ class UnifiedConverterFactory {
         resultKeys: result ? Object.keys(result) : [],
         metadataKeys: result?.metadata ? Object.keys(result.metadata) : []
       });
-    }
-
-    // Handle null or undefined result explicitly
-    if (!result) {
-        this.logger.warn(`Received null or undefined result for ${fileType}. Assuming failure.`);
-        result = { success: false, error: 'Converter returned null or undefined result' };
     }
 
     // Determine success status more robustly
@@ -1200,10 +1200,135 @@ class UnifiedConverterFactory {
     return standardized;
   }
 
+  async handleUrlConversion(filePath, options, category) {
+    const { progressTracker, fileType, fileName, converterInfo } = options;
+    
+    if (progressTracker) {
+      progressTracker.update(20, { status: `processing_${fileType}` });
+    }
+    
+    this.logger.log(`Processing URL: ${filePath}`, 'INFO');
+    
+    try {
+      // Extract converter from converterInfo
+      const { converter } = converterInfo;
+      
+      let urlResult = null;
+      
+      // Try using the converter's convert method first
+      if (typeof converter.convert === 'function') {
+        this.logger.log(`Using converter.convert for ${fileType}`, 'INFO');
+        this.logger.log(`URL convert called with originalFileName: ${fileName}`, 'INFO');
+        
+        try {
+          // Create options object step by step to avoid spread issues
+          const converterOptions = {};
+          Object.keys(options).forEach(key => {
+            converterOptions[key] = options[key];
+          });
+          converterOptions.name = fileName;
+          converterOptions.originalFileName = fileName;
+          converterOptions.metadata = {
+            originalFileName: fileName
+          };
+          if (options.metadata) {
+            Object.keys(options.metadata).forEach(key => {
+              converterOptions.metadata[key] = options.metadata[key];
+            });
+          }
+          converterOptions.onProgress = (progress) => {
+            if (progressTracker) {
+              progressTracker.updateScaled(progress, 20, 90, {
+                status: typeof progress === 'object' ? progress.status : `processing_${fileType}`
+              });
+            }
+          };
+          
+          this.logger.log(`Calling URL converter with filePath: ${filePath}`, 'INFO');
+          urlResult = await converter.convert(filePath, fileName, options.apiKey, converterOptions);
+          this.logger.log(`URL converter returned result`, 'INFO');
+        } catch (converterError) {
+          this.logger.error(`URL converter error: ${converterError.message}`);
+          throw converterError;
+        }
+      } else {
+        // Fall back to using the registry's convertToMarkdown method
+        const registry = await this._ensureInitialized();
+        this.logger.log(`Using registry.convertToMarkdown for ${fileType}`, 'INFO');
+        
+        const registryOptions = {};
+        Object.keys(options).forEach(key => {
+          registryOptions[key] = options[key];
+        });
+        registryOptions.name = fileName;
+        registryOptions.originalFileName = fileName;
+        
+        urlResult = await registry.convertToMarkdown(fileType, filePath, registryOptions);
+      }
+      
+      if (progressTracker) {
+        progressTracker.update(95, { status: 'finalizing' });
+      }
+      
+      this.logger.logPhaseTransition(
+        ConversionStatus.STATUS.PROCESSING,
+        ConversionStatus.STATUS.FINALIZING
+      );
+      
+      // Only proceed if we have a result
+      if (!urlResult) {
+        throw new Error(`URL conversion failed: No result returned`);
+      }
+      
+      return this.standardizeResult(urlResult, fileType, fileName, category);
+      
+    } catch (error) {
+      this.logger.error(`Error in URL conversion: ${error.message}`);
+      
+      // Try the alternative method as a fallback
+      const registry = await this._ensureInitialized();
+      const { converter } = converterInfo;
+      
+      if (typeof converter.convert === 'function' && typeof registry.convertToMarkdown === 'function') {
+        this.logger.log(`Trying alternative conversion method as fallback`, 'INFO');
+        
+        try {
+          const fallbackOptions = {};
+          Object.keys(options).forEach(key => {
+            fallbackOptions[key] = options[key];
+          });
+          fallbackOptions.name = fileName;
+          fallbackOptions.originalFileName = fileName;
+          
+          const fallbackResult = await registry.convertToMarkdown(fileType, filePath, fallbackOptions);
+          
+          if (!fallbackResult) {
+            throw new Error(`Fallback URL conversion failed: No result returned`);
+          }
+          
+          return this.standardizeResult(fallbackResult, fileType, fileName, category);
+        } catch (fallbackError) {
+          this.logger.error(`Fallback conversion also failed: ${fallbackError.message}`);
+          throw error; // Throw the original error
+        }
+      } else {
+        throw error; // Re-throw if no fallback is available
+      }
+    }
+  }
+
   async handleConversion(filePath, options) {
     const { progressTracker, fileType, fileName, converterInfo, isUrl } = options;
     // Extract category from converterInfo to avoid "category is not defined" error
+    // Move this outside try block to ensure it's accessible in all scopes
     const category = converterInfo?.category || FILE_TYPE_CATEGORIES[fileType] || 'unknown';
+    
+    // For URL conversions, use a separate method to avoid scope issues
+    if (isUrl) {
+      return this.handleUrlConversion(filePath, options, category);
+    }
+    
+    let result = null; // Initialize to null to avoid temporal dead zone
     
     try {
       // Validate converterInfo
@@ -1216,114 +1341,6 @@ class UnifiedConverterFactory {
         ConversionStatus.STATUS.VALIDATING,
         ConversionStatus.STATUS.FAST_ATTEMPT
       );
-      
-      // Handle URL and parent URL differently since they don't need file reading
-      if (isUrl) {
-        if (progressTracker) {
-          progressTracker.update(20, { status: `processing_${fileType}` });
-        }
-        
-        this.logger.log(`Processing URL: ${filePath}`, 'INFO');
-        
-        // For URLs, filePath is actually the URL string
-        let result;
-        
-        try {
-          // Extract converter from converterInfo
-          const { converter } = converterInfo;
-
-          // Try using the converter's convert method first
-          if (typeof converter.convert === 'function') {
-            this.logger.log(`Using converter.convert for ${fileType}`, 'INFO');
-            this.logger.log(`URL convert called with originalFileName: ${fileName}`, 'INFO');
-
-            result = await converter.convert(filePath, fileName, options.apiKey, {
-              ...options,
-              name: fileName,
-              originalFileName: fileName, // Explicitly pass originalFileName
-              metadata: {
-                ...(options.metadata || {}),
-                originalFileName: fileName // Also add originalFileName to metadata
-              },
-              onProgress: (progress) => {
-                if (progressTracker) {
-                  progressTracker.updateScaled(progress, 20, 90, {
-                    status: typeof progress === 'object' ? progress.status : `processing_${fileType}`
-                  });
-                }
-              }
-            });
-          } else {
-            // Fall back to using the registry's convertToMarkdown method
-            const registry = await this._ensureInitialized();
-            this.logger.log(`Using registry.convertToMarkdown for ${fileType}`, 'INFO');
-            this.logger.log(`URL convertToMarkdown called with originalFileName: ${fileName}`, 'INFO');
-
-            result = await registry.convertToMarkdown(fileType, filePath, {
-              ...options,
-              name: fileName,
-              originalFileName: fileName, // Explicitly pass originalFileName
-              metadata: {
-                ...(options.metadata || {}),
-                originalFileName: fileName // Also add originalFileName to metadata
-              },
-              onProgress: (progress) => {
-                if (progressTracker) {
-                  progressTracker.updateScaled(progress, 20, 90, {
-                    status: typeof progress === 'object' ? progress.status : `processing_${fileType}`
-                  });
-                }
-              }
-            });
-          }
-        } catch (error) {
-          this.logger.error(`Error in URL conversion: ${error.message}`);
-          
-          // Try the alternative method as a fallback
-          const registry = await this._ensureInitialized();
-          // Extract converter from converterInfo
-          const { converter } = converterInfo;
-          if (typeof converter.convert === 'function' && typeof registry.convertToMarkdown === 'function') {
-            this.logger.log(`Trying alternative conversion method as fallback`, 'INFO');
-            
-            try {
-              // If we tried converter.convert first, now try registry.convertToMarkdown
-              result = await registry.convertToMarkdown(fileType, filePath, {
-                ...options,
-                name: fileName,
-                originalFileName: fileName, // Explicitly pass originalFileName
-                metadata: {
-                  ...(options.metadata || {}),
-                  originalFileName: fileName // Also add originalFileName to metadata
-                },
-                onProgress: (progress) => {
-                  if (progressTracker) {
-                    progressTracker.updateScaled(progress, 20, 90, {
-                      status: typeof progress === 'object' ? progress.status : `processing_${fileType}`
-                    });
-                  }
-                }
-              });
-            } catch (fallbackError) {
-              this.logger.error(`Fallback conversion also failed: ${fallbackError.message}`);
-              throw error; // Throw the original error
-            }
-          } else {
-            throw error; // Re-throw if no fallback is available
-          }
-        }
-        
-        if (progressTracker) {
-          progressTracker.update(95, { status: 'finalizing' });
-        }
-        
-        this.logger.logPhaseTransition(
-          ConversionStatus.STATUS.PROCESSING,
-          ConversionStatus.STATUS.FINALIZING
-        );
-
-        return this.standardizeResult(result, fileType, fileName, category);
-      }
       
       // Read file content if not already a buffer
       const fileContent = Buffer.isBuffer(filePath) ? filePath : fs.readFileSync(filePath);

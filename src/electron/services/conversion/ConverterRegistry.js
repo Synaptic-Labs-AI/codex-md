@@ -715,8 +715,11 @@ ConverterRegistry.prototype.setupConverters = function() {
         this.register('url', {
             convert: async (content, name, apiKey, options) => {
                 // URL converter expects the content to be the URL string
+                let conversionResult;
                 try {
                     console.log(`[UrlAdapter] Converting URL: ${content}`);
+                    console.log(`[UrlAdapter] fileStorageServiceInstance available:`, !!fileStorageServiceInstance);
+                    console.log(`[UrlAdapter] Creating temp directory...`);
                     
                     // Create temporary directory for the conversion using the singleton service
                     const tempDir = await fileStorageServiceInstance.createTempDir('url_conversion'); 
@@ -756,6 +759,8 @@ ConverterRegistry.prototype.setupConverters = function() {
                             type: 'url'
                         };
                     } catch (error) {
+                        console.error(`[UrlAdapter] Inner error:`, error);
+                        console.error(`[UrlAdapter] Error stack:`, error.stack);
                         // Close browser on error
                         await browser.close();
                         
@@ -767,6 +772,7 @@ ConverterRegistry.prototype.setupConverters = function() {
                     }
                 } catch (error) {
                     console.error(`[UrlAdapter] Error converting URL: ${error.message}`);
+                    console.error(`[UrlAdapter] Full error:`, error);
                     throw new Error(`URL conversion failed: ${error.message}`);
                 }
             },

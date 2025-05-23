@@ -329,9 +329,10 @@ class ElectronConversionService {
       }
       
       // Use category from frontend if available
+      // For URL conversions, default to 'web' category
       const fileCategory = options.category || 
                          conversionResult.category || 
-                         'text';
+                         (options.type === 'url' || options.type === 'parenturl' ? 'web' : 'text');
       
       // Check if the conversion result has multiple files (for parenturl)
       const hasMultipleFiles = Array.isArray(conversionResult.files) && conversionResult.files.length > 0;
