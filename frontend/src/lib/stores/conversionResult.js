@@ -35,8 +35,23 @@ function createConversionResultStore() {
      * @param {Object} result The conversion result
      */
     setResult: (result) => {
+      // Handle multiple files result (for website scraping separate mode)
+      if (result.type === 'multiple_files') {
+        set({
+          success: true,
+          outputPath: result.outputPath,
+          indexFile: result.indexFile,
+          files: result.files || [],
+          totalFiles: result.totalFiles,
+          items: result.items || [],
+          isNative: true,
+          isMultipleFiles: true,
+          message: result.summary || result.message || 'Multiple files created successfully',
+          error: null
+        });
+      }
       // Handle Electron result (path-based)
-      if (result.outputPath) {
+      else if (result.outputPath) {
         set({
           success: true,
           outputPath: result.outputPath,

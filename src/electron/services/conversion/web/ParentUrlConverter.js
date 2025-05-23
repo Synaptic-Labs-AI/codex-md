@@ -169,9 +169,20 @@ class ParentUrlConverter extends UrlConverter {
                 });
             }
             
-            // Generate combined markdown
+            // Generate markdown files based on save mode
             this.updateConversionStatus(conversionId, 'generating_markdown', { progress: 90 });
-            const markdown = this.generateCombinedMarkdown(sitemap, conversion.pages, options);
+            
+            const saveMode = options.websiteScraping?.saveMode || 'combined';
+            console.log(`[ParentUrlConverter] Using save mode: ${saveMode}`);
+            
+            let result;
+            if (saveMode === 'separate') {
+                // Generate separate files
+                result = await this.generateSeparateFiles(sitemap, conversion.pages, options, tempDir);
+            } else {
+                // Generate combined markdown (default behavior)
+                result = this.generateCombinedMarkdown(sitemap, conversion.pages, options);
+            }
             
             // Close browser
             await browser.close();
@@ -182,10 +193,10 @@ class ParentUrlConverter extends UrlConverter {
             
             this.updateConversionStatus(conversionId, 'completed', { 
                 progress: 100,
-                result: markdown
+                result: result
             });
             
-            return markdown;
+            return result;
         } catch (error) {
             console.error('[ParentUrlConverter] Conversion processing failed:', error);
             
@@ -410,6 +421,203 @@ class ParentUrlConverter extends UrlConverter {
             console.error(`[ParentUrlConverter] Failed to process page ${url}:`, error);
             return `# Error Processing Page: ${url}\n\nFailed to process this page: ${error.message}`;
         }
+    }
+
+    /**
+     * Generate separate markdown files for each page
+     * @param {Object} sitemap - Sitemap
+     * @param {Array} pages - Processed pages
+     * @param {Object} options - Conversion options
+     * @param {string} tempDir - Temporary directory for file operations
+     * @returns {Promise<Object>} Result with multiple files information
+     */
+    async generateSeparateFiles(sitemap, pages, options, tempDir) {
+        try {
+            console.log(`[ParentUrlConverter] Generating ${pages.length} separate files`);
+            
+            const outputDir = options.outputDir;
+            const siteDomain = new URL(sitemap.rootUrl).hostname;
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const baseName = `${siteDomain}_${timestamp}`;
+            
+            // Create a subdirectory for the website files
+            const websiteDir = path.join(outputDir, baseName);
+            await fs.ensureDir(websiteDir);
+            
+            const generatedFiles = [];
+            
+            // Generate individual page files
+            for (let i = 0; i < pages.length; i++) {
+                const page = pages[i];
+                
+                // Create a safe filename from the page title or URL
+                let filename = page.title || new URL(page.url).pathname;
+                filename = filename.replace(/[^a-zA-Z0-9\-_]/g, '_');
+                filename = filename.replace(/_+/g, '_').replace(/^_|_$/g, '');
+                filename = filename || `page_${i + 1}`;
+                
+                // Ensure filename is not too long
+                if (filename.length > 50) {
+                    filename = filename.substring(0, 50);
+                }
+                
+                const filepath = path.join(websiteDir, `${filename}.md`);
+                
+                // Generate markdown for this page
+                const pageMarkdown = this.generateSinglePageMarkdown(page, sitemap, options);
+                
+                // Write file
+                await fs.writeFile(filepath, pageMarkdown, 'utf8');
+                
+                generatedFiles.push({
+                    title: page.title,
+                    url: page.url,
+                    filename: `${filename}.md`,
+                    filepath: filepath
+                });
+                
+                console.log(`[ParentUrlConverter] Generated file: ${filename}.md`);
+            }
+            
+            // Generate an index file with links to all pages
+            const indexMarkdown = this.generateIndexMarkdown(sitemap, generatedFiles, options);
+            const indexPath = path.join(websiteDir, 'index.md');
+            await fs.writeFile(indexPath, indexMarkdown, 'utf8');
+            
+            console.log(`[ParentUrlConverter] Generated index file: index.md`);
+            
+            // Return information about the generated files
+            return {
+                type: 'multiple_files',
+                outputDirectory: websiteDir,
+                indexFile: indexPath,
+                files: generatedFiles,
+                totalFiles: generatedFiles.length + 1, // +1 for index
+                summary: `Generated ${generatedFiles.length} page files + 1 index file in ${baseName}/`
+            };
+        } catch (error) {
+            console.error('[ParentUrlConverter] Error generating separate files:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate markdown for a single page
+     * @param {Object} page - Page data
+     * @param {Object} sitemap - Sitemap information
+     * @param {Object} options - Conversion options
+     * @returns {string} Single page markdown
+     */
+    generateSinglePageMarkdown(page, sitemap, options) {
+        const markdown = [];
+        
+        // Add page title
+        markdown.push(`# ${page.title || page.url}`);
+        markdown.push('');
+        
+        // Add page metadata
+        markdown.push('## Page Information');
+        markdown.push('');
+        markdown.push('| Property | Value |');
+        markdown.push('| --- | --- |');
+        markdown.push(`| URL | [${page.url}](${page.url}) |`);
+        markdown.push(`| Title | ${page.title || 'N/A'} |`);
+        markdown.push(`| Site | [${sitemap.domain}](${sitemap.rootUrl}) |`);
+        markdown.push(`| Generated | ${new Date().toISOString()} |`);
+        markdown.push('');
+        
+        // Add content
+        markdown.push('## Content');
+        markdown.push('');
+        markdown.push(page.content);
+        
+        return markdown.join('\n');
+    }
+
+    /**
+     * Generate index markdown with links to all pages
+     * @param {Object} sitemap - Sitemap information
+     * @param {Array} files - Generated files information
+     * @param {Object} options - Conversion options
+     * @returns {string} Index markdown
+     */
+    generateIndexMarkdown(sitemap, files, options) {
+        const markdown = [];
+        
+        // Add title
+        if (options.title) {
+            markdown.push(`# ${options.title}`);
+        } else {
+            markdown.push(`# ${sitemap.title || 'Website Conversion'}`);
+        }
+        
+        markdown.push('');
+        
+        // Add site information
+        markdown.push('## Site Information');
+        markdown.push('');
+        markdown.push('| Property | Value |');
+        markdown.push('| --- | --- |');
+        markdown.push(`| Root URL | [${sitemap.rootUrl}](${sitemap.rootUrl}) |`);
+        markdown.push(`| Domain | ${sitemap.domain} |`);
+        markdown.push(`| Pages Processed | ${files.length} |`);
+        markdown.push(`| Generated | ${new Date().toISOString()} |`);
+        
+        markdown.push('');
+        
+        // Add list of generated files
+        markdown.push('## Generated Files');
+        markdown.push('');
+        
+        files.forEach((file, index) => {
+            markdown.push(`${index + 1}. [${file.title || file.url}](./${file.filename})`);
+            markdown.push(`   - URL: ${file.url}`);
+            markdown.push(`   - File: ${file.filename}`);
+            markdown.push('');
+        });
+        
+        // Add sitemap visualization if requested
+        if (options.includeSitemap) {
+            markdown.push('## Site Structure');
+            markdown.push('');
+            markdown.push('```mermaid');
+            markdown.push('graph TD');
+            
+            // Add root node
+            markdown.push(`  root["${sitemap.title || sitemap.rootUrl}"]`);
+            
+            // Add page nodes and links
+            sitemap.pages.forEach((page, index) => {
+                if (page.url !== sitemap.rootUrl) {
+                    markdown.push(`  page${index}["${page.title || page.url}"]`);
+                    
+                    // Find parent page
+                    let parentFound = false;
+                    for (const potentialParent of sitemap.pages) {
+                        if (potentialParent.links.some(link => link.url === page.url)) {
+                            const parentIndex = sitemap.pages.findIndex(p => p.url === potentialParent.url);
+                            if (potentialParent.url === sitemap.rootUrl) {
+                                markdown.push(`  root --> page${index}`);
+                            } else {
+                                markdown.push(`  page${parentIndex} --> page${index}`);
+                            }
+                            parentFound = true;
+                            break;
+                        }
+                    }
+                    
+                    // If no parent found, connect to root
+                    if (!parentFound) {
+                        markdown.push(`  root --> page${index}`);
+                    }
+                }
+            });
+            
+            markdown.push('```');
+            markdown.push('');
+        }
+        
+        return markdown.join('\n');
     }
 
     /**

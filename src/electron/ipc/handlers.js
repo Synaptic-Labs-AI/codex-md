@@ -55,8 +55,25 @@ function setupBasicHandlers(app) {
   });
 
   // System Integration
-  ipcMain.handle('codex:show-item-in-folder', (event, filePath) => {
-    shell.showItemInFolder(filePath);
+  ipcMain.handle('codex:show-item-in-folder', async (event, filePath) => {
+    const fs = require('fs').promises;
+    
+    try {
+      // Check if the path is a directory
+      const stats = await fs.stat(filePath);
+      
+      if (stats.isDirectory()) {
+        // Open the directory itself
+        shell.openPath(filePath);
+      } else {
+        // Show the file in its containing folder
+        shell.showItemInFolder(filePath);
+      }
+    } catch (error) {
+      console.error('Error checking path:', error);
+      // Fallback to showItemInFolder if we can't determine the type
+      shell.showItemInFolder(filePath);
+    }
   });
 
   ipcMain.handle('codex:open-external', (event, url) => {

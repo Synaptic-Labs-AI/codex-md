@@ -334,11 +334,27 @@ class ElectronConversionService {
                          conversionResult.category || 
                          (options.type === 'url' || options.type === 'parenturl' ? 'web' : 'text');
       
-      // Check if the conversion result has multiple files (for parenturl)
+      // Check if the conversion result has multiple files (for parenturl separate mode)
       const hasMultipleFiles = Array.isArray(conversionResult.files) && conversionResult.files.length > 0;
+      const isMultipleFilesResult = conversionResult.type === 'multiple_files';
       
       if (hasMultipleFiles) {
         console.log(`📁 [ElectronConversionService] Conversion result has ${conversionResult.files.length} files`);
+      }
+      
+      if (isMultipleFilesResult) {
+        console.log(`📁 [ElectronConversionService] Multiple files result: ${conversionResult.totalFiles} files in ${conversionResult.outputDirectory}`);
+        
+        // For multiple files result, return the directory information directly
+        return {
+          success: true,
+          outputPath: conversionResult.outputDirectory,
+          indexFile: conversionResult.indexFile,
+          files: conversionResult.files,
+          totalFiles: conversionResult.totalFiles,
+          summary: conversionResult.summary,
+          type: 'multiple_files'
+        };
       }
       
       // Save the conversion result using the ConversionResultManager

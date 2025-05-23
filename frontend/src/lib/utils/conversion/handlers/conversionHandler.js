@@ -134,6 +134,12 @@ class ConversionHandler {
             console.log('🔄 [VERBOSE] Getting OCR settings');
             const ocrEnabled = await window.electron.getSetting('ocr.enabled');
             console.log('🔍 [VERBOSE] OCR enabled:', ocrEnabled);
+            
+            // Get website scraping settings
+            console.log('🔄 [VERBOSE] Getting website scraping settings');
+            const websiteScrapingSettings = await window.electron.getSetting('websiteScraping');
+            const saveMode = websiteScrapingSettings?.saveMode || 'combined';
+            console.log('🔍 [VERBOSE] Website scraping save mode:', saveMode);
 
             // Get Mistral API key from store - ensure it's the most current value
             const apiKeyState = get(apiKeyStore);
@@ -147,7 +153,8 @@ class ConversionHandler {
                 createSubdirectory: false,
                 ...(deepgramApiKey ? { apiKey: deepgramApiKey } : {}), // Deepgram key for general use
                 useOcr: ocrEnabled,
-                mistralApiKey: mistralApiKey // Dedicated Mistral key for OCR
+                mistralApiKey: mistralApiKey, // Dedicated Mistral key for OCR
+                websiteScraping: { saveMode } // Website scraping settings
             };
 
             // Validate Mistral API key if OCR is enabled
@@ -161,7 +168,8 @@ class ConversionHandler {
                 createSubdirectory: options.createSubdirectory,
                 hasApiKey: !!options.apiKey,
                 useOcr: options.useOcr,
-                hasMistralApiKey: !!options.mistralApiKey
+                hasMistralApiKey: !!options.mistralApiKey,
+                websiteScrapingSaveMode: options.websiteScraping?.saveMode
             });
 
             console.log('🔄 [VERBOSE] Starting single item conversion');

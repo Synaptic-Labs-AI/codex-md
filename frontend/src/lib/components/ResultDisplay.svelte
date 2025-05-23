@@ -59,6 +59,9 @@
   // Check if we have a native file path result
   $: hasNativeResult = $conversionResult && $conversionResult.isNative && $conversionResult.outputPath;
   
+  // Check if we have multiple files result
+  $: hasMultipleFiles = $conversionResult && $conversionResult.isMultipleFiles;
+  
   /**
    * Opens the output folder directly in the file explorer
    */
@@ -110,6 +113,21 @@
       <!-- Action buttons - only show when completed -->
       {#if isCompleted}
         <div class="action-section">
+          <!-- Multiple files summary -->
+          {#if hasMultipleFiles}
+            <div class="result-summary">
+              <h3>✅ Website Conversion Completed</h3>
+              <p>{$conversionResult.message}</p>
+              <div class="files-info">
+                <p><strong>Generated Files:</strong> {$conversionResult.totalFiles}</p>
+                <p><strong>Location:</strong> {$conversionResult.outputPath}</p>
+                {#if $conversionResult.indexFile}
+                  <p><strong>Index File:</strong> index.md</p>
+                {/if}
+              </div>
+            </div>
+          {/if}
+          
           <div class="button-container">
             {#if hasNativeResult}
               <!-- Button for native file system -->
@@ -181,6 +199,38 @@
 
   .button-icon {
     margin-right: var(--spacing-xs);
+  }
+
+  .result-summary {
+    background: var(--color-success-background, #f0f9ff);
+    border: 1px solid var(--color-success-border, #0891b2);
+    border-radius: var(--rounded-lg);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .result-summary h3 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--color-success-text, #0f766e);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .result-summary p {
+    margin: 0 0 var(--spacing-xs) 0;
+    color: var(--color-text-secondary);
+  }
+
+  .files-info {
+    background: var(--color-background);
+    border-radius: var(--rounded-md);
+    padding: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+  }
+
+  .files-info p {
+    margin: var(--spacing-xs) 0;
+    font-size: 0.9rem;
   }
 
   /* Mobile Adjustments */

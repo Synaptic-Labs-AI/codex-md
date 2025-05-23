@@ -828,25 +828,47 @@ ConverterRegistry.prototype.setupConverters = function() {
                             });
                         }
                         
-                        // Generate combined markdown
-                        const markdown = parentUrlConverterInstance.generateCombinedMarkdown(
-                            sitemap, 
-                            processedPages, 
-                            options
-                        );
+                        // Generate markdown files based on save mode
+                        const saveMode = options.websiteScraping?.saveMode || 'combined';
+                        console.log(`[ParentUrlAdapter] Using save mode: ${saveMode}`);
                         
-                        // Close browser
-                        await browser.close();
-                        
-                        // Clean up temporary directory
-                        await fs.remove(tempDir);
-                        
-                        return {
-                            success: true,
-                            content: markdown,
-                            name: name,
-                            type: 'parenturl'
-                        };
+                        let result;
+                        if (saveMode === 'separate') {
+                            // Generate separate files
+                            result = await parentUrlConverterInstance.generateSeparateFiles(sitemap, processedPages, options, tempDir);
+                            
+                            // Close browser
+                            await browser.close();
+                            
+                            // Don't remove tempDir as files are already moved to final location
+                            
+                            // Return the multiple files result
+                            return {
+                                success: true,
+                                ...result,
+                                name: name
+                            };
+                        } else {
+                            // Generate combined markdown (default behavior)
+                            const markdown = parentUrlConverterInstance.generateCombinedMarkdown(
+                                sitemap, 
+                                processedPages, 
+                                options
+                            );
+                            
+                            // Close browser
+                            await browser.close();
+                            
+                            // Clean up temporary directory
+                            await fs.remove(tempDir);
+                            
+                            return {
+                                success: true,
+                                content: markdown,
+                                name: name,
+                                type: 'parenturl'
+                            };
+                        }
                     } catch (error) {
                         // Close browser on error
                         await browser.close();

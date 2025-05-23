@@ -478,48 +478,9 @@ class UrlConverter extends BaseService {
      * @returns {Promise<void>}
      */
     async processImages(content, tempDir, baseUrl, browser) {
-        try {
-            const imagesDir = path.join(tempDir, 'images');
-            await fs.ensureDir(imagesDir);
-            
-            // Download images
-            for (const image of content.images) {
-                try {
-                    const page = await browser.newPage();
-                    
-                    // Set up response interception
-                    await page.setRequestInterception(true);
-                    
-                    page.on('request', request => {
-                        if (request.url() === image.src) {
-                            request.continue();
-                        } else {
-                            request.abort();
-                        }
-                    });
-                    
-                    const response = await page.goto(image.src, { timeout: 10000 });
-                    
-                    if (response.ok()) {
-                        const buffer = await response.buffer();
-                        const imagePath = path.join(imagesDir, image.filename);
-                        await fs.writeFile(imagePath, buffer);
-                        
-                        // Update image with local path
-                        image.localPath = imagePath;
-                        image.data = `data:${response.headers()['content-type']};base64,${buffer.toString('base64')}`;
-                    }
-                    
-                    await page.close();
-                } catch (error) {
-                    console.error(`[UrlConverter] Failed to download image: ${image.src}`, error);
-                    // Continue with other images
-                }
-            }
-        } catch (error) {
-            console.error('[UrlConverter] Failed to process images:', error);
-            throw error;
-        }
+        // For Obsidian compatibility, we just keep the image URLs as-is
+        // No need to download images - Obsidian will handle them as external links
+        console.log(`[UrlConverter] Processing ${content.images.length} images as external links for Obsidian`);
     }
 
     /**
@@ -587,22 +548,8 @@ class UrlConverter extends BaseService {
             emDelimiter: '*'
         });
         
-        // Customize turndown
-        turndownService.addRule('images', {
-            filter: 'img',
-            replacement: function(content, node) {
-                const alt = node.alt || '';
-                const src = node.getAttribute('src') || '';
-                
-                // Find image in content.images
-                const image = content.images?.find(img => img.src === src || img.src.endsWith(src));
-                
-                // Use data URL if available
-                const imageUrl = image?.data || src;
-                
-                return `![${alt}](${imageUrl})`;
-            }
-        });
+        // Customize turndown - no special handling needed for images
+        // Just use the original URLs for Obsidian compatibility
         
         const markdownContent = turndownService.turndown(content.html);
         markdown.push(markdownContent);
@@ -673,11 +620,11 @@ class UrlConverter extends BaseService {
         return {
             name: 'URL Converter',
             protocols: this.supportedProtocols,
-            description: 'Converts web pages to markdown',
+            description: 'Converts web pages to markdown with Obsidian-compatible image links',
             options: {
                 title: 'Optional page title',
                 includeScreenshot: 'Whether to include page screenshot (default: false)',
-                includeImages: 'Whether to include images (default: true)',
+                includeImages: 'Whether to include images as external links (default: true)',
                 includeLinks: 'Whether to include links section (default: true)',
                 waitTime: 'Additional time to wait for page load in ms'
             }
