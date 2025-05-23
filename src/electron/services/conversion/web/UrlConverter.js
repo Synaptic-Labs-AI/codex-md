@@ -501,13 +501,14 @@ class UrlConverter extends BaseService {
         // Get the title from metadata or options
         const pageTitle = options.title || metadata.title || `Web Page: ${metadata.url}`;
         
-        // Create standardized frontmatter
-        markdown.push('---');
-        markdown.push(`title: ${pageTitle}`);
-        markdown.push(`converted: ${convertedDate}`);
-        markdown.push('type: url');
-        markdown.push('---');
-        markdown.push('');
+        // Create standardized frontmatter using metadata utility
+        const { createStandardFrontmatter } = require('../../../converters/utils/metadata');
+        const frontmatter = createStandardFrontmatter({
+            title: pageTitle,
+            fileType: 'url'
+        });
+        
+        markdown.push(frontmatter.trim());
         
         // Add title as heading
         markdown.push(`# ${pageTitle}`);

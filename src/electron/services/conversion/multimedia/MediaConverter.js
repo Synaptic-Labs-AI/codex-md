@@ -364,14 +364,21 @@ class MediaConverter extends BaseService {
     generateMarkdown(metadata, transcription, options) {
         const markdown = [];
 
-        // Add title
-        if (options.title) {
-            markdown.push(`# ${options.title}`);
-        } else {
-            const mediaType = metadata.isVideo ? 'Video' : 'Audio';
-            markdown.push(`# ${mediaType}: ${metadata.filename}`);
-        }
+        // Determine title
+        const title = options.title || `${metadata.isVideo ? 'Video' : 'Audio'}: ${metadata.filename}`;
+        
+        // Create standardized frontmatter using metadata utility
+        const { createStandardFrontmatter } = require('../../../converters/utils/metadata');
+        const frontmatter = createStandardFrontmatter({
+            title: title,
+            fileType: metadata.isVideo ? 'video' : 'audio'
+        });
+        
+        markdown.push(frontmatter.trim());
+        markdown.push('');
 
+        // Add title as heading
+        markdown.push(`# ${title}`);
         markdown.push('');
 
         // Add metadata

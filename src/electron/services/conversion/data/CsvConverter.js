@@ -185,24 +185,17 @@ class CsvConverter extends BaseService {
             const fileTitle = fileName.replace(/\.[^/.]+$/, ''); // Remove file extension if present
             console.log(`[CsvConverter] Using title for conversion: ${fileTitle} (from ${fileName})`);
 
-            // Store original filename in metadata for later reference
-            options.metadata = options.metadata || {};
-            options.metadata.originalFileName = fileName;
-            console.log(`[CsvConverter] Stored originalFileName in metadata: ${fileName}`);
-            
-            // Get current datetime
-            const now = new Date();
-            const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
-
             // Build markdown with YAML frontmatter
             let markdown = [];
             
-            // Add standardized frontmatter
-            markdown.push('---');
-            markdown.push(`title: ${fileTitle}`);
-            markdown.push(`converted: ${convertedDate}`);
-            markdown.push('type: csv');
-            markdown.push('---');
+            // Create standardized frontmatter using metadata utility
+            const { createStandardFrontmatter } = require('../../../converters/utils/metadata');
+            const frontmatter = createStandardFrontmatter({
+                title: fileTitle,
+                fileType: 'csv'
+            });
+            
+            markdown.push(frontmatter.trim());
             markdown.push('');
 
             // Add table metadata as a note

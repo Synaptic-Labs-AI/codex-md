@@ -2,12 +2,33 @@
  * metadata.js
  * 
  * Utility functions for handling metadata formatting and extraction.
- * Consolidates metadata functionality that was previously in adapters.
+ * Provides standardized metadata structure across all converters.
  * 
  * Related files:
  * - src/electron/converters/UnifiedConverterFactory.js: Uses these utilities
  * - src/electron/services/ConversionResultManager.js: Uses metadata formatting
  */
+
+/**
+ * Create standardized metadata object for conversions
+ * @param {object} options - Metadata options
+ * @param {string} options.title - Document title
+ * @param {string} options.fileType - File type (pdf, docx, url, video, audio, etc.)
+ * @param {Date} [options.convertedDate] - Conversion date (defaults to now)
+ * @returns {object} - Standardized metadata object
+ */
+function createStandardMetadata(options) {
+  // Extract only the allowed fields, ignoring any extra properties
+  const { title, fileType, convertedDate } = options || {};
+  
+  const metadata = {
+    title: title || 'Untitled',
+    converted: (convertedDate || new Date()).toISOString(),
+    fileType: fileType
+  };
+
+  return metadata;
+}
 
 /**
  * Format metadata as YAML frontmatter
@@ -33,6 +54,16 @@ function formatMetadata(metadata) {
   
   lines.push('---', '');
   return lines.join('\n');
+}
+
+/**
+ * Create and format standardized metadata as YAML frontmatter
+ * @param {object} options - Metadata options (same as createStandardMetadata)
+ * @returns {string} - Formatted YAML frontmatter with standardized metadata
+ */
+function createStandardFrontmatter(options) {
+  const metadata = createStandardMetadata(options);
+  return formatMetadata(metadata);
 }
 
 /**
@@ -103,7 +134,9 @@ function cleanTemporaryFilename(filename) {
 }
 
 module.exports = {
+  createStandardMetadata,
   formatMetadata,
+  createStandardFrontmatter,
   extractMetadata,
   cleanMetadata,
   cleanTemporaryFilename

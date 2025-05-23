@@ -154,23 +154,17 @@ class XlsxConverter extends BaseService {
             const fileTitle = fileName.replace(/\.[^/.]+$/, ''); // Remove file extension if present
             console.log(`[XlsxConverter] Using title for conversion: ${fileTitle} (from ${fileName})`);
 
-            // Store original filename in metadata for later reference
-            options.metadata = options.metadata || {};
-            options.metadata.originalFileName = fileName;
-            console.log(`[XlsxConverter] Stored originalFileName in metadata: ${fileName}`);
-            
-            // Get current datetime
-            const now = new Date();
-            const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
             
             const markdown = [];
             
-            // Add standardized frontmatter
-            markdown.push('---');
-            markdown.push(`title: ${fileTitle}`);
-            markdown.push(`converted: ${convertedDate}`);
-            markdown.push('type: xlsx');
-            markdown.push('---');
+            // Create standardized frontmatter using metadata utility
+            const { createStandardFrontmatter } = require('../../../converters/utils/metadata');
+            const frontmatter = createStandardFrontmatter({
+                title: fileTitle,
+                fileType: 'xlsx'
+            });
+            
+            markdown.push(frontmatter.trim());
             markdown.push('');
             
             // Safely determine which sheets to process

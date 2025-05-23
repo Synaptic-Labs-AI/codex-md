@@ -281,22 +281,15 @@ class DocxConverter extends BaseService {
             // Convert HTML to markdown
             const markdownContent = turndownService.turndown(html);
             
-            // Get current datetime
-            const now = new Date();
-            const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
-            
             // Get the title from metadata or filename
             const fileTitle = metadata.title || path.basename(fileName, path.extname(fileName));
             
-            // Create standardized frontmatter
-            const frontmatter = [
-                '---',
-                `title: ${fileTitle}`,
-                `converted: ${convertedDate}`,
-                'type: docx',
-                '---',
-                ''
-            ].join('\n');
+            // Create standardized frontmatter using metadata utility
+            const { createStandardFrontmatter } = require('../../../converters/utils/metadata');
+            const frontmatter = createStandardFrontmatter({
+                title: fileTitle,
+                fileType: 'docx'
+            });
             
             // Combine frontmatter and content
             return frontmatter + markdownContent;

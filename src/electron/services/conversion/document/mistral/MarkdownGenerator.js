@@ -50,7 +50,17 @@ class MarkdownGenerator {
     
     const markdown = [];
     
-    // Add title
+    // Create standardized frontmatter using metadata utility
+    const { createStandardFrontmatter } = require('../../../../converters/utils/metadata');
+    const frontmatter = createStandardFrontmatter({
+        title: title,
+        fileType: 'pdf'
+    });
+    
+    markdown.push(frontmatter.trim());
+    markdown.push('');
+    
+    // Add title as heading
     markdown.push(`# ${title}`);
     markdown.push('');
     
@@ -346,73 +356,17 @@ class MarkdownGenerator {
    * @returns {string} Frontmatter content
    */
   generateFrontmatter(metadata, options = {}) {
-    // Get current datetime
-    const now = new Date();
-    const convertedDate = now.toISOString();
-
     // Get the title from metadata or filename
     const fileTitle = metadata?.title || options.name || 'PDF Document';
 
-    // Extract filename without path
-    const filename = options.name || options.originalFileName || '';
+    // Use the centralized metadata utility for consistent frontmatter
+    const { createStandardFrontmatter } = require('../../../../converters/utils/metadata');
+    const frontmatter = createStandardFrontmatter({
+        title: fileTitle,
+        fileType: 'pdf'
+    });
 
-    // Get filesize if available
-    const fileSize = options.fileSize || metadata.fileSize || '';
-
-    // Create more comprehensive frontmatter
-    const frontmatter = [
-      '---',
-      `title: ${fileTitle}`,
-      `converted: ${convertedDate}`,
-      'type: pdf',
-      'fileType: pdf'
-    ];
-
-    // Add filename if available
-    if (filename) {
-      frontmatter.push(`filename: ${filename}`);
-    }
-
-    // Add page count if available
-    if (metadata.pageCount) {
-      frontmatter.push(`pageCount: ${metadata.pageCount}`);
-    }
-
-    // Add filesize if available
-    if (fileSize) {
-      frontmatter.push(`fileSize: ${fileSize}`);
-    }
-
-    // Add PDF specific metadata if available
-    if (metadata.PDFFormatVersion) {
-      frontmatter.push(`PDFFormatVersion: ${metadata.PDFFormatVersion}`);
-    }
-
-    if (metadata.IsAcroFormPresent !== undefined) {
-      frontmatter.push(`IsAcroFormPresent: ${metadata.IsAcroFormPresent}`);
-    }
-
-    if (metadata.IsXFAPresent !== undefined) {
-      frontmatter.push(`IsXFAPresent: ${metadata.IsXFAPresent}`);
-    }
-
-    // Add creator if available
-    if (metadata.creator) {
-      frontmatter.push(`creator: ${metadata.creator}`);
-    }
-
-    // Specify converter type
-    frontmatter.push('converter: mistral-ocr');
-
-    // Add original filename if available
-    if (options.originalFileName) {
-      frontmatter.push(`originalFileName: ${options.originalFileName}`);
-    }
-
-    // Close frontmatter
-    frontmatter.push('---', '');
-
-    return frontmatter.join('\n');
+    return frontmatter;
   }
 
   /**

@@ -372,13 +372,24 @@ class ConversionResultManager {
     // Update image references to use Obsidian format
     const updatedContent = this.updateImageReferences(content, images);
 
-    // Clean metadata fields and create metadata object
-    const fullMetadata = cleanMetadata({
-      type: contentType,
-      fileType: fileType || type, // Ensure fileType is included in metadata
-      converted: new Date().toISOString(),
-      ...metadata
+    // Create standardized metadata using the centralized utility
+    const { createStandardMetadata } = require('../converters/utils/metadata');
+    const fullMetadata = createStandardMetadata({
+      title: metadata.title || baseName,
+      fileType: contentType,
+      convertedDate: new Date()
     });
+    
+    // Add any additional metadata fields that aren't part of the standard set
+    const additionalMetadata = { ...metadata };
+    delete additionalMetadata.title;
+    delete additionalMetadata.fileType;
+    delete additionalMetadata.converted;
+    delete additionalMetadata.type;
+    delete additionalMetadata.originalFileName; // Don't include originalFileName in frontmatter
+    
+    // Merge additional metadata
+    Object.assign(fullMetadata, additionalMetadata);
 
     // Extract and merge frontmatter if it exists
     const { metadata: existingMetadata, content: contentWithoutFrontmatter } = extractFrontmatter(updatedContent);

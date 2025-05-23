@@ -362,8 +362,8 @@ class StandardPdfConverter extends BasePdfConverter {
      * @returns {string} Markdown content
      */
     generateMarkdown(metadata, pages, thumbnails, options) {
-        // Start with header
-        const markdown = this.generateMarkdownHeader(metadata, options);
+        // Start with empty markdown array (no header - handled by standardized frontmatter)
+        const markdown = [];
         
         // Add content for each page
         pages.forEach((page) => {
@@ -418,22 +418,16 @@ class StandardPdfConverter extends BasePdfConverter {
                 thumbnails = await this.generateThumbnails(tempFile, tempImagesDir, Math.min(maxPages, metadata.pageCount));
             }
             
-            // Get current datetime
-            const now = new Date();
-            const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
+            // Get the title from metadata or filename - clean the filename to remove .pdf extension
+            const cleanFileName = options.name ? options.name.replace(/\.pdf$/i, '') : 'PDF Document';
+            const fileTitle = metadata.title || cleanFileName;
             
-            // Get the title from metadata or filename
-            const fileTitle = metadata.title || options.name || 'PDF Document';
-            
-            // Create standardized frontmatter
-            const frontmatter = [
-                '---',
-                `title: ${fileTitle}`,
-                `converted: ${convertedDate}`,
-                'type: pdf',
-                '---',
-                ''
-            ].join('\n');
+            // Create standardized frontmatter using metadata utility
+            const { createStandardFrontmatter } = require('../../../converters/utils/metadata');
+            const frontmatter = createStandardFrontmatter({
+                title: fileTitle,
+                fileType: 'pdf'
+            });
             
             // Generate markdown content
             const markdownContent = this.generateMarkdown(metadata, pages, thumbnails, options);
@@ -446,10 +440,7 @@ class StandardPdfConverter extends BasePdfConverter {
             
             return {
                 success: true,
-                content: finalMarkdown,
-                type: 'pdf',
-                name: options.name || 'document.pdf',
-                metadata: metadata
+                content: finalMarkdown
             };
         } catch (error) {
             console.error('[StandardPdfConverter] Direct conversion failed:', error);

@@ -121,17 +121,17 @@
         
         <div class="faq-item">
           <h3>Is my data secure?</h3>
-          <p>Yes! <span class="codex-md-brand">codex.md</span> processes your files locally on your device. Your files never leave your computer unless you're using the API key for audio/video transcription, in which case only those specific files are sent to Deepgram's servers.</p>
+          <p>Yes! <span class="codex-md-brand">codex.md</span> processes your files locally on your device. Your files never leave your computer unless you're using the API key for audio/video transcription or advanced PDF conversion, in which case only those specific files are sent to Deepgram's servers.</p>
         </div>
 
         <div class="faq-item">
           <h3>What happens to my API keys?</h3>
-          <p>Your API keys are stored securely on your device using machine-specific encryption. They persist between sessions so you don't need to re-enter them each time. Your keys are never sent to our servers and are only used for the specific services they're intended for (Deepgram for transcription, Mistral for OCR).</p>
+          <p>Your API keys are stored securely on your device using machine-specific encryption. They persist between sessions so you don't need to re-enter them each time. Your keys are never sent to us and are only used for the specific services they're intended for (Deepgram for transcription, Mistral for OCR).</p>
         </div>
         
         <div class="faq-item">
           <h3>Can I use this offline?</h3>
-          <p>Yes! The desktop version of <span class="codex-md-brand">codex.md</span> works offline for document conversions. Only audio/video transcription and web page conversion require an internet connection.</p>
+          <p>Mostly! The desktop version of <span class="codex-md-brand">codex.md</span> works offline for document conversions. Only audio/video transcription, web page conversion, and advanced PDF require an internet connection.</p>
         </div>
       </section>
     </div>

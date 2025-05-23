@@ -444,6 +444,9 @@ ConverterRegistry.prototype.setupConverters = function() {
                     const xlsx = require('xlsx');
                     let workbook;
                     
+                    // Store original name for later use (moved to outer try block scope)
+                    const originalFileName = name;
+                    
                     try {
                         // Create a temporary file to read the Excel content
                         const fs = require('fs-extra');
@@ -451,9 +454,6 @@ ConverterRegistry.prototype.setupConverters = function() {
                         const path = require('path');
                         const tempDir = path.join(os.tmpdir(), `xlsx_conversion_${Date.now()}`);
                         await fs.ensureDir(tempDir);
-                        
-                        // Store original name for later use
-                        const originalFileName = name;
 
                         // Create a temp file with a generic name
                         const tempFile = path.join(tempDir, `excel_conversion_${Date.now()}.xlsx`);
@@ -474,8 +474,8 @@ ConverterRegistry.prototype.setupConverters = function() {
                     // Use the actual XlsxConverter implementation
                     const result = await xlsxConverterInstance.convertToMarkdown(workbook, {
                         ...options,
-                        name: originalFileName || name,
-                        originalFileName: originalFileName || name // Pass the original filename
+                        name: originalFileName,
+                        originalFileName: originalFileName // Pass the original filename
                     });
                     
                     // Ensure we have content

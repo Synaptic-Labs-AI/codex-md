@@ -1107,8 +1107,6 @@ class UnifiedConverterFactory {
         content: result.content || `# Processing ${fileType.toUpperCase()} File\n\nYour file is being processed. The content will be available shortly.`,
         metadata: {
           ...(result.metadata || {}),
-          converter: result.converter || 'unknown',
-          originalFileName: result.originalFileName || result.name || fileName,
           async: true,
           conversionId: result.conversionId
         }
@@ -1160,9 +1158,7 @@ class UnifiedConverterFactory {
         originalFileName: originalFileName, // Same for consistency
         category: result.category || category,
         metadata: {
-            ...(result.metadata || {}),
-            converter: result.converter || 'unknown',
-            originalFileName: originalFileName // Use the resolved originalFileName for consistency
+            ...(result.metadata || {})
         },
         images: result.images || [],
         // Ensure content exists, provide fallback if needed
@@ -1432,8 +1428,7 @@ class UnifiedConverterFactory {
         success: false,
         error: `${fileType.toUpperCase()} conversion failed: ${error.message}`,
         content: `# Conversion Error\n\nFailed to convert ${fileType.toUpperCase()} file: ${error.message}`,
-        type: fileType,
-        fileType: fileType, // Explicitly include fileType
+        fileType: fileType, // Use only fileType, not type
         name: fileName,
         category: category || 'unknown'
       };

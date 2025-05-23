@@ -27,13 +27,13 @@
     <h1>About <span class="codex-md-brand">codex.md</span></h1>
 
     <p>
-      <span class="codex-md-brand">codex.md</span> is an elegant, cross-platform desktop application developed by Synaptic Labs, and designed to convert various file formats into pristine Markdown for seamless integration with applications .md first applications like Obsidian. Built with Electron and Svelte, <span class="codex-md-brand">codex.md</span> bridges the gap between different content formats and your knowledge base.
+      <span class="codex-md-brand">codex.md</span> is an elegant desktop application developed by <a href="https://www.synapticlabs.ai" target="_blank" rel="noopener noreferrer">Synaptic Labs</a>, and designed to convert various file formats into pristine Markdown for seamless integration with Markdown first applications like Obsidian. The purpose of <span class="codex-md-brand">codex.md</span> is to bridge the gap between different content formats and your knowledge base.
     </p>
 
     <h2>Key Features</h2>
     <ul>
       <li>
-        <strong>Multi-format Support</strong>: Convert documents (PDF, DOCX, PPTX), data files (CSV, XLSX), web content (URLs, parent pages), and multimedia (audio, video) to structured Markdown.
+        <strong>Multi-format Support</strong>: Convert documents (PDF, DOCX, PPTX), data files (CSV, XLSX), web content (pages or full websites), and multimedia (audio, video) to structured Markdown.
       </li>
       <li>
         <strong>Local Processing</strong>: Process most files locally without internet dependency, ensuring privacy and data security (Audio, Video and advanced PDFs require APIs).
@@ -71,7 +71,7 @@
   <section class="about-section">
     <h2>Our Mission</h2>
     <p class="mission-statement">
-      "Powering equitable access to emerging technologies through education and integration"
+      "Powering equitable access to AI through education and integration"
     </p>
 
     <h2>What We Do</h2>
@@ -94,7 +94,7 @@
       
       <a href="https://www.synapticlabs.ai/bootcamps" class="bento-card bootcamp-card" target="_blank" rel="noopener noreferrer">
         <div class="card-emoji">🎓</div>
-        <h3>Bootcamps</h3>
+        <h3>Education</h3>
         <p>Level up your skills with expert training</p>
       </a>
       

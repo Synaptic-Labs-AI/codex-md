@@ -271,22 +271,15 @@ class PptxConverter extends BaseService {
             // Clean up temp directory
             await fs.remove(tempDir);
             
-            // Get current datetime
-            const now = new Date();
-            const convertedDate = now.toISOString().split('.')[0].replace('T', ' ');
-            
             // Get the title from metadata or filename
             const fileTitle = metadata.title || path.basename(fileName, path.extname(fileName));
             
-            // Create standardized frontmatter
-            const frontmatter = [
-                '---',
-                `title: ${fileTitle}`,
-                `converted: ${convertedDate}`,
-                'type: pptx',
-                '---',
-                ''
-            ].join('\n');
+            // Create standardized frontmatter using metadata utility
+            const { createStandardFrontmatter } = require('../../../converters/utils/metadata');
+            const frontmatter = createStandardFrontmatter({
+                title: fileTitle,
+                fileType: 'pptx'
+            });
             
             // Combine frontmatter and content
             return frontmatter + markdownContent;
