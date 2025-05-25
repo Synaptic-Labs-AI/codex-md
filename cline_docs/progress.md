@@ -60,10 +60,10 @@ flowchart TD
 
 ### Active Issues
 
-2. ESM vs CommonJS module system conflicts:
-   - Causing production issues
-   - Affects URL conversion particularly
-   - Being addressed by consolidation plan
+- ~~ESM vs CommonJS module system conflicts~~ (Partially addressed by fixing import paths for metadata utility. Further verification needed.)
+  - ~~Causing production issues~~
+  - ~~Affects URL conversion particularly~~
+  - ~~Being addressed by consolidation plan~~
 
 3. Complex three-component architecture:
    - Frontend, Backend, Electron separation causing issues
