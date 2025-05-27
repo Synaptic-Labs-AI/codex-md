@@ -14,9 +14,11 @@
   import ChatBubble from './common/ChatBubble.svelte';
   import Timer from './common/Timer.svelte';
   import Button from './common/Button.svelte';
+  import LiquidProgressBar from './common/LiquidProgressBar.svelte';
+  import WebsiteProgressIndicator from './common/WebsiteProgressIndicator.svelte';
   
   const dispatch = createEventDispatcher();
-  import { unifiedConversion, ConversionState } from '../stores/unifiedConversion';
+  import { unifiedConversion, ConversionState, isWebsiteConversion, conversionProgress } from '../stores/unifiedConversion';
   import { getRandomMessage } from '../utils/conversionMessages';
   
   // Track bubble position to alternate
@@ -238,6 +240,16 @@
         />
       {/if}
     </div>
+
+    <!-- Liquid Progress Bar - show during active conversion -->
+    {#if !isPersistentlyCompleted && status !== ConversionState.STATUS.COMPLETED && status !== ConversionState.STATUS.ERROR && status !== ConversionState.STATUS.CANCELLED}
+      <LiquidProgressBar progress={$conversionProgress} />
+      
+      <!-- Website Progress Indicator - only for website conversions -->
+      {#if $isWebsiteConversion}
+        <WebsiteProgressIndicator />
+      {/if}
+    {/if}
 
     <!-- Conversion Timer and Cancel Button - only show during active conversion -->
     {#if !isPersistentlyCompleted && status !== ConversionState.STATUS.COMPLETED && status !== ConversionState.STATUS.ERROR && status !== ConversionState.STATUS.CANCELLED}

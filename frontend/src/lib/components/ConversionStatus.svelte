@@ -44,6 +44,15 @@
   }
 
   function handleCancelConversion() {
+    // For website conversions, show a confirmation
+    if (isWebsiteConversion && $unifiedConversion.websiteData.completed > 0) {
+      const confirmed = confirm(
+        `${$unifiedConversion.websiteData.completed} pages have been processed. ` +
+        `Do you want to cancel and save the partial results?`
+      );
+      if (!confirmed) return;
+    }
+    
     dispatch('cancelConversion');
   }
 

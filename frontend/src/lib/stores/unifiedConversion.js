@@ -51,7 +51,21 @@ const initialState = {
   type: null,
   
   // Error flags
-  isTranscriptionError: false // Flag to indicate if the error is a transcription error
+  isTranscriptionError: false, // Flag to indicate if the error is a transcription error
+  
+  // Website-specific properties
+  websiteData: {
+    totalDiscovered: 0,
+    processing: 0,
+    completed: 0,
+    currentPage: null,
+    estimatedTimeRemaining: null,
+    processingRate: 0
+  },
+  
+  // Cancellation state
+  isCancelling: false,
+  partialResults: null
 };
 
 /**
@@ -192,6 +206,58 @@ function createUnifiedConversionStore() {
 
         return newState;
       });
+    },
+    
+    // Website-specific methods
+    updateWebsiteProgress: (websiteData) => {
+      update(state => ({
+        ...state,
+        websiteData: {
+          ...state.websiteData,
+          ...websiteData
+        }
+      }));
+    },
+    
+    setCurrentPage: (pageInfo) => {
+      update(state => ({
+        ...state,
+        websiteData: {
+          ...state.websiteData,
+          currentPage: pageInfo
+        }
+      }));
+    },
+    
+    // Cancellation methods
+    startCancellation: () => {
+      update(state => ({
+        ...state,
+        isCancelling: true,
+        status: ConversionState.STATUS.CLEANING_UP
+      }));
+    },
+    
+    cancelWithPartialResults: (partialResults) => {
+      // Stop the timer
+      unifiedConversion.stopTimer();
+      
+      update(state => ({
+        ...state,
+        status: ConversionState.STATUS.CANCELLED,
+        isCancelling: false,
+        partialResults,
+        completionTime: Date.now()
+      }));
+    },
+    
+    // Smooth progress updates for liquid effect
+    setProgress: (progress) => {
+      update(state => {
+        // Only allow progress to increase or stay same (no backwards movement)
+        const newProgress = Math.min(Math.max(progress, state.progress), 100);
+        return { ...state, progress: newProgress };
+      });
     }
   };
 }
@@ -206,6 +272,11 @@ export const conversionError = derived(unifiedConversion, $state => $state.error
 export const conversionType = derived(unifiedConversion, $state => $state.type);
 export const conversionStatus = derived(unifiedConversion, $state => $state.status);
 export const isTranscriptionError = derived(unifiedConversion, $state => $state.isTranscriptionError);
+
+// Website-specific derived stores
+export const websiteData = derived(unifiedConversion, $state => $state.websiteData);
+export const isWebsiteConversion = derived(unifiedConversion, $state => $state.type === ConversionState.TYPE.WEBSITE);
+export const isCancelling = derived(unifiedConversion, $state => $state.isCancelling);
 
 // Derived store to check if conversion is complete
 export const isConversionComplete = derived(

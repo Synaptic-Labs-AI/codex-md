@@ -792,93 +792,37 @@ ConverterRegistry.prototype.setupConverters = function() {
                 try {
                     console.log(`[ParentUrlAdapter] Converting site: ${content}`);
                     
-                    // Create temporary directory for the conversion using the singleton service
-                    const tempDir = await fileStorageServiceInstance.createTempDir('parent_url_conversion'); 
+                    // Use the IPC handler instead of direct method calls to enable progress tracking
+                    // Create a mock event object similar to MediaAdapter
+                    const mockEvent = {
+                        sender: {
+                            getOwnerBrowserWindow: () => {
+                                // Try to get the actual window from electron
+                                const { BrowserWindow } = require('electron');
+                                const windows = BrowserWindow.getAllWindows();
+                                return windows.length > 0 ? windows[0] : null;
+                            }
+                        }
+                    };
                     
-                    // Launch a browser instance for the conversion
-                    const puppeteer = require('puppeteer');
-                    const browser = await puppeteer.launch({
-                        headless: 'new',
-                        args: ['--no-sandbox', '--disable-setuid-sandbox']
+                    // Call the handleConvert method which sets up async conversion with progress tracking
+                    const result = await parentUrlConverterInstance.handleConvert(mockEvent, {
+                        url: content,
+                        options: {
+                            ...options,
+                            originalFileName: name
+                        }
                     });
                     
-                    try {
-                        // Discover sitemap
-                        const sitemap = await parentUrlConverterInstance.discoverSitemap(content, options, browser);
-                        
-                        // Process each page
-                        const maxPages = options.maxPages || Math.min(sitemap.pages.length, 10);
-                        const pagesToProcess = sitemap.pages.slice(0, maxPages);
-                        const processedPages = [];
-                        
-                        for (const page of pagesToProcess) {
-                            // Process page
-                            const pageContent = await parentUrlConverterInstance.processPage(
-                                page.url, 
-                                options, 
-                                browser, 
-                                tempDir
-                            );
-                            
-                            // Add to processed pages
-                            processedPages.push({
-                                url: page.url,
-                                title: page.title,
-                                content: pageContent
-                            });
-                        }
-                        
-                        // Generate markdown files based on save mode
-                        const saveMode = options.websiteScraping?.saveMode || 'combined';
-                        console.log(`[ParentUrlAdapter] Using save mode: ${saveMode}`);
-                        
-                        let result;
-                        if (saveMode === 'separate') {
-                            // Generate separate files
-                            result = await parentUrlConverterInstance.generateSeparateFiles(sitemap, processedPages, options, tempDir);
-                            
-                            // Close browser
-                            await browser.close();
-                            
-                            // Don't remove tempDir as files are already moved to final location
-                            
-                            // Return the multiple files result
-                            return {
-                                success: true,
-                                ...result,
-                                name: name
-                            };
-                        } else {
-                            // Generate combined markdown (default behavior)
-                            const markdown = parentUrlConverterInstance.generateCombinedMarkdown(
-                                sitemap, 
-                                processedPages, 
-                                options
-                            );
-                            
-                            // Close browser
-                            await browser.close();
-                            
-                            // Clean up temporary directory
-                            await fs.remove(tempDir);
-                            
-                            return {
-                                success: true,
-                                content: markdown,
-                                name: name,
-                                type: 'parenturl'
-                            };
-                        }
-                    } catch (error) {
-                        // Close browser on error
-                        await browser.close();
-                        
-                        // Clean up temporary directory
-                        await fs.remove(tempDir);
-                        
-                        // Re-throw error
-                        throw error;
-                    }
+                    console.log(`[ParentUrlAdapter] Parent URL conversion initiated for '${content}'. Conversion ID: ${result.conversionId}`);
+                    
+                    return {
+                        success: true,
+                        conversionId: result.conversionId,
+                        async: true, // Critical: signals that result is async
+                        name: name,
+                        type: 'parenturl'
+                    };
                 } catch (error) {
                     console.error(`[ParentUrlAdapter] Error converting site: ${error.message}`);
                     throw new Error(`Site conversion failed: ${error.message}`);

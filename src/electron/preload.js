@@ -83,6 +83,10 @@ function cleanupEventListeners() {
     ipcRenderer.removeAllListeners('codex:watch:event');
     ipcRenderer.removeAllListeners('app:ready');
     ipcRenderer.removeAllListeners('app:error');
+    // Parent URL specific events
+    ipcRenderer.removeAllListeners('parent-url:conversion-progress');
+    ipcRenderer.removeAllListeners('parent-url:conversion-started');
+    ipcRenderer.removeAllListeners('parent-url:conversion-cancelling');
 }
 
 // Handle app ready event
@@ -169,6 +173,23 @@ contextBridge.exposeInMainWorld('electron', {
         return queueCall('codex:convert:file', [path, options]);
     },
     
+    /**
+     * Cancel ongoing conversion requests
+     * @returns {Promise<Object>}
+     */
+    cancelRequests: async () => {
+        return queueCall('codex:convert:cancel', []);
+    },
+    
+    /**
+     * Cancel parent URL conversion
+     * @param {string} conversionId - Conversion ID to cancel
+     * @returns {Promise<Object>}
+     */
+    cancelParentUrlConversion: async (conversionId) => {
+        return queueCall('convert:parent-url:cancel', [{ conversionId }]);
+    },
+    
     //=== Conversion Event Handlers ===//
     
     /**
@@ -249,6 +270,44 @@ contextBridge.exposeInMainWorld('electron', {
      */
     offConversionError: (listener) => {
         ipcRenderer.removeListener('codex:convert:error', listener);
+    },
+    
+    //=== Parent URL Conversion Events ===//
+    
+    /**
+     * Register callback for parent URL conversion progress
+     * @param {Function} callback - Progress callback
+     */
+    onParentUrlProgress: (callback) => {
+        ipcRenderer.on('parent-url:conversion-progress', (_, data) => callback(data));
+        // Return cleanup function
+        return () => {
+            ipcRenderer.removeListener('parent-url:conversion-progress', callback);
+        };
+    },
+    
+    /**
+     * Register callback for parent URL conversion started
+     * @param {Function} callback - Started callback
+     */
+    onParentUrlStarted: (callback) => {
+        ipcRenderer.on('parent-url:conversion-started', (_, data) => callback(data));
+        // Return cleanup function
+        return () => {
+            ipcRenderer.removeListener('parent-url:conversion-started', callback);
+        };
+    },
+    
+    /**
+     * Register callback for parent URL conversion cancelling
+     * @param {Function} callback - Cancelling callback
+     */
+    onParentUrlCancelling: (callback) => {
+        ipcRenderer.on('parent-url:conversion-cancelling', (_, data) => callback(data));
+        // Return cleanup function
+        return () => {
+            ipcRenderer.removeListener('parent-url:conversion-cancelling', callback);
+        };
     },
     
     //=== File System Operations ===//

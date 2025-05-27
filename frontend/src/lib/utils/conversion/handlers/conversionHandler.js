@@ -22,6 +22,11 @@ const Phase = {
 };
 
 class ConversionHandler {
+    constructor() {
+        this.parentUrlCleanup = null;
+        this.currentConversionId = null;
+    }
+
     /**
      * Starts the conversion process
      */
@@ -246,6 +251,11 @@ class ConversionHandler {
                     type: fileInfo.converter
                   };
 
+            // Set up parent URL event listeners if needed
+            if (item.type === 'parenturl') {
+                this.setupParentUrlListeners();
+            }
+
             // Log extended debug info for URL conversions
             if (fileInfo.isWeb) {
                 console.log('🌐 Web conversion details:', {
@@ -298,7 +308,10 @@ class ConversionHandler {
                     item.url,
                     conversionOptions,
                     progress => {
-                        storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
+                        // For parent URLs, progress is handled by the event listeners
+                        if (item.type !== 'parenturl') {
+                            storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, progress);
+                        }
                     }
                 );
 
@@ -346,6 +359,12 @@ class ConversionHandler {
             storeManager.updateConversionStatus(CONVERSION_STATUSES.COMPLETED, 100);
             storeManager.setConversionResult(result, [item]);
             storeManager.updateFileStatus(item.id, CONVERSION_STATUSES.COMPLETED, result.outputPath);
+            
+            // Clean up parent URL listeners if needed
+            if (item.type === 'parenturl') {
+                this.cleanupParentUrlListeners();
+            }
+            
             return result;
         } catch (error) {
             console.error(`Error converting ${item.name || item.url}:`, {
@@ -393,8 +412,14 @@ class ConversionHandler {
      * Cancels the ongoing conversion process
      */
     cancelConversion() {
+        // For parent URL conversions, use the specific cancel method
+        if (this.currentConversionId) {
+            window.electron.cancelParentUrlConversion(this.currentConversionId);
+        }
+        
         electronClient.cancelRequests();
         storeManager.cancelConversion();
+        this.cleanupParentUrlListeners();
         this.showFeedback('Conversion cancelled by user', 'info');
     }
 
@@ -406,6 +431,77 @@ class ConversionHandler {
         console.log(`${type.toUpperCase()}: ${message}`);
         // In a real implementation, this could show a toast notification or other UI feedback
         // For now, just log to console
+    }
+
+    /**
+     * Set up parent URL event listeners
+     * @private
+     */
+    setupParentUrlListeners() {
+        this.cleanupParentUrlListeners();
+        
+        // Listen for parent URL specific progress events
+        this.parentUrlCleanup = window.electron.onParentUrlProgress((data) => {
+            console.log('Parent URL progress:', data);
+            
+            // Store the conversion ID for cancellation
+            if (data.conversionId) {
+                this.currentConversionId = data.conversionId;
+            }
+            
+            // Update progress
+            if (data.progress !== undefined) {
+                unifiedConversion.setProgress(data.progress);
+            }
+            
+            // Update website-specific data
+            if (data.websiteData) {
+                unifiedConversion.updateWebsiteProgress(data.websiteData);
+            }
+            
+            // Handle different statuses
+            switch (data.status) {
+                case 'launching_browser':
+                    storeManager.updateConversionStatus(CONVERSION_STATUSES.INITIALIZING, data.progress);
+                    break;
+                case 'discovering_sitemap':
+                    storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, data.progress);
+                    break;
+                case 'pages_discovered':
+                    this.showFeedback(`Found ${data.websiteData.totalDiscovered} pages to process`, 'info');
+                    break;
+                case 'processing_page':
+                    storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, data.progress);
+                    break;
+                case 'page_completed':
+                    // Page completed, progress already updated
+                    break;
+                case 'generating_markdown':
+                    storeManager.updateConversionStatus(CONVERSION_STATUSES.CONVERTING, data.progress);
+                    break;
+                case 'completed':
+                    this.cleanupParentUrlListeners();
+                    break;
+            }
+        });
+        
+        // Listen for cancelling event
+        window.electron.onParentUrlCancelling((data) => {
+            console.log('Parent URL cancelling:', data);
+            unifiedConversion.startCancellation();
+        });
+    }
+    
+    /**
+     * Clean up parent URL event listeners
+     * @private
+     */
+    cleanupParentUrlListeners() {
+        if (this.parentUrlCleanup) {
+            this.parentUrlCleanup();
+            this.parentUrlCleanup = null;
+        }
+        this.currentConversionId = null;
     }
 }
 

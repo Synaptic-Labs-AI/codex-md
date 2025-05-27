@@ -54,7 +54,7 @@ class ParentUrlConverter extends UrlConverter {
             // Create temp directory for this conversion
             const tempDir = await this.fileStorage.createTempDir('parent_url_conversion');
             
-            this.activeConversions.set(conversionId, {
+            const conversion = {
                 id: conversionId,
                 status: 'starting',
                 progress: 0,
@@ -63,7 +63,14 @@ class ParentUrlConverter extends UrlConverter {
                 window,
                 processedUrls: new Set(),
                 pages: []
-            });
+            };
+            
+            this.activeConversions.set(conversionId, conversion);
+            
+            // Register with global converter registry if available
+            if (global.converterRegistry && typeof global.converterRegistry.registerConversion === 'function') {
+                global.converterRegistry.registerConversion(conversionId, conversion);
+            }
 
             // Notify client that conversion has started (only if we have a valid window)
             if (window && window.webContents) {
@@ -81,7 +88,11 @@ class ParentUrlConverter extends UrlConverter {
                 });
             });
 
-            return { conversionId };
+            return { 
+                conversionId,
+                async: true,
+                success: true
+            };
         } catch (error) {
             console.error('[ParentUrlConverter] Failed to start conversion:', error);
             throw error;
@@ -106,6 +117,32 @@ class ParentUrlConverter extends UrlConverter {
     }
 
     /**
+     * Handle conversion cancellation request with partial results
+     * @param {Electron.IpcMainInvokeEvent} event - IPC event
+     * @param {Object} request - Cancellation request details
+     */
+    async handleCancel(event, { conversionId }) {
+        const conversion = this.activeConversions.get(conversionId);
+        if (conversion) {
+            // Mark as cancelled - the processConversion loop will check this
+            conversion.status = 'cancelled';
+            
+            if (conversion.window) {
+                conversion.window.webContents.send('parent-url:conversion-cancelling', { 
+                    conversionId,
+                    message: 'Cancelling conversion, preparing partial results...'
+                });
+            }
+            
+            // Don't immediately close browser or clean up - let processConversion handle it
+            // This allows partial results to be saved
+            
+            return { success: true, conversionId };
+        }
+        return { success: false, error: 'Conversion not found' };
+    }
+
+    /**
      * Process parent URL conversion
      * @param {string} conversionId - Conversion identifier
      * @param {string} url - URL to convert
@@ -113,6 +150,7 @@ class ParentUrlConverter extends UrlConverter {
      */
     async processConversion(conversionId, url, options) {
         let browser = null;
+        const startTime = Date.now();
         
         try {
             const conversion = this.activeConversions.get(conversionId);
@@ -123,7 +161,17 @@ class ParentUrlConverter extends UrlConverter {
             const tempDir = conversion.tempDir;
             
             // Launch browser
-            this.updateConversionStatus(conversionId, 'launching_browser', { progress: 5 });
+            this.updateConversionStatus(conversionId, 'launching_browser', { 
+                progress: 5,
+                websiteData: {
+                    totalDiscovered: 0,
+                    processing: 0,
+                    completed: 0,
+                    currentPage: null,
+                    estimatedTimeRemaining: null,
+                    processingRate: 0
+                }
+            });
             browser = await this.launchBrowser();
             conversion.browser = browser;
             
@@ -135,13 +183,29 @@ class ParentUrlConverter extends UrlConverter {
             const maxPages = options.maxPages || sitemap.pages.length;
             const pagesToProcess = sitemap.pages.slice(0, maxPages);
             
-            this.updateConversionStatus(conversionId, 'processing_pages', {
+            // Send initial page discovery event
+            this.updateConversionStatus(conversionId, 'pages_discovered', {
                 progress: 20,
-                total: pagesToProcess.length,
-                processed: 0
+                websiteData: {
+                    totalDiscovered: pagesToProcess.length,
+                    processing: 0,
+                    completed: 0,
+                    currentPage: null,
+                    estimatedTimeRemaining: null,
+                    processingRate: 0
+                }
             });
             
+            const processedPages = [];
+            let lastUpdateTime = Date.now();
+            
             for (let i = 0; i < pagesToProcess.length; i++) {
+                // Check if conversion was cancelled
+                if (conversion.status === 'cancelled') {
+                    console.log('[ParentUrlConverter] Conversion cancelled, returning partial results');
+                    break;
+                }
+                
                 const page = pagesToProcess[i];
                 
                 // Skip if already processed
@@ -149,28 +213,74 @@ class ParentUrlConverter extends UrlConverter {
                     continue;
                 }
                 
-                // Process page
+                // Calculate progress and processing rate
+                const currentTime = Date.now();
+                const elapsedSeconds = (currentTime - startTime) / 1000;
+                const processingRate = processedPages.length / elapsedSeconds;
+                const remainingPages = pagesToProcess.length - processedPages.length;
+                const estimatedTimeRemaining = processingRate > 0 ? remainingPages / processingRate : null;
+                
+                // Update status with detailed progress
                 this.updateConversionStatus(conversionId, 'processing_page', {
-                    progress: 20 + Math.floor((i / pagesToProcess.length) * 60),
-                    currentPage: page.url,
-                    processed: i,
-                    total: pagesToProcess.length
+                    progress: 20 + Math.floor((processedPages.length / pagesToProcess.length) * 60),
+                    websiteData: {
+                        totalDiscovered: pagesToProcess.length,
+                        processing: 1,
+                        completed: processedPages.length,
+                        currentPage: {
+                            url: page.url,
+                            title: page.title || 'Processing...',
+                            index: i + 1
+                        },
+                        estimatedTimeRemaining: Math.round(estimatedTimeRemaining),
+                        processingRate: Math.round(processingRate * 10) / 10
+                    }
                 });
                 
-                // Convert page using parent UrlConverter's methods
-                const pageContent = await this.processPage(page.url, options, browser, tempDir);
-                
-                // Add to processed pages
-                conversion.processedUrls.add(page.url);
-                conversion.pages.push({
-                    url: page.url,
-                    title: page.title,
-                    content: pageContent
-                });
+                try {
+                    // Convert page using parent UrlConverter's methods
+                    const pageContent = await this.processPage(page.url, options, browser, tempDir);
+                    
+                    // Add to processed pages
+                    conversion.processedUrls.add(page.url);
+                    const processedPage = {
+                        url: page.url,
+                        title: page.title,
+                        content: pageContent
+                    };
+                    conversion.pages.push(processedPage);
+                    processedPages.push(processedPage);
+                    
+                    // Update completed count
+                    this.updateConversionStatus(conversionId, 'page_completed', {
+                        progress: 20 + Math.floor(((i + 1) / pagesToProcess.length) * 60),
+                        websiteData: {
+                            totalDiscovered: pagesToProcess.length,
+                            processing: 0,
+                            completed: processedPages.length,
+                            currentPage: null,
+                            estimatedTimeRemaining: Math.round(estimatedTimeRemaining),
+                            processingRate: Math.round(processingRate * 10) / 10
+                        }
+                    });
+                } catch (pageError) {
+                    console.error(`[ParentUrlConverter] Failed to process page ${page.url}:`, pageError);
+                    // Continue with next page even if one fails
+                }
             }
             
             // Generate markdown files based on save mode
-            this.updateConversionStatus(conversionId, 'generating_markdown', { progress: 90 });
+            this.updateConversionStatus(conversionId, 'generating_markdown', { 
+                progress: 90,
+                websiteData: {
+                    totalDiscovered: pagesToProcess.length,
+                    processing: 0,
+                    completed: processedPages.length,
+                    currentPage: null,
+                    estimatedTimeRemaining: 0,
+                    processingRate: 0
+                }
+            });
             
             const saveMode = options.websiteScraping?.saveMode || 'combined';
             console.log(`[ParentUrlConverter] Using save mode: ${saveMode}`);
@@ -184,6 +294,13 @@ class ParentUrlConverter extends UrlConverter {
                 result = this.generateCombinedMarkdown(sitemap, conversion.pages, options);
             }
             
+            // Add metadata about partial conversion if cancelled
+            if (conversion.status === 'cancelled' && processedPages.length < pagesToProcess.length) {
+                result = typeof result === 'string' 
+                    ? `> ⚠️ **Note**: This conversion was cancelled. Only ${processedPages.length} of ${pagesToProcess.length} pages were processed.\n\n${result}`
+                    : { ...result, partialConversion: true, pagesProcessed: processedPages.length, totalPages: pagesToProcess.length };
+            }
+            
             // Close browser
             await browser.close();
             conversion.browser = null;
@@ -193,8 +310,19 @@ class ParentUrlConverter extends UrlConverter {
             
             this.updateConversionStatus(conversionId, 'completed', { 
                 progress: 100,
-                result: result
+                result: result,
+                websiteData: {
+                    totalDiscovered: pagesToProcess.length,
+                    processing: 0,
+                    completed: processedPages.length,
+                    currentPage: null,
+                    estimatedTimeRemaining: 0,
+                    processingRate: 0
+                }
             });
+            
+            // Clean up the active conversion
+            this.activeConversions.delete(conversionId);
             
             return result;
         } catch (error) {
@@ -717,6 +845,36 @@ class ParentUrlConverter extends UrlConverter {
         }
         
         return markdown.join('\n');
+    }
+
+    /**
+     * Update conversion status and notify renderer
+     * @param {string} conversionId - Conversion identifier
+     * @param {string} status - New status
+     * @param {Object} details - Additional details
+     */
+    updateConversionStatus(conversionId, status, details = {}) {
+        const conversion = this.activeConversions.get(conversionId);
+        if (conversion) {
+            conversion.status = status;
+            Object.assign(conversion, details);
+            
+            // Update in global registry if available
+            if (global.converterRegistry && typeof global.converterRegistry.pingConversion === 'function') {
+                global.converterRegistry.pingConversion(conversionId, {
+                    status,
+                    ...details
+                });
+            }
+            
+            if (conversion.window && conversion.window.webContents) {
+                conversion.window.webContents.send('parent-url:conversion-progress', {
+                    conversionId,
+                    status,
+                    ...details
+                });
+            }
+        }
     }
 
     /**

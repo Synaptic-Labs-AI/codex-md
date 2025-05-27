@@ -266,7 +266,8 @@ class ElectronConversionService {
         // Poll for the conversion result
         let finalResult = null;
         let attempts = 0;
-        const maxAttempts = 60; // 30 seconds (500ms * 60)
+        // Increase timeout for parent URL conversions which can take longer
+        const maxAttempts = conversionResult.type === 'parenturl' ? 240 : 60; // 120s for parenturl, 30s for others
         
         while (attempts < maxAttempts) {
           // Get the conversion from the registry
