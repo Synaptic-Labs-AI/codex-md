@@ -21,8 +21,7 @@ function updateApiKeyEnvironment(provider, key) {
     // Map provider to environment variable name
     const envMap = {
       'mistral': 'MISTRAL_API_KEY',
-      'deepgram': 'DEEPGRAM_API_KEY',
-      'openai': 'OPENAI_API_KEY'
+      'deepgram': 'DEEPGRAM_API_KEY'
     };
 
     const envVar = envMap[provider];
@@ -46,7 +45,7 @@ function updateApiKeyEnvironment(provider, key) {
  */
 function registerApiKeyHandlers() {
   // Save API key
-  ipcMain.handle('codex:apikey:save', async (event, { key, provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:save', async (event, { key, provider = 'mistral' }) => {
     const result = await apiKeyService.saveApiKey(key, provider);
 
     // Update environment variable with the new key
@@ -58,12 +57,12 @@ function registerApiKeyHandlers() {
   });
 
   // Check if API key exists
-  ipcMain.handle('codex:apikey:exists', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:exists', async (event, { provider = 'mistral' }) => {
     return { exists: apiKeyService.hasApiKey(provider) };
   });
 
   // Delete API key
-  ipcMain.handle('codex:apikey:delete', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:delete', async (event, { provider = 'mistral' }) => {
     const result = apiKeyService.deleteApiKey(provider);
 
     // Remove environment variable when key is deleted
@@ -75,12 +74,12 @@ function registerApiKeyHandlers() {
   });
 
   // Validate API key
-  ipcMain.handle('codex:apikey:validate', async (event, { key, provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:validate', async (event, { key, provider = 'mistral' }) => {
     return await apiKeyService.validateApiKey(key, provider);
   });
 
   // Get API key for internal use (only available to main process)
-  ipcMain.handle('codex:apikey:get-for-service', async (event, { provider = 'openai' }) => {
+  ipcMain.handle('codex:apikey:get-for-service', async (event, { provider = 'mistral' }) => {
     // Security check: only allow main process to access this
     const webContents = event.sender;
     if (webContents.getType() !== 'browserWindow') {

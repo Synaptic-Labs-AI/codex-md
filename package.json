@@ -1,6 +1,6 @@
 {
     "name": "codex-md",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "description": "Desktop application for converting various file types to Markdown for codex.md",
     "main": "build/electron/main.js",
     "type": "commonjs",
@@ -205,7 +205,6 @@
         "node-machine-id": "^1.1.12",
         "office-text-extractor": "^3.0.3",
         "officeparser": "^5.0.0",
-        "openai": "^4.98.0",
         "p-limit": "^3.1.0",
         "pdf-lib": "^1.17.1",
         "pdf-parse": "^1.1.1",

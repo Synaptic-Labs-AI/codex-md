@@ -448,23 +448,23 @@ contextBridge.exposeInMainWorld('electron', {
     },
     
     //=== API Key Management ===//
-    saveApiKey: async (key, provider = 'openai') => {
+    saveApiKey: async (key, provider = 'mistral') => {
         return queueCall('codex:apikey:save', [{ key, provider }]);
     },
     
-    checkApiKeyExists: async (provider = 'openai') => {
+    checkApiKeyExists: async (provider = 'mistral') => {
         return queueCall('codex:apikey:exists', [{ provider }]);
     },
     
-    deleteApiKey: async (provider = 'openai') => {
+    deleteApiKey: async (provider = 'mistral') => {
         return queueCall('codex:apikey:delete', [{ provider }]);
     },
     
-    validateApiKey: async (key, provider = 'openai') => {
+    validateApiKey: async (key, provider = 'mistral') => {
         return queueCall('codex:apikey:validate', [{ key, provider }]);
     },
     
-    getApiKey: async (provider = 'openai') => {
+    getApiKey: async (provider = 'mistral') => {
         return queueCall('codex:apikey:get', [{ provider }]);
     },
     

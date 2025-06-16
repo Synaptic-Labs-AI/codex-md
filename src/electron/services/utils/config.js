@@ -13,19 +13,19 @@
  * @returns {object} The transcription configuration
  */
 function getTranscriptionConfig() {
-  // Hardcoded configuration that was previously in a separate config file
+  // Hardcoded configuration for Deepgram transcription
   return {
     MODELS: {
-      'whisper-1': {
-        name: 'Whisper',
-        description: 'OpenAI Whisper model',
-        features: ['timestamps'],
+      'deepgram-nova-2': {
+        name: 'Deepgram Nova-2',
+        description: 'Deepgram Nova-2 model',
+        features: ['timestamps', 'punctuation', 'paragraphs'],
         default: true
       }
     },
-    DEFAULT_MODEL: 'whisper-1',
+    DEFAULT_MODEL: 'deepgram-nova-2',
     RESPONSE_FORMATS: {
-      'whisper-1': ['json', 'text']
+      'deepgram-nova-2': ['json', 'text', 'srt', 'vtt']
     }
   };
 }

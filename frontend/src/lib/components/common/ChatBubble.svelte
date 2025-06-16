@@ -11,6 +11,9 @@
 
   export let isTyping = false;
   export let showMessage = true;
+
+  let messageElement;
+  let chatBubbleElement;
 </script>
 
 <div 
@@ -22,6 +25,8 @@
     class="chat-bubble"
     class:bubble-left={avatarPosition === 'left'}
     class:bubble-right={avatarPosition === 'right'}
+    class:is-typing={isTyping}
+    bind:this={chatBubbleElement}
     in:fly|local={{delay, duration: 400, y: 20}}
   >
     <div class="message-content">
@@ -42,6 +47,7 @@
       {#if showMessage}
         <div 
           class="message"
+          bind:this={messageElement}
           in:slide|local={{delay: 100, duration: 200, axis: 'y'}}
         >
           {@html message}
@@ -88,6 +94,9 @@
     width: calc(100% - 80px);
     box-sizing: border-box;
     z-index: 1;
+    height: 240px;
+    display: flex;
+    align-items: center;
   }
   
   .bubble-left {
@@ -196,6 +205,8 @@
     gap: 4px;
     padding: var(--spacing-xs) var(--spacing-sm);
     align-items: center;
+    min-height: 32px;
+    justify-content: center;
   }
 
   .dot {
@@ -236,9 +247,14 @@
 
   .message-content {
     width: 100%;
+    height: 100%;
+    overflow: hidden;
     overflow-wrap: break-word;
     word-wrap: break-word;
     word-break: break-word;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 
   .message {
@@ -329,6 +345,7 @@
     .chat-bubble {
       width: calc(100% - 50px);
       padding: var(--spacing-sm) var(--spacing-md);
+      height: 200px;
     }
     
     .bubble-left {

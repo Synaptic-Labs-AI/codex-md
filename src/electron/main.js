@@ -378,17 +378,13 @@ async function createMainWindow() {
     if (process.env.NODE_ENV === 'development') {
         // Dev mode - load from dev server
         mainWindow.loadURL('http://localhost:5173');
-        mainWindow.webContents.openDevTools();
-    } else {
-        // Production - load local files using platform-safe paths
+        // mainWindow.webContents.openDevTools(); // Commented out to prevent auto-opening
+    } else {        // Production - load local files using platform-safe paths
         const appPath = PathUtils.normalizePath(
             process.env.NODE_ENV === 'development'
                 ? path.join(__dirname, '../frontend/dist/index.html')
                 : path.join(app.getAppPath(), 'frontend/dist/index.html')
         );
-        
-        // Enable dev tools in production for debugging if needed
-        mainWindow.webContents.openDevTools();
         
         // Log the path being loaded
         console.log('Loading app from path:', appPath);

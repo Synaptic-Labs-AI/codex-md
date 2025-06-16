@@ -19,7 +19,7 @@ const { ipcMain } = require('electron');
 // Import required services
 const FileProcessorService = require('../src/electron/services/storage/FileProcessorService');
 const FileStorageService = require('../src/electron/services/storage/FileStorageService');
-const OpenAIProxyService = require('../src/electron/services/ai/OpenAIProxyService');
+const DeepgramService = require('../src/electron/services/ai/DeepgramService');
 const TranscriberService = require('../src/electron/services/ai/TranscriberService');
 const AudioConverter = require('../src/electron/services/conversion/multimedia/AudioConverter');
 const VideoConverter = require('../src/electron/services/conversion/multimedia/VideoConverter');
@@ -48,8 +48,8 @@ const SAMPLE_VIDEO_PATH = path.join(TEST_DIR, 'sample-video.mp4');
 const MP3_OUTPUT_PATH = path.join(TEST_DIR, 'audio-conversion-result.md');
 const VIDEO_OUTPUT_PATH = path.join(TEST_DIR, 'video-conversion-result.md');
 
-// OpenAI API Key - should be provided as an environment variable
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// Deepgram API Key - should be provided as an environment variable
+const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
 
 /**
  * Initialize the test environment
@@ -60,12 +60,12 @@ async function initialize() {
   // Ensure test directory exists
   await fs.ensureDir(TEST_DIR);
   
-  // Check if OpenAI API key is provided
-  if (!OPENAI_API_KEY) {
-    logger.warning('OpenAI API key not provided. Transcription will be skipped.');
-    logger.warning('Set the OPENAI_API_KEY environment variable to enable transcription.');
+  // Check if Deepgram API key is provided
+  if (!DEEPGRAM_API_KEY) {
+    logger.warning('Deepgram API key not provided. Transcription will be skipped.');
+    logger.warning('Set the DEEPGRAM_API_KEY environment variable to enable transcription.');
   } else {
-    logger.info('OpenAI API key found.');
+    logger.info('Deepgram API key found.');
   }
   
   // Check if test files exist
@@ -89,7 +89,7 @@ async function initialize() {
   return {
     mp3Exists,
     videoExists,
-    apiKeyExists: !!OPENAI_API_KEY
+    apiKeyExists: !!DEEPGRAM_API_KEY
   };
 }
 
@@ -102,16 +102,16 @@ function createServices() {
   // Create service instances
   const fileProcessorInstance = new FileProcessorService();
   const fileStorageInstance = new FileStorageService();
-  const openAIProxyInstance = new OpenAIProxyService();
+  const deepgramInstance = new DeepgramService();
   
-  // Configure OpenAI API if key is provided
-  if (OPENAI_API_KEY) {
-    openAIProxyInstance.handleConfigure(null, { apiKey: OPENAI_API_KEY })
-      .then(() => logger.info('OpenAI API configured successfully.'))
-      .catch(error => logger.error(`Failed to configure OpenAI API: ${error.message}`));
+  // Configure Deepgram API if key is provided
+  if (DEEPGRAM_API_KEY) {
+    deepgramInstance.initialize(DEEPGRAM_API_KEY)
+      .then(() => logger.info('Deepgram API configured successfully.'))
+      .catch(error => logger.error(`Failed to configure Deepgram API: ${error.message}`));
   }
   
-  const transcriberInstance = new TranscriberService(openAIProxyInstance, fileStorageInstance);
+  const transcriberInstance = new TranscriberService(deepgramInstance, fileStorageInstance);
   const audioConverterInstance = new AudioConverter(fileProcessorInstance, transcriberInstance, fileStorageInstance);
   const videoConverterInstance = new VideoConverter(fileProcessorInstance, transcriberInstance, fileStorageInstance);
   
@@ -120,7 +120,7 @@ function createServices() {
   return {
     fileProcessor: fileProcessorInstance,
     fileStorage: fileStorageInstance,
-    openAIProxy: openAIProxyInstance,
+    deepgram: deepgramInstance,
     transcriber: transcriberInstance,
     audioConverter: audioConverterInstance,
     videoConverter: videoConverterInstance

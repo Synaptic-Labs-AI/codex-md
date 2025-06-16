@@ -66,11 +66,11 @@
   function handleWelcomeContinue() {
     mode = 'upload';
   }
-
   // Setup on mount
   onMount(() => {
-    // Check if we should show welcome messages
+    // Check if we should show welcome messages (now synchronous with localStorage)
     showWelcome = welcomeState.shouldShowWelcome();
+    console.log('[CodexMdConverter] Should show welcome:', showWelcome);
     
     // If we shouldn't show welcome, go straight to upload mode
     if (!showWelcome) {

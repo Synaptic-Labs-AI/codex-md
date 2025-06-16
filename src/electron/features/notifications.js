@@ -81,7 +81,7 @@ class NotificationManager {
 
   /**
    * Shows a notification for an API key error
-   * @param {string} provider - The API provider (e.g., 'OpenAI')
+   * @param {string} provider - The API provider (e.g., 'Mistral', 'Deepgram')
    * @param {string} message - The error message
    */
   showApiKeyError(provider, message) {

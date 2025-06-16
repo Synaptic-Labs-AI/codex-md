@@ -58,9 +58,7 @@
             </ul>
           </li>
         </ul>
-      </section>
-
-      <section class="help-section">
+      </section>      <section class="help-section">
         <h2>🔑 About API Keys</h2>
         <ul>
           <li>You need API keys for specific conversion features:
@@ -78,6 +76,7 @@
           <li>You'll need to set up billing with these services, but usage is typically affordable</li>
           <li>Your API keys are stored securely on your device and persist between sessions</li>
           <li>Don't worry if you don't have these keys - you can still convert most documents without them!</li>
+          <li><strong>Ready to add your API keys?</strong> <a href="#/settings" class="settings-link">Go to Settings →</a></li>
         </ul>
       </section>
 
@@ -255,7 +254,6 @@
     font-size: 0.9em;
     font-style: normal;
   }
-
   a {
     color: var(--color-prime);
     text-decoration: none;
@@ -266,6 +264,25 @@
   a:hover {
     color: var(--color-second);
     border-color: var(--color-second);
+  }
+
+  .settings-link {
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--color-prime), var(--color-fourth));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    border-bottom: 2px solid var(--color-prime);
+    padding: 0.2em 0.5em;
+    border-radius: var(--rounded-sm);
+    display: inline-block;
+    background-color: rgba(var(--color-prime-rgb), 0.05);
+  }
+
+  .settings-link:hover {
+    background-color: rgba(var(--color-prime-rgb), 0.1);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(var(--color-prime-rgb), 0.2);
   }
 
   .resources-section {

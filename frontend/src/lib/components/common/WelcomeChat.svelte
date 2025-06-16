@@ -46,12 +46,12 @@
   onDestroy(() => {
     unsubApiKey();
   });
-  
   // Initialize on mount
   onMount(() => {
-    // Check if we should show this message type
+    // Check if we should show this message type (now synchronous with localStorage)
     if (messageType === MESSAGE_TYPES.WELCOME) {
       shouldShow = welcomeState.shouldShowWelcome();
+      console.log('[WelcomeChat] Should show welcome:', shouldShow);
     } else {
       shouldShow = welcomeState.shouldShowMessageType(messageType);
     }

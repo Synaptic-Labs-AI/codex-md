@@ -1,10 +1,13 @@
 /**
  * Welcome State Store
- * Manages welcome message display state and tracks initialization state
+ * Manages welcome message display state using localStorage for reliable persistence
  * 
- * This store handles both persistent welcome message state and ensures proper
- * initialization with the electron IPC system. It supports version-specific
- * welcome messages and tracks initialization errors.
+ * This store uses browser localStorage instead of Electron IPC for simplicity and reliability.
+ * localStorage is perfect for UI state like welcome messages since it's:
+ * - Synchronous (no race conditions)
+ * - Reliable (browser handles persistence)
+ * - Simple (no complex async initialization)
+ * - Isolated (won't be affected by other settings corruption)
  * 
  * Related files:
  * - CodexMdConverter.svelte: Uses this store to determine whether to show welcome messages
@@ -13,8 +16,8 @@
 
 import { writable } from 'svelte/store';
 
-// Platform checks
-const isBrowser = typeof window !== 'undefined';
+// Platform check
+const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
 // Current app version - update this when you want to show update messages
 const CURRENT_VERSION = '1.0.0';
@@ -26,166 +29,190 @@ export const MESSAGE_TYPES = {
   ANNOUNCEMENT: 'announcement'
 };
 
-// Default state with initialization tracking
-const defaultState = {
-  hasSeenWelcome: false,
-  lastSeenVersion: null,
-  seenMessageTypes: {},
-  isInitialized: false,
-  error: null
+// LocalStorage keys
+const STORAGE_KEYS = {
+  WELCOME_SEEN: 'codex-welcome-seen',
+  LAST_VERSION: 'codex-last-seen-version',
+  SEEN_MESSAGE_TYPES: 'codex-seen-message-types'
 };
 
-// Create the writable store with initial value
-const welcomeStateStore = writable(defaultState);
-
-// Initialize store from electron settings
-async function initializeStore() {
-// Skip initialization if not in browser environment
-  if (!isBrowser) return;
-  
-  // Only try to access electron API in browser environment
-  if (!window?.electron) {
-    console.warn('Electron API not available, using default welcome state');
-    welcomeStateStore.update(state => ({
-      ...state,
-      isInitialized: true,
-      error: 'Electron API not available'
-    }));
-    return;
-  }
-
-  try {
-    window.electron.onReady(async () => {
-      try {
-        // Get stored state
-        const storedState = await window.electron.getSetting('welcomeState');
-        welcomeStateStore.update(state => ({
-          ...(storedState || state),
-          isInitialized: true,
-          error: null
-        }));
-      } catch (e) {
-        console.error('Error reading welcome state from settings:', e);
-        welcomeStateStore.update(state => ({
-          ...state,
-          isInitialized: true,
-          error: e.message
-        }));
-      }
-    });
-  } catch (e) {
-    // This catch block handles errors with the onReady setup itself
-    console.error('Error reading welcome state from settings:', e);
-    welcomeStateStore.update(state => ({
-      ...state,
-      isInitialized: true,
-      error: e.message
-    }));
-  }
-}
-
-// Derived store for current session tracking
-const hasSeenWelcomeThisSession = writable(false);
-
-// Helper to update electron settings when store changes
-async function updateSettings(state) {
-// Skip if not in browser environment or not initialized
-  if (!isBrowser || !window?.electron) return;
+// Helper functions for localStorage operations
+function getFromStorage(key, fallback = null) {
+  if (!isBrowser) return fallback;
   
   try {
-    // Omit internal tracking state when saving
-    const { isInitialized, error, ...stateToSave } = state;
-    await window.electron.setSetting('welcomeState', stateToSave);
-  } catch (e) {
-    console.error('Error saving welcome state to settings:', e);
-    welcomeStateStore.update(currentState => ({
-      ...currentState,
-      error: e.message
-    }));
+    if (typeof localStorage === 'undefined') {
+      console.warn(`[WelcomeState] localStorage is not available`);
+      return fallback;
+    }
+    
+    const value = localStorage.getItem(key);
+    if (value === null) return fallback;
+    
+    // Try to parse as JSON, fall back to string value
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  } catch (error) {
+    console.error(`[WelcomeState] Error reading localStorage key "${key}":`, error);
+    return fallback;
   }
 }
 
-// Initialize the store only in browser environment
-if (isBrowser) {
-  initializeStore();
+function setInStorage(key, value) {
+  if (!isBrowser) return false;
+  
+  try {
+    if (typeof localStorage === 'undefined') {
+      console.warn(`[WelcomeState] localStorage is not available`);
+      return false;
+    }
+    
+    const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+    localStorage.setItem(key, serialized);
+    console.log(`[WelcomeState] Saved to localStorage: ${key} = ${value}`);
+    return true;
+  } catch (error) {
+    console.error(`[WelcomeState] Error saving to localStorage key "${key}":`, error);
+    return false;
+  }
 }
+
+function removeFromStorage(key) {
+  if (!isBrowser) return false;
+  
+  try {
+    localStorage.removeItem(key);
+    console.log(`[WelcomeState] Removed from localStorage: ${key}`);
+    return true;
+  } catch (error) {
+    console.error(`[WelcomeState] Error removing from localStorage key "${key}":`, error);
+    return false;
+  }
+}
+
+// Initialize state from localStorage
+function getInitialState() {
+  const hasSeenWelcome = getFromStorage(STORAGE_KEYS.WELCOME_SEEN) === true;
+  const lastSeenVersion = getFromStorage(STORAGE_KEYS.LAST_VERSION);
+  const seenMessageTypes = getFromStorage(STORAGE_KEYS.SEEN_MESSAGE_TYPES, {});
+  
+  const state = {
+    hasSeenWelcome,
+    lastSeenVersion,
+    seenMessageTypes,
+    isInitialized: true,
+    error: null
+  };
+  
+  console.log('[WelcomeState] Initialized state from localStorage:', state);
+  return state;
+}
+
+// Create the store with initial state from localStorage
+const welcomeStateStore = writable(getInitialState());
 
 // Public API
 const welcomeState = {
   // Subscribe to the store
   subscribe: welcomeStateStore.subscribe,
   
-  // Check if welcome messages should be shown (first time or new version)
+  // Check if welcome messages should be shown (first time only)
   shouldShowWelcome: () => {
-    let result = false;
-    welcomeStateStore.update(state => {
-      // Show welcome if user has never seen it or if there's a new version
-      result = !state.hasSeenWelcome || state.lastSeenVersion !== CURRENT_VERSION;
-      return state;
+    const hasSeenWelcome = getFromStorage(STORAGE_KEYS.WELCOME_SEEN) === true;
+    const result = !hasSeenWelcome;
+    
+    console.log('[WelcomeState] shouldShowWelcome check:', {
+      hasSeenWelcome,
+      result
     });
-    return result && !hasSeenWelcomeThisSession;
+    
+    return result;
   },
   
   // Check if a specific message type should be shown
   shouldShowMessageType: (type) => {
-    let result = false;
-    welcomeStateStore.update(state => {
-      result = !state.seenMessageTypes[type];
-      return state;
+    const seenMessageTypes = getFromStorage(STORAGE_KEYS.SEEN_MESSAGE_TYPES, {});
+    const result = !seenMessageTypes[type];
+    
+    console.log(`[WelcomeState] shouldShowMessageType(${type}):`, {
+      seenMessageTypes,
+      result
     });
-    return result && !hasSeenWelcomeThisSession;
+    
+    return result;
   },
   
   // Mark welcome messages as seen
   markAsSeen: () => {
-    hasSeenWelcomeThisSession.set(true);
-    welcomeStateStore.update(state => {
-      const newState = {
-        ...state,
-        hasSeenWelcome: true,
-        lastSeenVersion: CURRENT_VERSION
-      };
-      updateSettings(newState);
-      return newState;
-    });
+    console.log('[WelcomeState] markAsSeen called');
+    
+    // Update localStorage
+    setInStorage(STORAGE_KEYS.WELCOME_SEEN, true);
+    setInStorage(STORAGE_KEYS.LAST_VERSION, CURRENT_VERSION);
+    
+    // Update store
+    welcomeStateStore.update(state => ({
+      ...state,
+      hasSeenWelcome: true,
+      lastSeenVersion: CURRENT_VERSION
+    }));
   },
   
   // Mark a specific message type as seen
   markMessageTypeSeen: (type) => {
-    welcomeStateStore.update(state => {
-      const newState = {
-        ...state,
-        seenMessageTypes: {
-          ...state.seenMessageTypes,
-          [type]: true
-        }
-      };
-      updateSettings(newState);
-      return newState;
-    });
+    console.log(`[WelcomeState] markMessageTypeSeen(${type}) called`);
+    
+    const seenMessageTypes = getFromStorage(STORAGE_KEYS.SEEN_MESSAGE_TYPES, {});
+    seenMessageTypes[type] = true;
+    setInStorage(STORAGE_KEYS.SEEN_MESSAGE_TYPES, seenMessageTypes);
+    
+    // Update store
+    welcomeStateStore.update(state => ({
+      ...state,
+      seenMessageTypes
+    }));
   },
   
   // Reset the store (for testing or when forced updates are needed)
   reset: () => {
-    hasSeenWelcomeThisSession.set(false);
-    welcomeStateStore.update(() => {
-      const newState = {
-        hasSeenWelcome: false,
-        lastSeenVersion: null,
-        seenMessageTypes: {}
-      };
-      updateSettings(newState);
-      return newState;
-    });
-  },
-  
-  // Reset only for the current session (for testing)
-  resetSession: () => {
-    hasSeenWelcomeThisSession.set(false);
+    console.log('[WelcomeState] reset called');
+    
+    // Clear localStorage
+    removeFromStorage(STORAGE_KEYS.WELCOME_SEEN);
+    removeFromStorage(STORAGE_KEYS.LAST_VERSION);
+    removeFromStorage(STORAGE_KEYS.SEEN_MESSAGE_TYPES);
+    
+    // Reset store
+    welcomeStateStore.update(() => ({
+      hasSeenWelcome: false,
+      lastSeenVersion: null,
+      seenMessageTypes: {},
+      isInitialized: true,
+      error: null
+    }));
   },
   
   // Get the current version
-  getCurrentVersion: () => CURRENT_VERSION
+  getCurrentVersion: () => CURRENT_VERSION,
+  
+  // Force show welcome (for testing)
+  forceShow: () => {
+    console.log('[WelcomeState] forceShow called');
+    
+    // Clear welcome state from localStorage
+    removeFromStorage(STORAGE_KEYS.WELCOME_SEEN);
+    removeFromStorage(STORAGE_KEYS.LAST_VERSION);
+    
+    // Update store
+    welcomeStateStore.update(state => ({
+      ...state,
+      hasSeenWelcome: false,
+      lastSeenVersion: null
+    }));
+  }
 };
 
 export default welcomeState;

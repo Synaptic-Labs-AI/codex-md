@@ -123,7 +123,8 @@ class OfflineService {
       // Implement API connectivity check
       // This could ping key APIs used by the application
       const apiStatus = {
-        openai: await this.pingApi('https://api.openai.com/v1/engines'),
+        mistral: await this.pingApi('https://api.mistral.ai/v1/models'),
+        deepgram: await this.pingApi('https://api.deepgram.com/v1/'),
         // Add other APIs as needed
       };
       

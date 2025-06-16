@@ -21,13 +21,13 @@
   import { unifiedConversion, ConversionState, isWebsiteConversion, conversionProgress } from '../stores/unifiedConversion';
   import { getRandomMessage } from '../utils/conversionMessages';
   
-  // Track bubble position to alternate
+  // Track bubble position to alternate - use consistent position for stability
   let bubblePosition = 'left';
+  let messageCounter = 0;
   
-  // Function to toggle and return position
-  function togglePosition() {
-    bubblePosition = bubblePosition === 'left' ? 'right' : 'left';
-    return bubblePosition;
+  // Get stable position based on message counter
+  function getStablePosition() {
+    return messageCounter % 2 === 0 ? 'left' : 'right';
   }
 
   // State for message rotation and typing animation
@@ -100,6 +100,8 @@
     if (isAnimating) return;
     
     isAnimating = true;
+    messageCounter++;
+    bubblePosition = getStablePosition();
     currentMessage = getRandomMessage();
     displayedMessage = '';
     isTyping = true;
@@ -211,7 +213,7 @@
           name="Codex"
           avatar="📖"
           message={completionMessage}
-          avatarPosition={togglePosition()}
+          avatarPosition={bubblePosition}
         />
       {:else if status === ConversionState.STATUS.ERROR}
         <ChatBubble
@@ -220,14 +222,14 @@
           message={$unifiedConversion.isTranscriptionError 
             ? `Transcription failed: ${error || 'Unable to transcribe audio/video'}. Please check your Deepgram API key and try again.` 
             : `Encountered an error during conversion: ${error || 'Unknown error'}. Please try again.`}
-          avatarPosition={togglePosition()}
+          avatarPosition={bubblePosition}
         />
       {:else if status === 'stopped' || status === ConversionState.STATUS.CANCELLED}
         <ChatBubble
           name="Codex"
           avatar="📖"
           message={`Conversion ${status === ConversionState.STATUS.CANCELLED ? 'cancelled' : 'stopped'}. ${totalCount > 0 ? `Processed some of ${totalCount} files.` : ''}`}
-          avatarPosition={togglePosition()}
+          avatarPosition={bubblePosition}
         />
       {:else}
         <!-- Show rotating fun messages during active conversion with typing effect -->
@@ -235,7 +237,7 @@
           name="Codex"
           avatar="📖"
           message={displayedMessage}
-          avatarPosition={togglePosition()}
+          avatarPosition={bubblePosition}
           isTyping={isTyping}
         />
       {/if}
@@ -297,6 +299,10 @@
   .chat-container {
     margin-bottom: 0;
     width: 100%;
+    min-height: 260px; /* Reserve consistent space for chat bubbles */
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .fade-in {

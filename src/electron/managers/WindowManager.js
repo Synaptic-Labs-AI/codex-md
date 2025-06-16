@@ -156,17 +156,13 @@ class WindowManager {
                 if (process.env.NODE_ENV === 'development') {
                     // Dev mode - load from dev server
                     window.loadURL('http://localhost:5173');
-                    window.webContents.openDevTools();
-                } else {
-                    // Production - load local files using platform-safe paths
+                    // window.webContents.openDevTools(); // Commented out to prevent auto-opening
+                } else {                    // Production - load local files using platform-safe paths
                     const appPath = PathUtils.normalizePath(
                         process.env.NODE_ENV === 'development'
                             ? path.join(__dirname, '../../frontend/dist/index.html')
                             : path.join(app.getAppPath(), 'frontend/dist/index.html')
                     );
-                    
-                    // Enable dev tools in production for debugging if needed
-                    window.webContents.openDevTools();
                     
                     // Log the path being loaded
                     console.log('Loading app from path:', appPath);

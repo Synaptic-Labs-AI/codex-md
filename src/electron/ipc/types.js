@@ -173,7 +173,8 @@
  * @typedef {Object} OfflineStatusResponse
  * @property {boolean} online Current online status
  * @property {Object} apiStatus Status of individual APIs
- * @property {boolean} apiStatus.openai OpenAI API status
+ * @property {boolean} apiStatus.mistral Mistral API status
+ * @property {boolean} apiStatus.deepgram Deepgram API status
  */
 
 /**
@@ -210,7 +211,7 @@
 /**
  * @typedef {Object} ApiKeyRequest
  * @property {string} key API key
- * @property {string} [provider] API provider (e.g., 'openai')
+ * @property {string} [provider] API provider (e.g., 'mistral', 'deepgram')
  */
 
 /**

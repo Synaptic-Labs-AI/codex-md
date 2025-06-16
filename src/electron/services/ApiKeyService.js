@@ -21,10 +21,10 @@ class ApiKeyService {
   /**
    * Save an API key securely
    * @param {string} key - The API key to save
-   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
+   * @param {string} provider - The API provider (e.g., 'mistral', 'deepgram')
    * @returns {Promise<{success: boolean, error?: string}>}
    */
-  async saveApiKey(key, provider = 'openai') {
+  async saveApiKey(key, provider = 'mistral') {
     try {
       // Store the key without validation
       this.store.set(`${provider}-api-key`, key);
@@ -40,10 +40,10 @@ class ApiKeyService {
 
   /**
    * Get an API key
-   * @param {string} provider - The API provider (e.g., 'openai', 'mistral', 'deepgram')
+   * @param {string} provider - The API provider (e.g., 'mistral', 'deepgram')
    * @returns {string|null} The API key or null if not found
    */
-  getApiKey(provider = 'openai') {
+  getApiKey(provider = 'mistral') {
     // For deepgram, also check the transcription settings store
     if (provider === 'deepgram') {
       const transcriptionStore = createStore('transcription-settings');
@@ -69,19 +69,19 @@ class ApiKeyService {
 
   /**
    * Check if an API key exists
-   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
+   * @param {string} provider - The API provider (e.g., 'mistral', 'deepgram')
    * @returns {boolean} True if the API key exists
    */
-  hasApiKey(provider = 'openai') {
+  hasApiKey(provider = 'mistral') {
     return !!this.getApiKey(provider);
   }
 
   /**
    * Delete an API key
-   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
+   * @param {string} provider - The API provider (e.g., 'mistral', 'deepgram')
    * @returns {{success: boolean, error?: string}}
    */
-  deleteApiKey(provider = 'openai') {
+  deleteApiKey(provider = 'mistral') {
     try {
       this.store.delete(`${provider}-api-key`);
       return { success: true };
@@ -97,10 +97,10 @@ class ApiKeyService {
   /**
    * Validate an API key format
    * @param {string} key - The API key to validate
-   * @param {string} provider - The API provider (e.g., 'openai', 'mistral')
+   * @param {string} provider - The API provider (e.g., 'mistral', 'deepgram')
    * @returns {Promise<{success: boolean, error?: string}>}
    */
-  async validateApiKey(key, provider = 'openai') {
+  async validateApiKey(key, provider = 'mistral') {
     try {
       if (!key || typeof key !== 'string' || key.trim() === '') {
         return { 
@@ -110,15 +110,7 @@ class ApiKeyService {
       }
 
       // Basic format validation based on provider
-      if (provider === 'openai') {
-        // OpenAI keys typically start with "sk-" and are 51 characters long
-        if (!key.startsWith('sk-') || key.length < 20) {
-          return { 
-            success: false, 
-            error: 'Invalid OpenAI API key format. Keys should start with "sk-"' 
-          };
-        }
-      } else if (provider === 'mistral') {
+      if (provider === 'mistral') {
         // Mistral keys are typically long strings
         if (key.length < 20) {
           return { 

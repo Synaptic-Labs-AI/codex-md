@@ -2,9 +2,34 @@
 # Active Context
 
 ## Current Focus
-Verifying build and packaged application after resolving module resolution errors related to centralized metadata utility.
+Fixed welcome screen persistently showing on app startup by replacing complex async Electron store system with reliable localStorage solution.
 
 ## Recent Changes
+
+### Welcome Screen Persistence Fix (2025-06-16)
+- Fixed persistent welcome screen showing every time the app starts up
+- **Root Cause**: Complex async initialization race condition between Electron store loading and component mounting
+- **Solution**: Replaced complex Electron IPC store system with simple localStorage for welcome state
+- **Technical Changes**:
+  - Modified `frontend/src/lib/stores/welcomeState.js`:
+    - Removed complex async Electron store initialization with `window.electron.onReady()`
+    - Replaced with synchronous localStorage operations using browser APIs
+    - Eliminated race conditions and async timing issues
+    - Added proper error handling and fallback mechanisms
+  - Updated `frontend/src/lib/components/CodexMdConverter.svelte`:
+    - Removed 100ms delay and async initialization logic
+    - Made welcome state check synchronous in `onMount()`
+  - Updated `frontend/src/lib/components/common/WelcomeChat.svelte`:
+    - Removed async initialization delay
+    - Made message type checking synchronous
+- **Benefits**:
+  - ✅ **Reliability**: No more race conditions or async timing issues
+  - ✅ **Simplicity**: Eliminated 5 layers of abstraction (Frontend → IPC → Main Process → electron-store → File)
+  - ✅ **Performance**: Immediate synchronous access, no IPC overhead
+  - ✅ **Isolation**: Welcome state won't be affected by main settings corruption
+  - ✅ **Maintainability**: Much simpler code with fewer failure points
+- **Storage Approach**: localStorage is perfect for UI state like welcome messages since it persists across app restarts and is handled entirely in the renderer process
+- This ensures the welcome screen only appears on the very first app launch, as intended
 
 ### Metadata Utility Path Resolution Fix (2025-05-23)
 - Resolved "Cannot find module" errors related to `src/electron/converters/utils/metadata.js`.
