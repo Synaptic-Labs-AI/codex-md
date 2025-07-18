@@ -27,6 +27,9 @@
     mode = 'converted';
     hasCompletedConversion = true;
     scrollToTop();
+  } else if ($unifiedConversion.status === ConversionState.STATUS.CANCELLED) {
+    // Handle cancellation - return to upload mode after cleanup
+    handleCancellation();
   } else if (isWebsiteConversion) {
     // Ensure we're in converting mode for website conversions
     mode = 'converting';
@@ -55,6 +58,19 @@
     conversionResult.clearResult();
     hasCompletedConversion = false; // Reset the completion flag
     mode = 'upload';
+  }
+  
+  // Handle cancellation - clean up and return to upload mode
+  function handleCancellation() {
+    // Show cancellation briefly, then return to upload mode
+    setTimeout(() => {
+      scrollToTop();
+      files.clearFiles();
+      unifiedConversion.reset();
+      conversionResult.clearResult();
+      hasCompletedConversion = false;
+      mode = 'upload';
+    }, 2000); // Show cancellation message for 2 seconds
   }
   
   // Handle welcome chat closed event

@@ -4,3 +4,4 @@ dist/
 logs/
 **/.claude/settings.local.json
 build/
+.env

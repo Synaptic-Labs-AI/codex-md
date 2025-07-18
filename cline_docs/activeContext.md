@@ -2,9 +2,42 @@
 # Active Context
 
 ## Current Focus
-Fixed welcome screen persistently showing on app startup by replacing complex async Electron store system with reliable localStorage solution.
+Fixed cancel button functionality during website scraping to properly kill the process and return to main convert page instead of going blank and restarting.
 
 ## Recent Changes
+
+### Cancel Button Functionality Fix (2025-06-16)
+- Fixed cancel button during website scraping going blank then restarting instead of properly killing process and returning to main convert page
+- **Root Cause**: Multiple UI state management issues in cancellation flow:
+  - `ConversionProgress.svelte` component hid itself when status was `CANCELLED`, causing blank screen
+  - `CodexMdConverter.svelte` had no handling for `CANCELLED` state in mode switching logic
+  - Missing proper cleanup and state reset after cancellation
+  - No automatic return to main upload page after cancellation
+- **Solution**: Implemented proper cancellation state management with user feedback
+- **Technical Changes**:
+  - Modified `frontend/src/lib/components/CodexMdConverter.svelte`:
+    - Added handling for `ConversionState.STATUS.CANCELLED` in reactive mode switching
+    - Created `handleCancellation()` function for proper cleanup and transition
+    - Added 2-second delay to show cancellation message before returning to upload mode
+    - Ensured complete state reset (files, conversion state, results, completion flags)
+  - Updated `frontend/src/lib/components/ConversionProgress.svelte`:
+    - Removed `CANCELLED` status from component hiding condition to show cancellation message
+    - Enhanced cancellation message to include "Returning to main page..." feedback
+    - Improved user messaging for better clarity during cancellation
+  - Enhanced `frontend/src/lib/utils/conversion/handlers/conversionHandler.js`:
+    - Made `cancelConversion()` method async for proper cleanup sequencing
+    - Added comprehensive logging for cancellation process debugging
+    - Enhanced error handling during cancellation with fallback cleanup
+    - Improved parent URL conversion cancellation with specific ID handling
+    - Added proper cleanup of event listeners and conversion state
+- **Benefits**:
+  - ✅ **User Experience**: Clear feedback during cancellation with no blank screen
+  - ✅ **Process Management**: Proper termination of backend conversion processes
+  - ✅ **State Cleanup**: Complete reset of all conversion-related state
+  - ✅ **Navigation**: Automatic return to main upload page for continued use
+  - ✅ **Reliability**: Robust error handling ensures cleanup even if cancellation fails
+- **Flow**: Cancel Button → Show "Cancelled, returning to main page..." → Kill backend process → Clean state → Return to upload mode
+- This ensures users can properly cancel long-running website scraping operations and immediately start new conversions
 
 ### Welcome Screen Persistence Fix (2025-06-16)
 - Fixed persistent welcome screen showing every time the app starts up

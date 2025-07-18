@@ -411,16 +411,37 @@ class ConversionHandler {
     /**
      * Cancels the ongoing conversion process
      */
-    cancelConversion() {
-        // For parent URL conversions, use the specific cancel method
-        if (this.currentConversionId) {
-            window.electron.cancelParentUrlConversion(this.currentConversionId);
-        }
+    async cancelConversion() {
+        console.log('🛑 [VERBOSE] ConversionHandler.cancelConversion called');
         
-        electronClient.cancelRequests();
-        storeManager.cancelConversion();
-        this.cleanupParentUrlListeners();
-        this.showFeedback('Conversion cancelled by user', 'info');
+        try {
+            // For parent URL conversions, use the specific cancel method
+            if (this.currentConversionId) {
+                console.log('🛑 [VERBOSE] Cancelling parent URL conversion with ID:', this.currentConversionId);
+                await window.electron.cancelParentUrlConversion(this.currentConversionId);
+            }
+            
+            // Cancel any ongoing electron requests
+            console.log('🛑 [VERBOSE] Cancelling electron client requests');
+            await electronClient.cancelRequests();
+            
+            // Update store state to cancelled
+            console.log('🛑 [VERBOSE] Updating store manager to cancelled state');
+            storeManager.cancelConversion();
+            
+            // Clean up listeners
+            console.log('🛑 [VERBOSE] Cleaning up parent URL listeners');
+            this.cleanupParentUrlListeners();
+            
+            console.log('✅ [VERBOSE] Conversion cancellation completed successfully');
+            this.showFeedback('Conversion cancelled by user', 'info');
+        } catch (error) {
+            console.error('❌ [VERBOSE] Error during cancellation:', error);
+            // Still update the store state even if cancellation fails
+            storeManager.cancelConversion();
+            this.cleanupParentUrlListeners();
+            this.showFeedback('Conversion cancelled (with cleanup errors)', 'warning');
+        }
     }
 
     /**

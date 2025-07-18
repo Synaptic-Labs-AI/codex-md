@@ -204,7 +204,7 @@
   });
 </script>
 
-{#if status !== ConversionState.STATUS.IDLE && status !== ConversionState.STATUS.CANCELLED}
+{#if status !== ConversionState.STATUS.IDLE}
   <div class="conversion-progress" class:fade-in={status !== ConversionState.STATUS.IDLE}>
     <!-- Chat Bubbles -->
     <div class="chat-container">
@@ -228,7 +228,7 @@
         <ChatBubble
           name="Codex"
           avatar="📖"
-          message={`Conversion ${status === ConversionState.STATUS.CANCELLED ? 'cancelled' : 'stopped'}. ${totalCount > 0 ? `Processed some of ${totalCount} files.` : ''}`}
+          message={`Conversion ${status === ConversionState.STATUS.CANCELLED ? 'cancelled' : 'stopped'} by user. ${totalCount > 0 ? `Processed some of ${totalCount} files.` : ''} Returning to main page...`}
           avatarPosition={bubblePosition}
         />
       {:else}

@@ -1,6 +1,6 @@
 {
     "name": "codex-md",
-    "version": "1.2.0",
+    "version": "1.2.2",
     "description": "Desktop application for converting various file types to Markdown for codex.md",
     "main": "build/electron/main.js",
     "type": "commonjs",

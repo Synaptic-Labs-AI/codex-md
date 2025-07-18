@@ -159,7 +159,11 @@ class MediaConverter extends BaseService {
                 }
             });
 
-            return { conversionId, originalFileName: options.originalFileName || path.basename(filePath) };
+            return { 
+                async: true, 
+                conversionId, 
+                originalFileName: options.originalFileName || path.basename(filePath) 
+            };
         } catch (error) {
             const errorMessage = error.message || 'Failed to start media conversion';
             console.error(`[MediaConverter:HANDLE_CONVERT_ERROR][convId:${conversionId}] Error for ${originalFileNameForLog}:`, sanitizeForLogging(error));
